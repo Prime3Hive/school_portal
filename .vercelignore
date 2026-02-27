@@ -1,0 +1,10 @@
+# Supabase edge functions and migrations (server-side only)
+supabase/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Development artifacts
+node_modules/

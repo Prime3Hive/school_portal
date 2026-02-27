@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - TBD Academy Portal</title>
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="css/components.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+            font-family: var(--font-family-base);
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 450px;
+            padding: var(--space-6);
+        }
+
+        .login-card {
+            background: white;
+            border-radius: var(--radius-2xl);
+            padding: var(--space-8);
+            box-shadow: var(--shadow-2xl);
+            animation: slideUp 0.5s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: var(--space-8);
+        }
+
+        .login-logo {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto var(--space-4);
+            background: var(--gradient-primary);
+            border-radius: var(--radius-full);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: var(--font-size-3xl);
+            color: white;
+        }
+
+        .login-title {
+            font-size: var(--font-size-2xl);
+            font-weight: var(--font-weight-bold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .login-subtitle {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+        }
+
+        .form-group {
+            margin-bottom: var(--space-6);
+        }
+
+        .form-label {
+            display: block;
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+            margin-bottom: var(--space-2);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: var(--space-3) var(--space-4);
+            border: 2px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-base);
+            transition: all var(--transition-base);
+            box-sizing: border-box;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+        }
+
+        .form-input.error {
+            border-color: var(--color-danger);
+        }
+
+        .error-message {
+            color: var(--color-danger);
+            font-size: var(--font-size-sm);
+            margin-top: var(--space-2);
+            display: none;
+        }
+
+        .error-message.show {
+            display: block;
+        }
+
+        .password-toggle {
+            position: relative;
+        }
+
+        .password-toggle-btn {
+            position: absolute;
+            right: var(--space-3);
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: var(--font-size-lg);
+            color: var(--text-tertiary);
+            padding: var(--space-2);
+        }
+
+        .login-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: var(--space-6);
+            font-size: var(--font-size-sm);
+        }
+
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .forgot-link {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-weight: var(--font-weight-medium);
+        }
+
+        .forgot-link:hover {
+            text-decoration: underline;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: var(--space-4);
+            background: var(--gradient-primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius-lg);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-semibold);
+            cursor: pointer;
+            transition: all var(--transition-base);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: var(--space-6);
+            padding-top: var(--space-6);
+            border-top: 1px solid var(--border-primary);
+        }
+
+        .verify-link {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-weight: var(--font-weight-medium);
+            font-size: var(--font-size-sm);
+        }
+
+        .verify-link:hover {
+            text-decoration: underline;
+        }
+
+        .alert {
+            padding: var(--space-4);
+            border-radius: var(--radius-lg);
+            margin-bottom: var(--space-6);
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-danger {
+            background: rgba(var(--color-danger-rgb), 0.1);
+            color: var(--color-danger);
+            border: 1px solid var(--color-danger);
+        }
+
+        .alert-info {
+            background: rgba(var(--color-info-rgb), 0.1);
+            color: var(--color-info);
+            border: 1px solid var(--color-info);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-right: var(--space-2);
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .id-format-hint {
+            font-size: var(--font-size-xs);
+            color: var(--text-tertiary);
+            margin-top: var(--space-1);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="login-logo">🎓</div>
+                <h1 class="login-title">TBD Academy Portal</h1>
+                <p class="login-subtitle">Sign in to access your account</p>
+            </div>
+
+            <div id="alert-container"></div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label class="form-label" for="userId">User ID</label>
+                    <input type="text" id="userId" name="userId" class="form-input"
+                        placeholder="e.g., ADMIN-0001, TCH-2024-001" required autocomplete="username">
+                    <p class="id-format-hint">Format: ADMIN-0001, TCH-2026-001, STF-2026-001, STU-2026-001, or
+                        GRD-2026-001</p>
+                    <p class="error-message" id="userId-error"></p>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <div class="password-toggle">
+                        <input type="password" id="password" name="password" class="form-input"
+                            placeholder="Enter your password" required autocomplete="current-password">
+                        <button type="button" class="password-toggle-btn" onclick="togglePassword()">
+                            👁️
+                        </button>
+                    </div>
+                    <p class="error-message" id="password-error"></p>
+                </div>
+
+                <div class="login-options">
+                    <label class="remember-me">
+                        <input type="checkbox" id="rememberMe" name="rememberMe">
+                        <span>Remember me</span>
+                    </label>
+                    <a href="#" class="forgot-link" onclick="showForgotPassword(event)">Forgot ID?</a>
+                </div>
+
+                <button type="submit" class="btn-login" id="login-btn">
+                    Sign In
+                </button>
+            </form>
+
+            <div class="login-footer">
+                <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-2);">
+                    Accounts are created by the school administrator.
+                </p>
+                <p style="color: var(--text-tertiary); font-size: var(--font-size-xs);">
+                    Contact admin if you don't have login credentials.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supabase (must be first) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-client.js"></script>
+    <script src="js/bcrypt.min.js"></script>
+    <script src="js/auth-manager.js"></script>
+    <script>
+        function togglePassword() {
+            const passwordInput = document.getElementById('password');
+            const toggleBtn = event.target;
+
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                toggleBtn.textContent = '🙈';
+            } else {
+                passwordInput.type = 'password';
+                toggleBtn.textContent = '👁️';
+            }
+        }
+
+        function showAlert(message, type = 'danger') {
+            const container = document.getElementById('alert-container');
+            container.innerHTML = `
+        <div class="alert alert-${type} show">
+          ${message}
+        </div>
+      `;
+
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        function showForgotPassword(event) {
+            event.preventDefault();
+
+            // Create modal overlay
+            const overlay = document.createElement('div');
+            overlay.id = 'forgot-overlay';
+            overlay.style.cssText = `
+                position: fixed; inset: 0; z-index: 9999;
+                background: rgba(0,0,0,0.6); display: flex;
+                align-items: center; justify-content: center; padding: 1rem;
+                backdrop-filter: blur(4px); animation: fadeIn 0.2s ease;
+            `;
+            overlay.innerHTML = `
+                <div style="background: white; border-radius: 1.25rem; max-width: 440px; width: 100%;
+                     padding: 2.5rem; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: slideUp 0.3s ease;">
+                    <div style="text-align:center; margin-bottom:1.5rem;">
+                        <div style="font-size:3rem; margin-bottom:.75rem;">🔑</div>
+                        <h2 style="font-size:1.5rem; font-weight:700; color:#1e293b; margin:0 0 .5rem;">
+                            Forgot Your ID?
+                        </h2>
+                        <p style="color:#64748b; font-size:.9rem; margin:0;">
+                            Your User ID is assigned by the school administration.
+                        </p>
+                    </div>
+
+                    <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:.75rem;
+                         padding:1.25rem; margin-bottom:1.5rem;">
+                        <div style="font-weight:600; color:#0369a1; margin-bottom:.75rem;">📋 ID Format Guide</div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.5rem; font-size:.85rem; color:#334155;">
+                            <div>🛡️ <strong>Admin:</strong> ADM-YYYY-XXX</div>
+                            <div>👩‍🏫 <strong>Teacher:</strong> TCH-YYYY-XXX</div>
+                            <div>👔 <strong>Staff:</strong> STF-YYYY-XXX</div>
+                            <div>🎓 <strong>Student:</strong> STU-YYYY-XXX</div>
+                            <div>👨‍👩‍👧 <strong>Guardian:</strong> GRD-YYYY-XXX</div>
+                        </div>
+                    </div>
+
+                    <div style="background:#fef9f0; border:1px solid #fed7aa; border-radius:.75rem;
+                         padding:1.25rem; margin-bottom:1.75rem;">
+                        <div style="font-weight:600; color:#92400e; margin-bottom:.5rem;">📞 Contact Administration</div>
+                        <p style="color:#78350f; font-size:.875rem; margin:0 0 .5rem;">
+                            📧 <a href="mailto:admin@tbdacademy.edu.ng" style="color:#b45309;">
+                               admin@tbdacademy.edu.ng</a>
+                        </p>
+                        <p style="color:#78350f; font-size:.875rem; margin:0;">
+                            📱 +234-800-000-0000 &nbsp;(Mon–Fri, 8am–4pm)
+                        </p>
+                    </div>
+
+                    <button onclick="document.getElementById('forgot-overlay').remove()"
+                        style="width:100%; padding:.875rem; border-radius:.625rem; border:none; cursor:pointer;
+                               background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white;
+                               font-size:1rem; font-weight:600; transition:all .2s;"
+                        onmouseover="this.style.transform='translateY(-2px)'"
+                        onmouseout="this.style.transform='translateY(0)'">
+                        Got it, thanks! →
+                    </button>
+                </div>
+            `;
+            // Close on backdrop click
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+            document.body.appendChild(overlay);
+        }
+
+        // Login form handler
+        document.getElementById('login-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            const userId = document.getElementById('userId').value.trim().toUpperCase();
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('login-btn');
+
+            // Clear previous errors
+            document.querySelectorAll('.error-message').forEach(el => el.classList.remove('show'));
+            document.querySelectorAll('.form-input').forEach(el => el.classList.remove('error'));
+
+            // Validate ID format
+            const idPattern = /^(ADMIN|ADM|TCH|STF|STAFF|STU|GRD)-\d{4}(-\d{3})?$/;
+            if (!idPattern.test(userId)) {
+                document.getElementById('userId').classList.add('error');
+                document.getElementById('userId-error').textContent = 'Invalid ID format';
+                document.getElementById('userId-error').classList.add('show');
+                return;
+            }
+
+            // Show loading state
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="loading-spinner"></span> Signing in...';
+
+            try {
+                const result = await authManager.login(userId, password);
+
+                if (result.success) {
+                    // If admin requires a password change, redirect there first
+                    if (result.mustChangePassword || (result.session && result.session.mustChangePassword)) {
+                        window.location.href = 'change-password.html?userId=' + encodeURIComponent(result.session.userId);
+                    } else {
+                        const redirectUrl = authManager.getRedirectUrl(result.session.role);
+                        window.location.href = redirectUrl;
+                    }
+                } else {
+                    showAlert(result.error || result.message || 'Login failed. Please try again.');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Sign In';
+                }
+            } catch (error) {
+                showAlert('An error occurred. Please try again.');
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Sign In';
+            }
+        });
+
+        // Check if already logged in (use 'load' to let Supabase session hydrate first)
+        window.addEventListener('load', () => {
+            if (authManager.isAuthenticated()) {
+                const session = authManager.getSession();
+                if (session.mustChangePassword) {
+                    window.location.href = 'change-password.html?userId=' + encodeURIComponent(session.userId);
+                } else {
+                    const redirectUrl = authManager.getRedirectUrl(session.role);
+                    window.location.href = redirectUrl;
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>

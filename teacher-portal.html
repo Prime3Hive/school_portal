@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Portal - TBD Academy</title>
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/accessibility.css">
+    <link rel="stylesheet" href="css/mobile-optimizations.css">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .main-wrapper {
+            flex: 1;
+            margin-left: 280px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-header {
+            height: 70px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-primary);
+            padding: 0 var(--space-8);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: var(--z-sticky);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-full);
+            background: var(--gradient-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: var(--font-weight-bold);
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-sm);
+        }
+
+        .user-role {
+            font-size: var(--font-size-xs);
+            color: var(--text-tertiary);
+        }
+
+        .main-content {
+            flex: 1;
+            padding: var(--space-8);
+            background: var(--bg-primary);
+        }
+
+        @media (max-width: 1024px) {
+            .main-wrapper {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="nav-sidebar" id="sidebar">
+            <div class="nav-logo">
+                <div class="nav-logo-icon">🎓</div>
+                <div class="nav-logo-text">
+                    <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD Academy</div>
+                    <div style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Teacher Portal</div>
+                </div>
+            </div>
+
+            <ul class="nav-menu" id="nav-menu">
+                <!-- Navigation will be dynamically generated -->
+            </ul>
+
+            <div style="padding: 1rem; margin-top: auto; border-top: 1px solid var(--border-primary);">
+                <button class="btn btn-ghost btn-sm"
+                    style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+                    onclick="logout()">
+                    <span>🚪</span>
+                    <span>Sign Out</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-wrapper">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+                    <div class="breadcrumb">
+                        <span>Teacher Portal</span>
+                        <span class="breadcrumb-separator">›</span>
+                        <span id="breadcrumb-current">Dashboard</span>
+                    </div>
+                </div>
+
+                <div class="header-right">
+                    <div class="user-info">
+                        <div class="user-avatar" id="user-avatar">T</div>
+                        <div class="user-details">
+                            <div class="user-name" id="user-name">Teacher</div>
+                            <div class="user-role" id="user-id">TCH-XXXX</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="main-content" id="main-content">
+                <!-- Content will be loaded here -->
+            </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Supabase (must be first) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-client.js"></script>
+    <script src="js/bcrypt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="js/school-config.js"></script>
+    <script src="js/data-manager.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/auth-manager.js"></script>
+    <script src="js/permission-manager.js"></script>
+
+    <!-- Teacher Modules -->
+    <script src="js/modules/teacher-portal.js"></script>
+    <script src="js/modules/teacher-dashboard.js"></script>
+    <script src="js/modules/assessments.js"></script>
+    <script src="js/modules/class-schedule.js"></script>
+    <script src="js/modules/teacher-tasks.js"></script>
+    <script src="js/modules/calendar.js"></script>
+
+    <!-- Feature Managers -->
+    <script src="js/session-manager.js"></script>
+    <script src="js/notification-manager.js"></script>
+    <script src="js/file-upload-manager.js"></script>
+    <script src="js/theme-manager.js"></script>
+    <script src="js/loading-manager.js"></script>
+
+    <script>
+        // Protect teacher portal — redirect to login if not authenticated or wrong role
+        (function guardPortal() {
+            if (!authManager.isAuthenticated()) {
+                window.location.href = 'login.html';
+                throw new Error('Not authenticated');
+            }
+            const session = authManager.getSession();
+            if (!['teacher', 'staff'].includes(session.role)) {
+                window.location.href = authManager.getRedirectUrl(session.role);
+                throw new Error('Wrong portal for role: ' + session.role);
+            }
+        })();
+
+        // Initialize navigation
+        const session = authManager.getSession();
+        const navItems = permissionManager.filterNavigationByRole(session.role);
+        const navMenu = document.getElementById('nav-menu');
+
+        navMenu.innerHTML = navItems.map(item => `
+      <li class="nav-item">
+        <a href="#${item.module}" class="nav-link" data-module="${item.module}">
+          <span class="nav-link-icon">${item.icon}</span>
+          <span class="nav-link-text">${item.label}</span>
+        </a>
+      </li>
+    `).join('');
+
+        // Update user info
+        document.getElementById('user-name').textContent = session.fullName;
+        document.getElementById('user-id').textContent = session.userId;
+        document.getElementById('user-avatar').textContent = session.fullName.charAt(0).toUpperCase();
+
+        // Simple router for teacher portal
+        class TeacherPortalApp {
+            constructor() {
+                this.currentModule = null;
+                this.init();
+            }
+
+            init() {
+                this.setupNavigation();
+                this.loadInitialModule();
+            }
+
+            setupNavigation() {
+                const navLinks = document.querySelectorAll('.nav-link');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const module = link.dataset.module;
+                        this.loadModule(module);
+
+                        navLinks.forEach(l => l.classList.remove('active'));
+                        link.classList.add('active');
+                    });
+                });
+            }
+
+            loadInitialModule() {
+                const hash = window.location.hash.slice(1) || 'teacher-portal';
+                this.loadModule(hash);
+
+                const activeLink = document.querySelector(`[data-module="${hash}"]`);
+                if (activeLink) {
+                    activeLink.classList.add('active');
+                }
+            }
+
+            async loadModule(moduleName) {
+                const contentArea = document.getElementById('main-content');
+                const breadcrumb = document.getElementById('breadcrumb-current');
+
+                showLoading(contentArea);
+                window.location.hash = moduleName;
+                this.currentModule = moduleName;
+
+                const moduleTitles = {
+                    'teacher-portal': 'Teacher Portal',
+                    'teacher-dashboard': 'Dashboard',
+                    'my-classes': 'My Classes',
+                    'assessments': 'Assessments',
+                    'class-schedule': 'Schedule',
+                    'teacher-tasks': 'Tasks'
+                };
+
+                if (breadcrumb) {
+                    breadcrumb.textContent = moduleTitles[moduleName] || moduleName;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                try {
+                    const moduleFunction = window[`${this.camelCase(moduleName)}Module`];
+                    if (moduleFunction) {
+                        moduleFunction.init(contentArea);
+                    } else {
+                        contentArea.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-state-icon">🚧</div>
+                <h3 class="empty-state-title">Module Under Development</h3>
+                <p class="empty-state-description">The ${moduleTitles[moduleName]} module is coming soon!</p>
+              </div>
+            `;
+                    }
+                } catch (error) {
+                    console.error(`Error loading module ${moduleName}:`, error);
+                    contentArea.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">⚠️</div>
+              <h3 class="empty-state-title">Error Loading Module</h3>
+              <p class="empty-state-description">Failed to load ${moduleTitles[moduleName]}. Please try again.</p>
+            </div>
+          `;
+                }
+            }
+
+            camelCase(str) {
+                return str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+            }
+        }
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            window.app = new TeacherPortalApp();
+        });
+
+        // Handle browser back/forward
+        window.addEventListener('hashchange', () => {
+            const module = window.location.hash.slice(1);
+            if (module && window.app) {
+                window.app.loadModule(module);
+            }
+        });
+
+        // Toggle mobile sidebar
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+
+        // Logout function
+        function logout() {
+            if (confirm('Are you sure you want to sign out?')) {
+                authManager.logout();
+            }
+        }
+    </script>
+</body>
+
+</html>

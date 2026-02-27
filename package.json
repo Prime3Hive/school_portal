@@ -1,0 +1,20 @@
+{
+  "name": "tbd-academy-portal",
+  "version": "1.0.0",
+  "description": "School management portal for TBD Academy, Makurdi, Benue State",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python -m http.server 8000",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "school",
+    "management",
+    "portal",
+    "education",
+    "tbd-academy"
+  ],
+  "author": "TBD Academy",
+  "license": "UNLICENSED",
+  "private": true
+}

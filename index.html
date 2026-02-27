@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TBD Academy - School Management Portal</title>
+
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="css/design-system.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/accessibility.css">
+  <link rel="stylesheet" href="css/mobile-optimizations.css">
+
+  <!-- Configuration -->
+  <script src="js/config.js"></script>
+
+  <!-- Favicon -->
+  <link rel="icon"
+    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+
+  <style>
+    /* Main Layout */
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    .app-container {
+      display: flex;
+      min-height: 100vh;
+    }
+
+    .main-wrapper {
+      flex: 1;
+      margin-left: 280px;
+      display: flex;
+      flex-direction: column;
+      transition: margin-left 0.3s ease;
+    }
+
+    .main-wrapper.sidebar-collapsed {
+      margin-left: 0;
+    }
+
+    .top-header {
+      height: 70px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-primary);
+      padding: 0 var(--space-6);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: var(--z-sticky);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: var(--space-4);
+    }
+
+    .user-profile {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-2);
+      background: var(--bg-tertiary);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all var(--transition-base);
+      width: 40px;
+      height: 40px;
+      border: 1px solid var(--border-primary);
+    }
+
+    .user-profile:hover {
+      background: var(--bg-primary);
+      border-color: var(--color-primary);
+    }
+
+    .user-avatar {
+      font-size: var(--font-size-xl);
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .user-info {
+      display: none;
+    }
+
+    .user-name {
+      display: none;
+    }
+
+    .user-role {
+      display: none;
+    }
+
+    .notification-btn {
+      position: relative;
+      padding: var(--space-2);
+      background: var(--bg-tertiary);
+      border: none;
+      border-radius: var(--radius-md);
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: var(--font-size-xl);
+      transition: all var(--transition-base);
+    }
+
+    .notification-btn:hover {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    .notification-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 8px;
+      height: 8px;
+      background: var(--color-danger);
+      border-radius: 50%;
+      border: 2px solid var(--bg-secondary);
+    }
+
+    .main-content {
+      flex: 1;
+      padding: var(--space-8);
+      background: var(--bg-primary);
+      overflow-y: auto;
+    }
+
+    @media (max-width: 768px) {
+      .main-content {
+        padding: var(--space-4);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .main-content {
+        padding: var(--space-3);
+      }
+    }
+
+    .page-header {
+      margin-bottom: var(--space-8);
+    }
+
+    .page-title {
+      font-family: var(--font-display);
+      font-size: var(--font-size-4xl);
+      font-weight: var(--font-weight-bold);
+      color: var(--text-primary);
+      margin-bottom: var(--space-2);
+    }
+
+    .page-description {
+      font-size: var(--font-size-lg);
+      color: var(--text-secondary);
+    }
+
+    /* Sidebar States */
+    .nav-sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 280px;
+      transition: transform 0.3s ease;
+      z-index: 1000;
+    }
+
+    .nav-sidebar.collapsed {
+      transform: translateX(-100%);
+    }
+
+    /* Mobile Responsive */
+    @media (max-width: 1024px) {
+      .nav-sidebar {
+        transform: translateX(-100%);
+      }
+
+      .nav-sidebar.open {
+        transform: translateX(0);
+      }
+
+      .main-wrapper {
+        margin-left: 0 !important;
+      }
+    }
+
+    .mobile-menu-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: var(--space-2);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-size: var(--font-size-xl);
+      cursor: pointer;
+      transition: all 0.2s;
+      width: 40px;
+      height: 40px;
+    }
+
+    .mobile-menu-btn:hover {
+      background: var(--bg-primary);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+
+    /* User Profile Dropdown */
+    .user-profile {
+      position: relative;
+      cursor: pointer;
+    }
+
+    .user-profile:hover {
+      opacity: 0.9;
+    }
+
+    .profile-dropdown {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-lg);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      min-width: 240px;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-10px);
+      transition: all 0.3s ease;
+      z-index: 1000;
+    }
+
+    .user-profile.active .profile-dropdown {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+
+    .profile-dropdown::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      right: 20px;
+      width: 12px;
+      height: 12px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-primary);
+      border-top: 1px solid var(--border-primary);
+      transform: rotate(45deg);
+    }
+
+    .dropdown-header {
+      padding: var(--space-4);
+      border-bottom: 1px solid var(--border-primary);
+    }
+
+    .dropdown-user-name {
+      font-weight: var(--font-weight-semibold);
+      color: var(--text-primary);
+      margin-bottom: var(--space-1);
+    }
+
+    .dropdown-user-email {
+      font-size: var(--font-size-sm);
+      color: var(--text-secondary);
+    }
+
+    .dropdown-menu {
+      padding: var(--space-2);
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      color: var(--text-primary);
+      text-decoration: none;
+      border-radius: var(--radius-md);
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+
+    .dropdown-item:hover {
+      background: var(--bg-tertiary);
+      color: var(--color-primary);
+    }
+
+    .dropdown-item-icon {
+      font-size: var(--font-size-xl);
+      width: 24px;
+      text-align: center;
+    }
+
+    .dropdown-item-content {
+      flex: 1;
+    }
+
+    .dropdown-item-title {
+      font-weight: var(--font-weight-medium);
+      margin-bottom: 2px;
+    }
+
+    .dropdown-item-desc {
+      font-size: var(--font-size-xs);
+      color: var(--text-tertiary);
+    }
+
+    .dropdown-divider {
+      height: 1px;
+      background: var(--border-primary);
+      margin: var(--space-2) 0;
+    }
+  </style>
+
+  <!-- Flatpickr CSS (stylesheet only — JS loaded in body) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+</head>
+
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <nav class="nav-sidebar" id="sidebar">
+      <div class="nav-logo">
+        <div class="nav-logo-icon">🎓</div>
+        <div class="nav-logo-text">
+          <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD Academy</div>
+          <div style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Makurdi, Benue State</div>
+        </div>
+      </div>
+
+      <ul class="nav-menu">
+        <li class="nav-item">
+          <a href="#admin-dashboard" class="nav-link" data-module="admin-dashboard">
+            <span class="nav-link-icon">📊</span>
+            <span class="nav-link-text">Dashboard</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#student-directory" class="nav-link" data-module="student-directory">
+            <span class="nav-link-icon">👥</span>
+            <span class="nav-link-text">Students</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#class-schedule" class="nav-link" data-module="class-schedule">
+            <span class="nav-link-icon">📅</span>
+            <span class="nav-link-text">Classes & Schedule</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#fees-payments" class="nav-link" data-module="fees-payments">
+            <span class="nav-link-icon">💰</span>
+            <span class="nav-link-text">Fees & Payments</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#inventory" class="nav-link" data-module="inventory">
+            <span class="nav-link-icon">📦</span>
+            <span class="nav-link-text">Inventory</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#assessments" class="nav-link" data-module="assessments">
+            <span class="nav-link-icon">📝</span>
+            <span class="nav-link-text">Assessments</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#grades-management" class="nav-link" data-module="grades-management">
+            <span class="nav-link-icon">📚</span>
+            <span class="nav-link-text">Grades & Subjects</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#teacher-tasks" class="nav-link" data-module="teacher-tasks">
+            <span class="nav-link-icon">✓</span>
+            <span class="nav-link-text">Teacher Tasks</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#applications" class="nav-link" data-module="applications">
+            <span class="nav-link-icon">📋</span>
+            <span class="nav-link-text">Applications</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#user-management" class="nav-link" data-module="user-management">
+            <span class="nav-link-icon">🔐</span>
+            <span class="nav-link-text">User Management</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#calendar" class="nav-link" data-module="calendar">
+            <span class="nav-link-icon">📆</span>
+            <span class="nav-link-text">Calendar</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="public-blog.html" class="nav-link" target="_blank">
+            <span class="nav-link-icon">📰</span>
+            <span class="nav-link-text">Public Blog</span>
+          </a>
+        </li>
+      </ul>
+
+      <div style="padding: 1rem; margin-top: auto; border-top: 1px solid var(--border-primary);">
+        <button class="btn btn-ghost btn-sm"
+          style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+          onclick="logout()">
+          <span>🚪</span>
+          <span>Sign Out</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <div class="main-wrapper">
+      <header class="top-header">
+        <div class="header-left">
+          <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+          <div class="breadcrumbs">
+            <span class="breadcrumb-item">🏠 Home</span>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-item" id="breadcrumb-current">Dashboard</span>
+          </div>
+        </div>
+        <div class="header-right">
+          <button class="notification-btn" title="Notifications">
+            🔔
+            <span class="notification-badge"></span>
+          </button>
+          <div class="user-profile" onclick="toggleProfileDropdown(event)">
+            <div class="user-avatar">👤</div>
+            <div class="user-info">
+              <div class="user-name">Admin User</div>
+              <div class="user-role">Administrator</div>
+            </div>
+
+            <!-- Profile Dropdown Menu -->
+            <div class="profile-dropdown">
+              <div class="dropdown-header">
+                <div class="dropdown-user-name">System Administrator</div>
+                <div class="dropdown-user-email">admin@tbdacademy.edu</div>
+              </div>
+
+              <div class="dropdown-menu">
+                <a href="#admin-profile" class="dropdown-item" onclick="navigateToProfile(event)">
+                  <span class="dropdown-item-icon">👤</span>
+                  <div class="dropdown-item-content">
+                    <div class="dropdown-item-title">My Profile</div>
+                    <div class="dropdown-item-desc">View and edit profile</div>
+                  </div>
+                </a>
+
+                <div class="dropdown-divider"></div>
+
+                <a href="teacher-portal.html" class="dropdown-item" target="_blank">
+                  <span class="dropdown-item-icon">👨‍🏫</span>
+                  <div class="dropdown-item-content">
+                    <div class="dropdown-item-title">Staff Portal</div>
+                    <div class="dropdown-item-desc">Access teacher dashboard</div>
+                  </div>
+                </a>
+
+                <a href="student-portal.html" class="dropdown-item" target="_blank">
+                  <span class="dropdown-item-icon">🎓</span>
+                  <div class="dropdown-item-content">
+                    <div class="dropdown-item-title">Student Portal</div>
+                    <div class="dropdown-item-desc">View student dashboard</div>
+                  </div>
+                </a>
+
+                <div class="dropdown-divider"></div>
+
+                <a href="#settings" class="dropdown-item" onclick="navigateToSettings(event)">
+                  <span class="dropdown-item-icon">⚙️</span>
+                  <div class="dropdown-item-content">
+                    <div class="dropdown-item-title">Settings</div>
+                    <div class="dropdown-item-desc">Account preferences</div>
+                  </div>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content -->
+      <main class="main-content" id="main-content">
+        <!-- Module content will be loaded here -->
+        <div style="display: flex; justify-content: center; align-items: center; min-height: 400px;">
+          <div class="spinner"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Supabase (must be first) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+
+  <!-- Environment Variables Loader (must load before config) -->
+  <script src="js/env-loader.js"></script>
+
+  <!-- Core Config & Helpers (must come before modules) -->
+  <script src="js/school-config.js"></script>
+  <script src="js/application-manager.js"></script>
+
+  <!-- Scripts -->
+  <script src="js/data-manager.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/permission-manager.js"></script>
+
+  <!-- Module Scripts -->
+  <script src="js/modules/admin-dashboard.js"></script>
+  <script src="js/modules/student-directory.js"></script>
+  <script src="js/modules/class-schedule.js"></script>
+  <script src="js/modules/fees-payments.js"></script>
+  <script src="js/modules/inventory.js"></script>
+  <script src="js/modules/assessments.js"></script>
+  <script src="js/modules/teacher-tasks.js"></script>
+  <script src="js/modules/applications.js"></script>
+  <script src="js/modules/user-management.js"></script>
+  <script src="js/modules/staff-management.js"></script>
+  <script src="js/modules/admin-profile.js"></script>
+  <script src="js/modules/settings.js"></script>
+  <script src="js/modules/grades-management.js"></script>
+  <script src="js/modules/calendar.js"></script>
+
+  <!-- Feature Managers -->
+  <script src="js/session-manager.js"></script>
+  <script src="js/notification-manager.js"></script>
+  <script src="js/file-upload-manager.js"></script>
+  <script src="js/theme-manager.js"></script>
+  <script src="js/loading-manager.js"></script>
+
+  <!-- Dashboard Settings Helper -->
+  <script src="js/dashboard-settings.js"></script>
+
+  <!-- External Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://js.paystack.co/v1/inline.js"></script>
+
+  <!-- Authentication & Data Refresh -->
+  <script src="js/bcrypt.min.js"></script>
+  <script src="js/auth-manager.js"></script>
+  <script>
+    // Protect admin portal — redirect to login if not authenticated or not admin/staff
+    (function guardPortal() {
+      if (!authManager.isAuthenticated()) {
+        window.location.href = 'login.html';
+        throw new Error('Not authenticated');
+      }
+      const session = authManager.getSession();
+      if (!['admin', 'staff'].includes(session.role)) {
+        window.location.href = 'login.html';
+        throw new Error('Unauthorized role');
+      }
+    })();
+
+    // Display user info in header
+    window.addEventListener('DOMContentLoaded', () => {
+      const session = authManager.getSession();
+      if (session) {
+        const userNameEl = document.querySelector('.user-name');
+        if (userNameEl) userNameEl.textContent = session.fullName;
+        const userIdEl = document.querySelector('.user-id');
+        if (userIdEl) userIdEl.textContent = session.userId;
+      }
+    });
+
+    // Refresh all Supabase data once the page is fully loaded
+    window.addEventListener('load', async () => {
+      if (window.supabaseReady) {
+        try {
+          await Promise.all([
+            dataManager.refreshAll(),
+            authManager.refreshUsers()
+          ]);
+          console.log('✅ Supabase data loaded into DataManager + AuthManager caches.');
+          window.dispatchEvent(new CustomEvent('supabase-data-ready'));
+        } catch (e) {
+          console.warn('Data refresh error:', e);
+        }
+      }
+    });
+
+    // Logout function
+    async function logout() {
+      if (confirm('Are you sure you want to logout?')) {
+        await authManager.logout();
+      }
+    }
+  </script>
+
+  <!-- Main App (must be last) -->
+  <script src="js/app.js"></script>
+
+  <script>
+    // Toggle sidebar for both desktop and mobile
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.nav-sidebar');
+      const mainWrapper = document.querySelector('.main-wrapper');
+
+      if (window.innerWidth > 1024) {
+        // Desktop: toggle collapsed state
+        sidebar.classList.toggle('collapsed');
+        mainWrapper.classList.toggle('sidebar-collapsed');
+      } else {
+        // Mobile: toggle open state
+        sidebar.classList.toggle('open');
+      }
+    }
+
+    // Close sidebar when clicking outside on mobile only
+    document.addEventListener('click', (e) => {
+      const sidebar = document.getElementById('sidebar');
+      const menuBtn = document.querySelector('.mobile-menu-btn');
+      const mainContent = document.querySelector('.main-content');
+
+      if (window.innerWidth <= 1024 &&
+        !sidebar.contains(e.target) &&
+        !menuBtn.contains(e.target) &&
+        sidebar.classList.contains('open') &&
+        mainContent.contains(e.target)) {
+        sidebar.classList.remove('open');
+      }
+    });
+
+    // Prevent sidebar state changes on window resize
+    let resizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        const sidebar = document.querySelector('.nav-sidebar');
+        const mainWrapper = document.querySelector('.main-wrapper');
+
+        if (window.innerWidth > 1024) {
+          // Desktop: remove mobile class
+          sidebar.classList.remove('open');
+        } else {
+          // Mobile: remove desktop class
+          sidebar.classList.remove('collapsed');
+          mainWrapper.classList.remove('sidebar-collapsed');
+        }
+      }, 250);
+    });
+
+    // Profile dropdown toggle
+    function toggleProfileDropdown(event) {
+      event.stopPropagation();
+      const profile = event.currentTarget;
+      profile.classList.toggle('active');
+    }
+
+    // Navigate to profile
+    function navigateToProfile(event) {
+      event.preventDefault();
+      const profile = document.querySelector('.user-profile');
+      profile.classList.remove('active');
+      if (window.app) {
+        window.app.loadModule('admin-profile');
+      }
+    }
+
+    // Navigate to settings
+    function navigateToSettings(event) {
+      event.preventDefault();
+      const profile = document.querySelector('.user-profile');
+      profile.classList.remove('active');
+      if (window.app) {
+        window.app.loadModule('settings');
+      }
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+      const profile = document.querySelector('.user-profile');
+      if (profile && !profile.contains(e.target)) {
+        profile.classList.remove('active');
+      }
+    });
+  </script>
+</body>
+
+</html>

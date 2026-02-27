@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Invitation - TBD Academy Portal</title>
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="css/components.css">
+    <style>
+        body { margin:0; padding:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%); font-family:var(--font-family-base); }
+        .verify-container { width:100%; max-width:500px; padding:var(--space-6); }
+        .verify-card { background:white; border-radius:var(--radius-2xl); padding:var(--space-8); box-shadow:var(--shadow-2xl); animation:slideUp .5s ease-out; }
+        @keyframes slideUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+        .verify-header { text-align:center; margin-bottom:var(--space-8); }
+        .verify-logo { width:80px; height:80px; margin:0 auto var(--space-4); background:var(--gradient-primary); border-radius:var(--radius-full); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-3xl); color:white; }
+        .verify-title { font-size:var(--font-size-2xl); font-weight:var(--font-weight-bold); color:var(--text-primary); margin-bottom:var(--space-2); }
+        .verify-subtitle { font-size:var(--font-size-sm); color:var(--text-secondary); }
+        .form-group { margin-bottom:var(--space-6); }
+        .form-label { display:block; font-size:var(--font-size-sm); font-weight:var(--font-weight-semibold); color:var(--text-primary); margin-bottom:var(--space-2); }
+        .form-input { width:100%; padding:var(--space-3) var(--space-4); border:2px solid var(--border-primary); border-radius:var(--radius-lg); font-size:var(--font-size-base); transition:all var(--transition-base); box-sizing:border-box; }
+        .form-input:focus { outline:none; border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(var(--color-primary-rgb),0.1); }
+        .password-requirements { font-size:var(--font-size-xs); color:var(--text-tertiary); margin-top:var(--space-2); padding:var(--space-3); background:var(--bg-tertiary); border-radius:var(--radius-md); }
+        .password-requirements ul { margin:var(--space-2) 0 0 0; padding-left:var(--space-5); }
+        .password-requirements li { margin-bottom:var(--space-1); }
+        .btn-verify { width:100%; padding:var(--space-4); background:var(--gradient-primary); color:white; border:none; border-radius:var(--radius-lg); font-size:var(--font-size-base); font-weight:var(--font-weight-semibold); cursor:pointer; transition:all var(--transition-base); box-shadow:var(--shadow-md); }
+        .btn-verify:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+        .btn-verify:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+        .alert { padding:var(--space-4); border-radius:var(--radius-lg); margin-bottom:var(--space-6); display:none; }
+        .alert.show { display:block; }
+        .alert-danger  { background:rgba(var(--color-danger-rgb),0.1);  color:var(--color-danger);  border:1px solid var(--color-danger); }
+        .alert-success { background:rgba(var(--color-success-rgb),0.1); color:var(--color-success); border:1px solid var(--color-success); }
+        .alert-info    { background:rgba(var(--color-info-rgb),0.1);    color:var(--color-info);    border:1px solid var(--color-info); }
+        .alert-warning { background:rgba(255,193,7,0.1); color:#856404; border:1px solid #ffc107; }
+        .invitation-info { background:var(--bg-tertiary); padding:var(--space-4); border-radius:var(--radius-lg); margin-bottom:var(--space-6); }
+        .invitation-info p { margin:var(--space-2) 0; font-size:var(--font-size-sm); }
+        .invitation-info strong { color:var(--text-primary); }
+        .loading-spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin .6s linear infinite; margin-right:var(--space-2); vertical-align:middle; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .back-link { text-align:center; margin-top:var(--space-6); padding-top:var(--space-6); border-top:1px solid var(--border-primary); }
+        .back-link a { color:var(--color-primary); text-decoration:none; font-weight:var(--font-weight-medium); font-size:var(--font-size-sm); }
+        .back-link a:hover { text-decoration:underline; }
+    </style>
+</head>
+<body>
+    <div class="verify-container">
+        <div class="verify-card">
+            <div class="verify-header">
+                <div class="verify-logo">&#x2709;</div>
+                <h1 class="verify-title">Verify Your Invitation</h1>
+                <p class="verify-subtitle">Set your password to activate your account</p>
+            </div>
+
+            <div id="alert-container"></div>
+            <div id="invitation-info" class="invitation-info" style="display:none;"></div>
+
+            <form id="verify-form" style="display:none;">
+                <div class="form-group">
+                    <label class="form-label" for="fullName">Full Name *</label>
+                    <input type="text" id="fullName" name="fullName" class="form-input" placeholder="Your full name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">New Password *</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="Create a strong password" required>
+                    <div class="password-requirements">
+                        <strong>Password must contain:</strong>
+                        <ul>
+                            <li>At least 8 characters</li>
+                            <li>One uppercase letter</li>
+                            <li>One lowercase letter</li>
+                            <li>One number</li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="confirmPassword">Confirm Password *</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" class="form-input" placeholder="Re-enter your password" required>
+                </div>
+                <button type="submit" class="btn-verify" id="verify-btn">Set Password &amp; Activate Account</button>
+            </form>
+
+            <div class="back-link">
+                <a href="login.html">&larr; Back to Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-client.js"></script>
+    <script src="js/bcrypt.min.js"></script>
+    <script src="js/auth-manager.js"></script>
+    <script>
+        var currentInvitation = null;
+        var urlParams = new URLSearchParams(window.location.search);
+        var token = urlParams.get('token');
+
+        function showAlert(message, type) {
+            if (!type) type = 'danger';
+            document.getElementById('alert-container').innerHTML =
+                '<div class="alert alert-' + type + ' show">' + message + '</div>';
+        }
+
+        function validatePassword(pwd) {
+            return pwd.length >= 8 &&
+                   /[A-Z]/.test(pwd) &&
+                   /[a-z]/.test(pwd) &&
+                   /\d/.test(pwd);
+        }
+
+        async function initPage() {
+            if (!token) {
+                showAlert('No invitation token provided. Please use the link given to you by the administrator.');
+                return;
+            }
+
+            showAlert('Verifying invitation...', 'info');
+
+            try {
+                currentInvitation = await authManager.verifyInvitation(token);
+
+                if (!currentInvitation) {
+                    showAlert('Invalid or expired invitation. Please contact the administrator for a new one.');
+                    return;
+                }
+
+                document.getElementById('alert-container').innerHTML = '';
+
+                var fullName = currentInvitation.full_name ||
+                               (currentInvitation.metadata && currentInvitation.metadata.fullName) || '';
+                var role     = currentInvitation.role || '';
+                var schoolId = currentInvitation.school_id || '';
+
+                var infoDiv = document.getElementById('invitation-info');
+                infoDiv.innerHTML =
+                    '<p><strong>Name:</strong> ' + fullName + '</p>' +
+                    '<p><strong>Role:</strong> ' + role.charAt(0).toUpperCase() + role.slice(1) + '</p>' +
+                    '<p><strong>Your Login ID:</strong> ' + schoolId + '</p>' +
+                    (currentInvitation.email ? '<p><strong>Email:</strong> ' + currentInvitation.email + '</p>' : '');
+                infoDiv.style.display = 'block';
+
+                document.getElementById('verify-form').style.display = 'block';
+                if (fullName) document.getElementById('fullName').value = fullName;
+
+            } catch (err) {
+                showAlert('Error verifying invitation. Please try again later.');
+                console.error('Verify error:', err);
+            }
+        }
+
+        window.addEventListener('load', initPage);
+
+        document.getElementById('verify-form').addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            var newPassword     = document.getElementById('password').value;
+            var confirmPassword = document.getElementById('confirmPassword').value;
+            var verifyBtn       = document.getElementById('verify-btn');
+
+            if (!validatePassword(newPassword)) {
+                showAlert('Password does not meet requirements. Please check the rules below the password field.');
+                return;
+            }
+            if (newPassword !== confirmPassword) {
+                showAlert('Passwords do not match. Please re-enter them.');
+                return;
+            }
+
+            verifyBtn.disabled = true;
+            verifyBtn.innerHTML = '<span class="loading-spinner"></span> Activating account...';
+
+            try {
+                var schoolId   = currentInvitation.school_id;
+                var defaultPwd = currentInvitation.default_password;
+
+                if (!schoolId || !defaultPwd) {
+                    showAlert('Invitation data is incomplete. Please contact the administrator.');
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = 'Set Password & Activate Account';
+                    return;
+                }
+
+                // ── Step 1: Log in with the default credentials ──
+                // (User account already exists — created by admin via create-invitation-v2)
+                showAlert('Signing in...', 'info');
+
+                var loginResult = await authManager.login(schoolId, defaultPwd);
+                if (!loginResult.success) {
+                    showAlert(
+                        'Login failed. Please go to the login page and use:<br>' +
+                        'Login ID: <strong>' + schoolId + '</strong> | ' +
+                        'Temporary password: <strong>' + defaultPwd + '</strong>',
+                        'warning'
+                    );
+                    verifyBtn.disabled = false;
+                    verifyBtn.textContent = 'Set Password & Activate Account';
+                    return;
+                }
+
+                // ── Step 2: Change password to the user's chosen password ──
+                showAlert('Setting your new password...', 'info');
+
+                var pwdResult = await authManager.changePassword(schoolId, defaultPwd, newPassword);
+                if (!pwdResult.success) {
+                    showAlert(
+                        'Password change failed: ' + (pwdResult.error || 'Unknown error') +
+                        '. You can change it after logging in.',
+                        'warning'
+                    );
+                    await authManager.logout(null);
+                    setTimeout(function () { window.location.href = 'login.html'; }, 4000);
+                    return;
+                }
+
+                // ── Step 3: Sign out silently, show success, then redirect ──
+                await authManager.logout(null);
+
+                document.getElementById('verify-form').style.display = 'none';
+                document.getElementById('invitation-info').style.display = 'none';
+
+                showAlert(
+                    '\u2713 Account activated successfully!<br>' +
+                    'Your Login ID is <strong>' + schoolId + '</strong>.<br>' +
+                    'Redirecting to login in 3 seconds...',
+                    'success'
+                );
+                setTimeout(function () { window.location.href = 'login.html'; }, 3000);
+
+            } catch (err) {
+                showAlert(err.message || 'An unexpected error occurred. Please try again.', 'danger');
+                verifyBtn.disabled = false;
+                verifyBtn.textContent = 'Set Password & Activate Account';
+            }
+        });
+    </script>
+</body>
+</html>

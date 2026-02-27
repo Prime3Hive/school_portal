@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student / Guardian Portal - TBD Academy</title>
+
+    <!-- Stylesheets -->
+    <link rel="stylesheet" href="css/design-system.css">
+    <link rel="stylesheet" href="css/components.css">
+    <link rel="stylesheet" href="css/accessibility.css">
+    <link rel="stylesheet" href="css/mobile-optimizations.css">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .main-wrapper {
+            flex: 1;
+            margin-left: 280px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-header {
+            height: 70px;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-primary);
+            padding: 0 var(--space-8);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: var(--z-sticky);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-full);
+            background: var(--gradient-success);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: var(--font-weight-bold);
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-weight: var(--font-weight-semibold);
+            font-size: var(--font-size-sm);
+        }
+
+        .user-role {
+            font-size: var(--font-size-xs);
+            color: var(--text-tertiary);
+        }
+
+        .main-content {
+            flex: 1;
+            padding: var(--space-8);
+            background: var(--bg-primary);
+        }
+
+        @media (max-width: 1024px) {
+            .main-wrapper {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="nav-sidebar" id="sidebar">
+            <div class="nav-logo">
+                <div class="nav-logo-icon">🎓</div>
+                <div class="nav-logo-text">
+                    <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD Academy</div>
+                    <div style="font-size: var(--font-size-xs); color: var(--text-tertiary);" id="portal-label">Student
+                        Portal</div>
+                </div>
+            </div>
+
+            <ul class="nav-menu" id="nav-menu">
+                <!-- Navigation will be dynamically generated -->
+            </ul>
+
+            <div style="padding: 1rem; margin-top: auto; border-top: 1px solid var(--border-primary);">
+                <button class="btn btn-ghost btn-sm"
+                    style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+                    onclick="logout()">
+                    <span>🚪</span>
+                    <span>Sign Out</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <div class="main-wrapper">
+            <header class="top-header">
+                <div class="header-left">
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+                    <div class="breadcrumb">
+                        <span>Student Portal</span>
+                        <span class="breadcrumb-separator">›</span>
+                        <span id="breadcrumb-current">Dashboard</span>
+                    </div>
+                </div>
+
+                <div class="header-right">
+                    <div class="user-info">
+                        <div class="user-avatar" id="user-avatar">S</div>
+                        <div class="user-details">
+                            <div class="user-name" id="user-name">Student</div>
+                            <div class="user-role" id="user-id">STU-XXXX</div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="main-content" id="main-content">
+                <!-- Content will be loaded here -->
+            </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Supabase (must be first) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/supabase-client.js"></script>
+    <script src="js/bcrypt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="js/school-config.js"></script>
+    <script src="js/data-manager.js"></script>
+    <script src="js/components.js"></script>
+    <script src="js/auth-manager.js"></script>
+    <script src="js/permission-manager.js"></script>
+
+    <!-- Student Modules -->
+    <script src="js/modules/student-dashboard.js"></script>
+    <script src="js/modules/student-grades.js"></script>
+    <script src="js/modules/student-fees.js"></script>
+    <script src="js/modules/student-schedule.js"></script>
+    <script src="js/modules/student-attendance.js"></script>
+    <script src="js/modules/student-tasks.js"></script>
+    <script src="js/modules/guardian-portal.js"></script>
+    <script src="js/modules/calendar.js"></script>
+
+    <!-- Feature Managers -->
+    <script src="js/session-manager.js"></script>
+    <script src="js/notification-manager.js"></script>
+    <script src="js/file-upload-manager.js"></script>
+    <script src="js/theme-manager.js"></script>
+    <script src="js/loading-manager.js"></script>
+
+    <script>
+        // Protect portal — redirect to login if not authenticated
+        // Allowed roles: student, guardian
+        (function guardPortal() {
+            if (!authManager.isAuthenticated()) {
+                window.location.href = 'login.html';
+                throw new Error('Not authenticated');
+            }
+            const session = authManager.getSession();
+            if (!['student', 'guardian'].includes(session.role)) {
+                window.location.href = authManager.getRedirectUrl(session.role);
+                throw new Error('Wrong portal for role: ' + session.role);
+            }
+            // Update portal label to reflect role
+            const label = document.getElementById('portal-label');
+            if (label) label.textContent = session.role === 'guardian' ? 'Guardian Portal' : 'Student Portal';
+            document.title = session.role === 'guardian' ? 'Guardian Portal - TBD Academy' : 'Student Portal - TBD Academy';
+        })();
+
+        // Initialize navigation — guardians get a simplified nav
+        const session = authManager.getSession();
+        const isGuardian = session.role === 'guardian';
+        const navItems = isGuardian
+            ? [{ module: 'guardian-overview', icon: '👨‍👩‍👧', label: 'Child Overview' },
+            { module: 'guardian-fees', icon: '💳', label: "Child's Fees" }]
+            : permissionManager.filterNavigationByRole(session.role);
+        const navMenu = document.getElementById('nav-menu');
+
+        navMenu.innerHTML = navItems.map(item => `
+      <li class="nav-item">
+        <a href="#${item.module}" class="nav-link" data-module="${item.module}">
+          <span class="nav-link-icon">${item.icon}</span>
+          <span class="nav-link-text">${item.label}</span>
+        </a>
+      </li>
+    `).join('');
+
+        // Update user info
+        document.getElementById('user-name').textContent = session.fullName;
+        document.getElementById('user-id').textContent = session.userId;
+        document.getElementById('user-avatar').textContent = session.fullName.charAt(0).toUpperCase();
+
+        // Simple router for student portal
+        class StudentPortalApp {
+            constructor() {
+                this.currentModule = null;
+                this.init();
+            }
+
+            init() {
+                this.setupNavigation();
+                this.loadInitialModule();
+            }
+
+            setupNavigation() {
+                const navLinks = document.querySelectorAll('.nav-link');
+                navLinks.forEach(link => {
+                    link.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const module = link.dataset.module;
+                        this.loadModule(module);
+
+                        navLinks.forEach(l => l.classList.remove('active'));
+                        link.classList.add('active');
+                    });
+                });
+            }
+
+            loadInitialModule() {
+                const isGuardian = session.role === 'guardian';
+                const hash = window.location.hash.slice(1) || (isGuardian ? 'guardian-overview' : 'student-dashboard');
+                this.loadModule(hash);
+
+                const activeLink = document.querySelector(`[data-module="${hash}"]`);
+                if (activeLink) {
+                    activeLink.classList.add('active');
+                }
+            }
+
+            async loadModule(moduleName) {
+                const contentArea = document.getElementById('main-content');
+                const breadcrumb = document.getElementById('breadcrumb-current');
+
+                showLoading(contentArea);
+                window.location.hash = moduleName;
+                this.currentModule = moduleName;
+
+                const moduleTitles = {
+                    'student-dashboard': 'Dashboard',
+                    'my-grades': 'My Grades',
+                    'my-fees': 'My Fees',
+                    'my-schedule': 'My Schedule',
+                    'my-attendance': 'My Attendance',
+                    'my-tasks': 'My Tasks',
+                    // Guardian routes
+                    'guardian-overview': "Child's Overview",
+                    'guardian-fees': "Child's Fees"
+                };
+
+                if (breadcrumb) {
+                    breadcrumb.textContent = moduleTitles[moduleName] || moduleName;
+                }
+
+                await new Promise(resolve => setTimeout(resolve, 300));
+
+                try {
+                    const moduleFunctionName = `${this.camelCase(moduleName)}Module`;
+                    console.log(`Looking for module: ${moduleFunctionName}`);
+                    console.log(`Available modules:`, Object.keys(window).filter(k => k.includes('Module')));
+
+                    const moduleFunction = window[moduleFunctionName];
+                    if (moduleFunction) {
+                        console.log(`Module ${moduleFunctionName} found, initializing...`);
+                        moduleFunction.init(contentArea);
+                    } else if (moduleName === 'guardian-overview' || moduleName === 'guardian-fees') {
+                        // Guardian modules rendered inline
+                        window.guardianPortalModule.init(contentArea, moduleName);
+                    } else {
+                        console.warn(`Module ${moduleFunctionName} not found`);
+                        contentArea.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-state-icon">🚧</div>
+                <h3 class="empty-state-title">Module Under Development</h3>
+                <p class="empty-state-description">The ${moduleTitles[moduleName]} module is coming soon!</p>
+              </div>
+            `;
+                    }
+                } catch (error) {
+                    console.error(`Error loading module ${moduleName}:`, error);
+                    contentArea.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">⚠️</div>
+              <h3 class="empty-state-title">Error Loading Module</h3>
+              <p class="empty-state-description">Failed to load ${moduleTitles[moduleName]}. Please try again.</p>
+            </div>
+          `;
+                }
+            }
+
+            camelCase(str) {
+                return str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+            }
+        }
+
+        // Initialize app - use 'load' instead of 'DOMContentLoaded' to ensure all scripts are executed
+        window.addEventListener('load', () => {
+            window.app = new StudentPortalApp();
+        });
+
+        // Handle browser back/forward
+        window.addEventListener('hashchange', () => {
+            const module = window.location.hash.slice(1);
+            if (module && window.app) {
+                window.app.loadModule(module);
+            }
+        });
+
+        // Toggle mobile sidebar
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            sidebar.classList.toggle('open');
+        }
+
+        // ── Guardian Portal Inline Module ─────────────────────────────────
+        window.guardianPortalModule = {
+            async init(container, view) {
+                container.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:300px;"><div class="spinner"></div></div>';
+                const session = authManager.getSession();
+
+                // Look up linked student by parent_email
+                await dataManager.waitForReady();
+                const students = dataManager.getAll('students');
+                // Match by parent_email field (snake_case from Supabase)
+                const myStudents = students.filter(s =>
+                    (s.parent_email || s.parentEmail || '').toLowerCase() === (session.email || '').toLowerCase()
+                );
+
+                if (view === 'guardian-fees') {
+                    this._renderFees(container, session, myStudents);
+                } else {
+                    this._renderOverview(container, session, myStudents);
+                }
+            },
+
+            _renderOverview(container, session, students) {
+                if (!students.length) {
+                    container.innerHTML = `
+                        <div class="card" style="text-align:center;padding:3rem;">
+                            <div style="font-size:3rem;margin-bottom:1rem;">👨‍👩‍👧</div>
+                            <h2>Welcome, ${session.fullName}</h2>
+                            <p style="color:var(--text-secondary);max-width:400px;margin:0 auto 1.5rem;">
+                                No student record is linked to your account yet.
+                                Please contact your school administrator to link your child's profile.
+                            </p>
+                            <span class="badge badge-warning">Pending Setup</span>
+                        </div>`;
+                    return;
+                }
+                container.innerHTML = `
+                    <div style="display:grid;gap:1.5rem;">
+                        <h2 style="margin:0;">👨‍👩‍👧 Guardian Dashboard</h2>
+                        <p style="color:var(--text-secondary);margin:0;">Viewing information for your child(ren) at TBD Academy.</p>
+                        ${students.map(s => `
+                        <div class="card" style="display:grid;grid-template-columns:auto 1fr;gap:1.5rem;align-items:center;">
+                            <div style="width:64px;height:64px;border-radius:50%;background:var(--gradient-primary);display:flex;align-items:center;justify-content:center;color:white;font-size:1.5rem;font-weight:bold;">
+                                ${(s.name || '?').charAt(0)}
+                            </div>
+                            <div>
+                                <h3 style="margin:0 0 0.25rem;">${s.name || 'Unnamed Student'}</h3>
+                                <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                                    <span class="badge badge-primary">${s.grade || '—'} ${s.section || ''}</span>
+                                    <span class="badge ${s.status === 'active' ? 'badge-success' : 'badge-warning'}">${s.status || 'unknown'}</span>
+                                    ${s.roll_no ? `<span class="badge badge-secondary">Roll No: ${s.roll_no}</span>` : ''}
+                                </div>
+                                ${s.email ? `<p style="margin:0.5rem 0 0;font-size:0.875rem;color:var(--text-secondary);">📧 ${s.email}</p>` : ''}
+                            </div>
+                        </div>`).join('')}
+                    </div>`;
+            },
+
+            _renderFees(container, session, students) {
+                if (!students.length) {
+                    container.innerHTML = `<div class="card"><p>No linked students found. Contact the school administrator.</p></div>`;
+                    return;
+                }
+                const allFees = dataManager.getAll('payments');
+                container.innerHTML = `
+                    <div style="display:grid;gap:1.5rem;">
+                        <h2 style="margin:0;">💳 Fee Status</h2>
+                        ${students.map(s => {
+                    const fees = allFees.filter(f => f.student_id === s.id || f.studentId === s.id);
+                    const paid = fees.filter(f => f.status === 'paid').reduce((a, f) => a + (f.amount || 0), 0);
+                    const pending = fees.filter(f => ['pending', 'overdue'].includes(f.status)).reduce((a, f) => a + (f.amount || 0), 0);
+                    return `
+                            <div class="card">
+                                <h3 style="margin:0 0 1rem;">${s.name}</h3>
+                                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;">
+                                    <div class="stat-card"><div class="stat-value" style="color:var(--color-success);">₦${paid.toLocaleString()}</div><div class="stat-label">Paid</div></div>
+                                    <div class="stat-card"><div class="stat-value" style="color:var(--color-warning);">₦${pending.toLocaleString()}</div><div class="stat-label">Outstanding</div></div>
+                                </div>
+                                ${fees.length ? `
+                                <table class="data-table" style="margin-top:1rem;font-size:0.875rem;">
+                                    <thead><tr><th>Term</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+                                    <tbody>${fees.map(f => `
+                                        <tr>
+                                            <td>${f.term || '—'}</td>
+                                            <td>₦${(f.amount || 0).toLocaleString()}</td>
+                                            <td><span class="badge badge-${f.status === 'paid' ? 'success' : f.status === 'pending' ? 'warning' : 'danger'}">${f.status}</span></td>
+                                            <td>${f.payment_date || f.paymentDate || '—'}</td>
+                                        </tr>`).join('')}
+                                    </tbody>
+                                </table>` : '<p style="color:var(--text-secondary);margin-top:0.75rem;">No fee records found.</p>'}
+                            </div>`;
+                }).join('')}
+                    </div>`;
+            }
+        };
+
+        // Logout function
+        function logout() {
+            if (confirm('Are you sure you want to sign out?')) {
+                authManager.logout();
+            }
+        }
+    </script>
+</body>
+
+</html>
