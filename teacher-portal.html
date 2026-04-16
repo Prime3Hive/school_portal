@@ -119,14 +119,6 @@
                 <!-- Navigation will be dynamically generated -->
             </ul>
 
-            <div style="padding: 1rem; margin-top: auto; border-top: 1px solid var(--border-primary);">
-                <button class="btn btn-ghost btn-sm"
-                    style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
-                    onclick="logout()">
-                    <span>🚪</span>
-                    <span>Sign Out</span>
-                </button>
-            </div>
         </nav>
 
         <!-- Main Content -->
@@ -149,6 +141,15 @@
                             <div class="user-role" id="user-id">TCH-XXXX</div>
                         </div>
                     </div>
+                    <button onclick="logout()"
+                        style="display:flex; align-items:center; gap:7px; padding:7px 14px;
+                               background:rgba(239,68,68,0.09); border:1px solid rgba(239,68,68,0.25);
+                               border-radius:8px; color:#ef4444; cursor:pointer;
+                               font-size:0.82rem; font-weight:600; transition:background 0.15s; white-space:nowrap;"
+                        onmouseover="this.style.background='rgba(239,68,68,0.18)'" onmouseout="this.style.background='rgba(239,68,68,0.09)'">
+                        <span style="font-size:15px; line-height:1;">🚪</span>
+                        <span>Sign Out</span>
+                    </button>
                 </div>
             </header>
 
@@ -173,9 +174,8 @@
     <!-- Teacher Modules -->
     <script src="js/modules/teacher-portal.js"></script>
     <script src="js/modules/teacher-dashboard.js"></script>
-    <script src="js/modules/assessments.js"></script>
+    <script src="js/modules/academics.js"></script>
     <script src="js/modules/class-schedule.js"></script>
-    <script src="js/modules/teacher-tasks.js"></script>
     <script src="js/modules/calendar.js"></script>
 
     <!-- Feature Managers -->
@@ -266,9 +266,9 @@
                     'teacher-portal': 'Teacher Portal',
                     'teacher-dashboard': 'Dashboard',
                     'my-classes': 'My Classes',
-                    'assessments': 'Assessments',
-                    'class-schedule': 'Schedule',
-                    'teacher-tasks': 'Tasks'
+                    'assessments': 'Academics',
+                    'academics': 'Academics',
+                    'class-schedule': 'Schedule'
                 };
 
                 if (breadcrumb) {
@@ -326,12 +326,19 @@
             sidebar.classList.toggle('open');
         }
 
-        // Logout function
-        function logout() {
-            if (confirm('Are you sure you want to sign out?')) {
-                authManager.logout();
+        // Logout function — exposed on window so onclick="logout()" always finds it
+        window.logout = async function logout() {
+            if (!confirm('Are you sure you want to sign out?')) return;
+            try {
+                await authManager.logout('login.html');
+            } catch (err) {
+                console.error('Logout error:', err);
+                // Force redirect even if signOut throws
+                localStorage.removeItem('sb_session');
+                localStorage.removeItem('school_portal_session');
+                window.location.href = 'login.html';
             }
-        }
+        };
     </script>
 </body>
 

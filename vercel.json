@@ -1,98 +1,231 @@
 {
-  "buildCommand": null,
-  "outputDirectory": ".",
-  "framework": null,
   "rewrites": [
-    { "source": "/admin/:path*", "destination": "/index.html" },
-    { "source": "/dashboard", "destination": "/index.html" },
-    { "source": "/students", "destination": "/index.html" },
-    { "source": "/staff", "destination": "/index.html" },
-    { "source": "/classes", "destination": "/index.html" },
-    { "source": "/fees", "destination": "/index.html" },
-    { "source": "/inventory", "destination": "/index.html" },
-    { "source": "/assessments", "destination": "/index.html" },
-    { "source": "/tasks", "destination": "/index.html" },
-    { "source": "/applications", "destination": "/index.html" },
-    { "source": "/user-management", "destination": "/index.html" },
-    { "source": "/student/:path*", "destination": "/student-portal.html" },
-    { "source": "/my-grades", "destination": "/student-portal.html" },
-    { "source": "/my-attendance", "destination": "/student-portal.html" },
-    { "source": "/my-fees", "destination": "/student-portal.html" },
-    { "source": "/my-tasks", "destination": "/student-portal.html" },
-    { "source": "/my-schedule", "destination": "/student-portal.html" },
-    { "source": "/teacher/:path*", "destination": "/teacher-portal.html" },
-    { "source": "/teacher-dashboard", "destination": "/teacher-portal.html" }
+    {
+      "source": "/portal",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/portal/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/dashboard",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/students",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/staff",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/classes",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/fees",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/inventory",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/assessments",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/tasks",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/applications",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/user-management",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/student/:path*",
+      "destination": "/student-portal.html"
+    },
+    {
+      "source": "/my-grades",
+      "destination": "/student-portal.html"
+    },
+    {
+      "source": "/my-attendance",
+      "destination": "/student-portal.html"
+    },
+    {
+      "source": "/my-fees",
+      "destination": "/student-portal.html"
+    },
+    {
+      "source": "/my-tasks",
+      "destination": "/student-portal.html"
+    },
+    {
+      "source": "/my-schedule",
+      "destination": "/student-portal.html"
+    },
+    {
+      "source": "/teacher/:path*",
+      "destination": "/teacher-portal.html"
+    },
+    {
+      "source": "/teacher-dashboard",
+      "destination": "/teacher-portal.html"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(\\..env.*|\\.env)",
+      "status": 404,
+      "headers": { "content-type": "text/plain" },
+      "dest": "/404"
+    }
   ],
   "redirects": [
-    { "source": "/home", "destination": "/public-blog.html", "statusCode": 301 },
-    { "source": "/blog", "destination": "/public-blog.html", "statusCode": 301 }
+    {
+      "source": "/",
+      "destination": "/public-blog.html",
+      "permanent": false
+    },
+    {
+      "source": "/home",
+      "destination": "/public-blog.html",
+      "statusCode": 301
+    },
+    {
+      "source": "/blog",
+      "destination": "/public-blog.html",
+      "statusCode": 301
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "X-XSS-Protection", "value": "1; mode=block" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "geolocation=(), microphone=(), camera=()" }
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(), microphone=(), camera=()"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://checkout.paystack.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.paystack.com https://paystack.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.paystack.co https://checkout.paystack.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-src https://checkout.paystack.com https://paystack.com; worker-src blob:;"
+        }
       ]
     },
     {
       "source": "/(.*)\\.js",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/(.*)\\.css",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/(.*)\\.html",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
       ]
     },
     {
       "source": "/(.*)\\.png",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/(.*)\\.jpg",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/(.*)\\.jpeg",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/(.*)\\.webp",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/(.*)\\.svg",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/(.*)\\.woff2",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     }
   ],
-  "cleanUrls": true,
+  "cleanUrls": false,
   "trailingSlash": false
 }

@@ -1,0 +1,15 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# Route /api/config to the Netlify serverless function
+[[redirects]]
+  from = "/api/config"
+  to = "/.netlify/functions/config"
+  status = 200
+
+# Fallback for SPA-style navigation (only if the file doesn't exist on disk)
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

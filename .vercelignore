@@ -1,10 +1,35 @@
 # Supabase edge functions and migrations (server-side only)
 supabase/
 
-# Environment files
+# Environment files (CRITICAL - never deploy these)
 .env
 .env.*
 !.env.example
 
 # Development artifacts
 node_modules/
+package-lock.json
+yarn.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Logs and temp files
+*.log
+tmp/
+temp/
+*.tmp
+
+# Documentation (optional - remove if you want docs deployed)
+DEPLOYMENT_CHECKLIST.md
+README.md
+
+# Netlify (not needed for Vercel)
+netlify/

@@ -41,7 +41,6 @@
                 <li><a href="academics.html" class="navbar-link">Academics</a></li>
                 <li><a href="admissions.html" class="navbar-link active">Admissions</a></li>
                 <li><a href="contact.html" class="navbar-link">Contact</a></li>
-                <li><a href="index.html" class="navbar-cta" target="_blank">Staff Portal</a></li>
             </ul>
 
             <button class="navbar-toggle" id="navbarToggle">
@@ -215,16 +214,24 @@
                                     onfocus="this.style.borderColor='var(--color-primary)'"
                                     onblur="this.style.borderColor='var(--border-primary)'">
                                     <option value="">Select Grade</option>
-                                    <option value="Nursery">Nursery</option>
-                                    <option value="Primary 1">Primary 1</option>
-                                    <option value="Primary 2">Primary 2</option>
-                                    <option value="Primary 3">Primary 3</option>
-                                    <option value="Primary 4">Primary 4</option>
-                                    <option value="Primary 5">Primary 5</option>
-                                    <option value="Primary 6">Primary 6</option>
-                                    <option value="JSS 1">JSS 1</option>
-                                    <option value="JSS 2">JSS 2</option>
-                                    <option value="JSS 3">JSS 3</option>
+                                    <optgroup label="Early Years">
+                                        <option value="Kindergarten">Kindergarten</option>
+                                        <option value="Nursery">Nursery</option>
+                                        <option value="Pre-Primary">Pre-Primary</option>
+                                    </optgroup>
+                                    <optgroup label="Primary">
+                                        <option value="Grade 1">Grade 1</option>
+                                        <option value="Grade 2">Grade 2</option>
+                                        <option value="Grade 3">Grade 3</option>
+                                        <option value="Grade 4">Grade 4</option>
+                                        <option value="Grade 5">Grade 5</option>
+                                        <option value="Grade 6">Grade 6</option>
+                                    </optgroup>
+                                    <optgroup label="Junior Secondary">
+                                        <option value="JSS 1">JSS 1</option>
+                                        <option value="JSS 2">JSS 2</option>
+                                        <option value="JSS 3">JSS 3</option>
+                                    </optgroup>
                                 </select>
                             </div>
 
@@ -315,11 +322,77 @@
                                 <div id="previousReportInfo" class="file-info" style="margin-top: 0.5rem; display: none; font-size: 0.875rem; color: var(--text-secondary);"></div>
                             </div>
 
+                            <!-- Divider -->
+                            <div style="height: 2px; background: linear-gradient(to right, transparent, var(--color-primary), transparent); margin: 0.5rem 0;"></div>
+
+                            <!-- Payment Method Selection -->
+                            <div>
+                                <label style="display: block; font-weight: 700; margin-bottom: 0.75rem; color: var(--text-primary); font-size: 1.1rem;">
+                                    <i class="fas fa-credit-card" style="color: var(--color-primary); margin-right: 0.5rem;"></i>
+                                    Application Fee Payment <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                                    Application fee: <strong id="applicationFeeDisplay">&#8358;5,000</strong> &#8212; Select your preferred payment method below.
+                                </p>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border: 2px solid var(--color-primary); border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease; background: hsla(220, 70%, 50%, 0.05);" id="paymentMethodPaystack" onclick="selectPaymentMethod('paystack')">
+                                        <input type="radio" name="paymentMethod" value="paystack" checked style="accent-color: var(--color-primary); width: 18px; height: 18px;">
+                                        <div>
+                                            <div style="font-weight: 600; color: var(--text-primary);"><i class="fas fa-bolt" style="color: hsl(45, 100%, 45%);"></i> Paystack (Online)</div>
+                                            <div style="font-size: 0.8rem; color: var(--text-tertiary);">Pay instantly with card</div>
+                                        </div>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease;" id="paymentMethodBank" onclick="selectPaymentMethod('bank-transfer')">
+                                        <input type="radio" name="paymentMethod" value="bank-transfer" style="accent-color: var(--color-primary); width: 18px; height: 18px;">
+                                        <div>
+                                            <div style="font-weight: 600; color: var(--text-primary);"><i class="fas fa-university" style="color: hsl(220, 70%, 50%);"></i> Bank Transfer</div>
+                                            <div style="font-size: 0.8rem; color: var(--text-tertiary);">Deposit and upload receipt</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Bank Transfer Details (hidden by default) -->
+                            <div id="bankTransferSection" style="display: none;">
+                                <div style="padding: 1.25rem; background: linear-gradient(135deg, hsl(220, 70%, 97%), hsl(220, 70%, 93%)); border-radius: var(--radius-md); border-left: 4px solid hsl(220, 70%, 50%); margin-bottom: 1rem;">
+                                    <h4 style="margin: 0 0 0.75rem; color: hsl(220, 70%, 35%); display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-university"></i> School Bank Details
+                                    </h4>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
+                                        <div><strong>Bank:</strong> First Bank of Nigeria</div>
+                                        <div><strong>Account No:</strong> 2033XXXXXX</div>
+                                        <div><strong>Account Name:</strong> TBD Academy</div>
+                                        <div><strong>Branch:</strong> Makurdi Main</div>
+                                    </div>
+                                    <p style="margin: 0.75rem 0 0; font-size: 0.8rem; color: hsl(220, 50%, 40%);">
+                                        <i class="fas fa-info-circle"></i> Make the deposit, then upload the receipt below. Your application will be reviewed after payment verification by admin.
+                                    </p>
+                                </div>
+                                <div style="margin-bottom: 1rem;">
+                                    <label for="bankTransactionRef" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                        Transaction Reference / Teller Number <span style="color: hsl(0, 80%, 55%);">*</span>
+                                    </label>
+                                    <input type="text" id="bankTransactionRef" name="bankTransactionRef"
+                                        style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem;"
+                                        placeholder="Enter deposit reference or teller number">
+                                </div>
+                                <div>
+                                    <label for="bankReceipt" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                        Upload Payment Receipt <span style="color: hsl(0, 80%, 55%);">*</span>
+                                    </label>
+                                    <input type="file" id="bankReceipt" name="bankReceipt" accept=".jpg,.jpeg,.png,.pdf"
+                                        style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md);"
+                                        onchange="handleFileSelect(this, 'bankReceiptInfo')">
+                                    <div id="bankReceiptInfo" class="file-info" style="margin-top: 0.5rem; display: none; font-size: 0.875rem; color: var(--text-secondary);"></div>
+                                    <p style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">Accepted: JPG, PNG, PDF (max 5MB)</p>
+                                </div>
+                            </div>
+
                             <!-- Submit Button -->
-                            <button type="submit" class="btn btn-primary"
+                            <button type="submit" class="btn btn-primary" id="submitApplicationBtn"
                                 style="width: 100%; justify-content: center; padding: 1rem;">
                                 <i class="fas fa-paper-plane"></i>
-                                <span>Submit Application</span>
+                                <span id="submitBtnText">Pay and Submit Application</span>
                             </button>
                         </div>
                     </form>
@@ -517,7 +590,6 @@
                         <li><a href="admissions.html#download" class="footer-link">Application Form</a></li>
                         <li><a href="admissions.html#fees" class="footer-link">Fee Structure</a></li>
                         <li><a href="admissions.html#calendar" class="footer-link">Academic Calendar</a></li>
-                        <li><a href="index.html" class="footer-link" target="_blank">Staff Portal</a></li>
                     </ul>
                 </div>
 
@@ -553,10 +625,10 @@
                 
                 // Now load the rest of the scripts in order
                 const scripts = [
-                    'js/blog-navigation.js',
-                    'js/supabase-client.js',
                     'js/config.js',
+                    'js/supabase-client.js',
                     'js/school-config.js',
+                    'js/validation-manager.js',
                     'js/file-upload-manager.js',
                     'js/application-form-generator.js',
                     'js/application-manager.js'
@@ -597,6 +669,44 @@
                 infoDiv.style.display = 'none';
             }
         }
+
+        // Payment method selection handler
+        function selectPaymentMethod(method) {
+            const bankSection = document.getElementById('bankTransferSection');
+            const paystackLabel = document.getElementById('paymentMethodPaystack');
+            const bankLabel = document.getElementById('paymentMethodBank');
+            const btnText = document.getElementById('submitBtnText');
+
+            if (method === 'bank-transfer') {
+                bankSection.style.display = 'block';
+                bankLabel.style.borderColor = 'var(--color-primary)';
+                bankLabel.style.background = 'hsla(220, 70%, 50%, 0.05)';
+                paystackLabel.style.borderColor = 'var(--border-primary)';
+                paystackLabel.style.background = 'transparent';
+                btnText.textContent = 'Submit Application (Pending Verification)';
+            } else {
+                bankSection.style.display = 'none';
+                paystackLabel.style.borderColor = 'var(--color-primary)';
+                paystackLabel.style.background = 'hsla(220, 70%, 50%, 0.05)';
+                bankLabel.style.borderColor = 'var(--border-primary)';
+                bankLabel.style.background = 'transparent';
+                btnText.textContent = 'Pay and Submit Application';
+            }
+        }
+
+        // Update fee display when grade changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const gradeSelect = document.getElementById('grade');
+            if (gradeSelect) {
+                gradeSelect.addEventListener('change', function() {
+                    const feeDisplay = document.getElementById('applicationFeeDisplay');
+                    if (feeDisplay && window.appManager) {
+                        const fee = window.appManager.getApplicationFee(this.value);
+                        feeDisplay.innerHTML = '\u20A6' + fee.toLocaleString();
+                    }
+                });
+            }
+        });
     </script>
 </body>
 

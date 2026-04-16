@@ -45,7 +45,7 @@
     }
 
     .top-header {
-      height: 70px;
+      height: 64px;
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border-primary);
       padding: 0 var(--space-6);
@@ -55,7 +55,7 @@
       position: sticky;
       top: 0;
       z-index: var(--z-sticky);
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      box-shadow: 0 1px 0 var(--border-primary);
     }
 
     .header-left {
@@ -73,15 +73,14 @@
     .user-profile {
       display: flex;
       align-items: center;
-      justify-content: center;
-      padding: var(--space-2);
+      gap: 10px;
+      padding: 6px 10px 6px 6px;
       background: var(--bg-tertiary);
-      border-radius: var(--radius-md);
+      border-radius: 50px;
       cursor: pointer;
-      transition: all var(--transition-base);
-      width: 40px;
-      height: 40px;
+      transition: all 0.2s;
       border: 1px solid var(--border-primary);
+      position: relative;
     }
 
     .user-profile:hover {
@@ -90,46 +89,69 @@
     }
 
     .user-avatar {
-      font-size: var(--font-size-xl);
-      line-height: 1;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #137fec, #0056d2);
+      color: #fff;
+      font-size: 0.875rem;
+      font-weight: 700;
       display: flex;
       align-items: center;
       justify-content: center;
+      flex-shrink: 0;
+      line-height: 1;
     }
 
     .user-info {
-      display: none;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
     }
 
     .user-name {
-      display: none;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .user-role {
-      display: none;
+      font-size: 0.7rem;
+      color: var(--text-tertiary);
+      font-weight: 500;
     }
 
     .notification-btn {
       position: relative;
-      padding: var(--space-2);
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       background: var(--bg-tertiary);
-      border: none;
-      border-radius: var(--radius-md);
+      border: 1px solid var(--border-primary);
+      border-radius: 10px;
       color: var(--text-secondary);
       cursor: pointer;
-      font-size: var(--font-size-xl);
-      transition: all var(--transition-base);
+      font-size: 18px;
+      line-height: 1;
+      transition: all 0.2s;
     }
 
     .notification-btn:hover {
       background: var(--bg-primary);
+      border-color: var(--color-primary);
       color: var(--text-primary);
     }
 
     .notification-badge {
       position: absolute;
-      top: 4px;
-      right: 4px;
+      top: 6px;
+      right: 6px;
       width: 8px;
       height: 8px;
       background: var(--color-danger);
@@ -226,15 +248,6 @@
     }
 
     /* User Profile Dropdown */
-    .user-profile {
-      position: relative;
-      cursor: pointer;
-    }
-
-    .user-profile:hover {
-      opacity: 0.9;
-    }
-
     .profile-dropdown {
       position: absolute;
       top: calc(100% + 10px);
@@ -345,22 +358,43 @@
       <div class="nav-logo">
         <div class="nav-logo-icon">🎓</div>
         <div class="nav-logo-text">
-          <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD Academy</div>
-          <div style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Makurdi, Benue State</div>
+          <div id="sidebar-school-name" style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD Academy</div>
+          <div id="sidebar-school-location" style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Lagos, Nigeria</div>
         </div>
       </div>
+      <script>
+        (function() {
+          try {
+            var s = JSON.parse(localStorage.getItem('tbd_academy_settings') || '{}');
+            if (s.schoolName)    document.getElementById('sidebar-school-name').textContent    = s.schoolName;
+            if (s.schoolAddress) document.getElementById('sidebar-school-location').textContent = s.schoolAddress;
+            if (s.theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+            else document.documentElement.removeAttribute('data-theme');
+          } catch(e) {}
+        })();
+      </script>
 
       <ul class="nav-menu">
+        <!-- Overview -->
         <li class="nav-item">
           <a href="#admin-dashboard" class="nav-link" data-module="admin-dashboard">
             <span class="nav-link-icon">📊</span>
             <span class="nav-link-text">Dashboard</span>
           </a>
         </li>
+
+        <!-- Management -->
+        <li class="nav-section-label">Management</li>
         <li class="nav-item">
           <a href="#student-directory" class="nav-link" data-module="student-directory">
             <span class="nav-link-icon">👥</span>
             <span class="nav-link-text">Students</span>
+          </a>
+        </li>
+        <li class="nav-item">
+          <a href="#staff-management" class="nav-link" data-module="staff-management">
+            <span class="nav-link-icon">👨‍🏫</span>
+            <span class="nav-link-text">Staff</span>
           </a>
         </li>
         <li class="nav-item">
@@ -370,35 +404,29 @@
           </a>
         </li>
         <li class="nav-item">
+          <a href="#academics" class="nav-link" data-module="academics">
+            <span class="nav-link-icon">📚</span>
+            <span class="nav-link-text">Academics</span>
+          </a>
+        </li>
+
+        <!-- Finance -->
+        <li class="nav-section-label">Finance</li>
+        <li class="nav-item">
           <a href="#fees-payments" class="nav-link" data-module="fees-payments">
-            <span class="nav-link-icon">💰</span>
+            <span class="nav-link-icon">&#x1F4B0;</span>
             <span class="nav-link-text">Fees & Payments</span>
           </a>
         </li>
         <li class="nav-item">
           <a href="#inventory" class="nav-link" data-module="inventory">
-            <span class="nav-link-icon">📦</span>
+            <span class="nav-link-icon">&#x1F4E6;</span>
             <span class="nav-link-text">Inventory</span>
           </a>
         </li>
-        <li class="nav-item">
-          <a href="#assessments" class="nav-link" data-module="assessments">
-            <span class="nav-link-icon">📝</span>
-            <span class="nav-link-text">Assessments</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="#grades-management" class="nav-link" data-module="grades-management">
-            <span class="nav-link-icon">📚</span>
-            <span class="nav-link-text">Grades & Subjects</span>
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="#teacher-tasks" class="nav-link" data-module="teacher-tasks">
-            <span class="nav-link-icon">✓</span>
-            <span class="nav-link-text">Teacher Tasks</span>
-          </a>
-        </li>
+
+        <!-- Administration -->
+        <li class="nav-section-label">Administration</li>
         <li class="nav-item">
           <a href="#applications" class="nav-link" data-module="applications">
             <span class="nav-link-icon">📋</span>
@@ -417,6 +445,15 @@
             <span class="nav-link-text">Calendar</span>
           </a>
         </li>
+
+        <!-- System -->
+        <li class="nav-section-label">System</li>
+        <li class="nav-item">
+          <a href="#settings" class="nav-link" data-module="settings">
+            <span class="nav-link-icon">⚙️</span>
+            <span class="nav-link-text">Settings</span>
+          </a>
+        </li>
         <li class="nav-item">
           <a href="public-blog.html" class="nav-link" target="_blank">
             <span class="nav-link-icon">📰</span>
@@ -424,15 +461,6 @@
           </a>
         </li>
       </ul>
-
-      <div style="padding: 1rem; margin-top: auto; border-top: 1px solid var(--border-primary);">
-        <button class="btn btn-ghost btn-sm"
-          style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
-          onclick="logout()">
-          <span>🚪</span>
-          <span>Sign Out</span>
-        </button>
-      </div>
     </nav>
 
     <!-- Main Content Area -->
@@ -440,21 +468,48 @@
       <header class="top-header">
         <div class="header-left">
           <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
-          <div class="breadcrumbs">
-            <span class="breadcrumb-item">🏠 Home</span>
-            <span class="breadcrumb-separator">/</span>
-            <span class="breadcrumb-item" id="breadcrumb-current">Dashboard</span>
+          <div class="breadcrumbs" style="margin-bottom:0;">
+            <span style="font-size:13px; color:var(--text-tertiary); font-weight:500;">Admin Portal</span>
+            <span style="color:var(--text-tertiary); margin:0 6px; font-size:11px;">›</span>
+            <span style="font-size:13px; font-weight:600; color:var(--text-primary);" id="breadcrumb-current">Dashboard</span>
           </div>
         </div>
         <div class="header-right">
+          <!-- Sign Out button + inline confirmation -->
+          <div style="position:relative;">
+            <button id="signout-btn" onclick="showSignOutConfirm()"
+              style="display:flex; align-items:center; gap:7px; padding:7px 14px;
+                     background:rgba(239,68,68,0.09); border:1px solid rgba(239,68,68,0.25);
+                     border-radius:8px; color:#ef4444; cursor:pointer;
+                     font-size:0.82rem; font-weight:600; transition:all 0.15s; white-space:nowrap;"
+              onmouseover="this.style.background='rgba(239,68,68,0.18)'" onmouseout="this.style.background='rgba(239,68,68,0.09)'">
+              <span style="font-size:15px; line-height:1;">🚪</span>
+              <span>Sign Out</span>
+            </button>
+            <div id="signout-confirm"
+              style="display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:999;
+                     padding:14px; min-width:180px; background:var(--bg-secondary);
+                     border:1px solid rgba(239,68,68,0.3); border-radius:10px;
+                     box-shadow:0 8px 24px rgba(0,0,0,0.18); text-align:center;">
+              <p style="margin:0 0 10px; font-size:0.8rem; color:var(--text-secondary);">Sign out of the portal?</p>
+              <div style="display:flex; gap:6px;">
+                <button onclick="confirmSignOut()"
+                  style="flex:1; padding:7px; background:#ef4444; border:none; border-radius:7px;
+                         color:#fff; font-size:0.8rem; font-weight:600; cursor:pointer;">Yes</button>
+                <button onclick="cancelSignOut()"
+                  style="flex:1; padding:7px; background:var(--bg-tertiary); border:1px solid var(--border-primary);
+                         border-radius:7px; color:var(--text-secondary); font-size:0.8rem; font-weight:600; cursor:pointer;">Cancel</button>
+              </div>
+            </div>
+          </div>
           <button class="notification-btn" title="Notifications">
             🔔
             <span class="notification-badge"></span>
           </button>
           <div class="user-profile" onclick="toggleProfileDropdown(event)">
-            <div class="user-avatar">👤</div>
+            <div class="user-avatar" id="header-avatar">A</div>
             <div class="user-info">
-              <div class="user-name">Admin User</div>
+              <div class="user-name" id="header-user-name">Admin User</div>
               <div class="user-role">Administrator</div>
             </div>
 
@@ -530,6 +585,10 @@
 
   <!-- Scripts -->
   <script src="js/data-manager.js"></script>
+  <script src="js/validation-manager.js"></script>
+  <script src="js/fee-structure.js"></script>
+  <script src="js/fee-manager.js"></script>
+  <script src="js/subject-manager.js"></script>
   <script src="js/components.js"></script>
   <script src="js/permission-manager.js"></script>
 
@@ -539,14 +598,12 @@
   <script src="js/modules/class-schedule.js"></script>
   <script src="js/modules/fees-payments.js"></script>
   <script src="js/modules/inventory.js"></script>
-  <script src="js/modules/assessments.js"></script>
-  <script src="js/modules/teacher-tasks.js"></script>
+  <script src="js/modules/academics.js"></script>
   <script src="js/modules/applications.js"></script>
   <script src="js/modules/user-management.js"></script>
   <script src="js/modules/staff-management.js"></script>
   <script src="js/modules/admin-profile.js"></script>
   <script src="js/modules/settings.js"></script>
-  <script src="js/modules/grades-management.js"></script>
   <script src="js/modules/calendar.js"></script>
 
   <!-- Feature Managers -->
@@ -589,8 +646,19 @@
     window.addEventListener('DOMContentLoaded', () => {
       const session = authManager.getSession();
       if (session) {
-        const userNameEl = document.querySelector('.user-name');
-        if (userNameEl) userNameEl.textContent = session.fullName;
+        const name = session.fullName || 'Admin';
+        // Header name
+        const headerName = document.getElementById('header-user-name');
+        if (headerName) headerName.textContent = name;
+        // Avatar initial
+        const avatar = document.getElementById('header-avatar');
+        if (avatar) avatar.textContent = name.charAt(0).toUpperCase();
+        // Dropdown name
+        const dropdownName = document.querySelector('.dropdown-user-name');
+        if (dropdownName) dropdownName.textContent = name;
+        // Role badge
+        const roleEl = document.querySelector('.user-role');
+        if (roleEl) roleEl.textContent = (session.role || 'Admin').charAt(0).toUpperCase() + (session.role || 'admin').slice(1);
         const userIdEl = document.querySelector('.user-id');
         if (userIdEl) userIdEl.textContent = session.userId;
       }
@@ -612,12 +680,272 @@
       }
     });
 
-    // Logout function
-    async function logout() {
-      if (confirm('Are you sure you want to logout?')) {
-        await authManager.logout();
+    // Sign Out — uses inline confirmation instead of confirm() dialog
+    // (Chrome blocks confirm() after a popup like Paystack has been shown)
+    window.showSignOutConfirm = function () {
+      const btn = document.getElementById('signout-btn');
+      const confirm = document.getElementById('signout-confirm');
+      if (btn) btn.style.display = 'none';
+      if (confirm) confirm.style.display = 'block';
+    };
+
+    window.cancelSignOut = function () {
+      const btn = document.getElementById('signout-btn');
+      const confirm = document.getElementById('signout-confirm');
+      if (btn) btn.style.display = 'flex';
+      if (confirm) confirm.style.display = 'none';
+    };
+
+    window.confirmSignOut = async function () {
+      const area = document.getElementById('signout-confirm');
+      if (area) area.innerHTML = '<p style="margin:0;font-size:0.8rem;color:var(--text-secondary);">Signing out...</p>';
+      try {
+        await authManager.logout('login.html');
+      } catch (err) {
+        console.error('Logout error:', err);
+        localStorage.removeItem('sb_session');
+        localStorage.removeItem('school_portal_session');
+        window.location.href = 'login.html';
+      }
+    };
+
+    // Legacy alias — in case anything else calls logout()
+    window.logout = window.confirmSignOut;
+  </script>
+
+  <!-- ═══════════════════════════════════════════════════════
+       IN-APP APPLICATION NOTIFICATION SYSTEM
+       Shows popup when a new application arrives (realtime)
+       and on login if there are unread pending applications.
+  ════════════════════════════════════════════════════════════ -->
+  <style>
+    #app-notif-container {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.25rem;
+      z-index: 99999;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      max-width: 360px;
+      width: calc(100vw - 2.5rem);
+    }
+    .app-notif-card {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+      border-left: 5px solid #3b82f6;
+      padding: 1rem 1.1rem 1rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      animation: appNotifSlideIn 0.35s cubic-bezier(0.22,1,0.36,1);
+      position: relative;
+    }
+    .app-notif-card.dismissing {
+      animation: appNotifSlideOut 0.3s ease forwards;
+    }
+    @keyframes appNotifSlideIn {
+      from { opacity: 0; transform: translateX(110%); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes appNotifSlideOut {
+      from { opacity: 1; transform: translateX(0); }
+      to   { opacity: 0; transform: translateX(110%); }
+    }
+    .app-notif-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .app-notif-icon {
+      width: 36px; height: 36px; flex-shrink: 0;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 1rem;
+    }
+    .app-notif-title { font-weight: 700; font-size: 0.9rem; color: #1e293b; flex: 1; }
+    .app-notif-close {
+      background: none; border: none; cursor: pointer;
+      color: #94a3b8; font-size: 1rem; padding: 0;
+      line-height: 1; flex-shrink: 0;
+    }
+    .app-notif-close:hover { color: #475569; }
+    .app-notif-body { font-size: 0.825rem; color: #475569; line-height: 1.4; }
+    .app-notif-actions { display: flex; gap: 0.5rem; }
+    .app-notif-btn {
+      padding: 0.38rem 0.85rem;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s;
+    }
+    .app-notif-btn:hover { opacity: 0.85; }
+    .app-notif-btn-primary { background: #3b82f6; color: white; }
+    .app-notif-btn-ghost { background: #f1f5f9; color: #475569; }
+    .app-notif-progress {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 3px;
+      background: #3b82f6;
+      border-radius: 0 0 0 14px;
+      width: 100%;
+      transform-origin: left;
+      animation: appNotifProgress linear forwards;
+    }
+  </style>
+
+  <div id="app-notif-container"></div>
+
+  <script>
+  window.appNotifications = (function () {
+    const LS_KEY = 'tbd_app_notif_last_seen';
+    let _realtimeChannel = null;
+
+    // ── Render a notification card ──
+    function show({ title, body, duration = 10000, onView }) {
+      const container = document.getElementById('app-notif-container');
+      if (!container) return;
+
+      const card = document.createElement('div');
+      card.className = 'app-notif-card';
+      card.innerHTML = `
+        <div class="app-notif-header">
+          <div class="app-notif-icon"><i class="fas fa-file-alt"></i></div>
+          <div class="app-notif-title">${title}</div>
+          <button class="app-notif-close" title="Dismiss"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="app-notif-body">${body}</div>
+        <div class="app-notif-actions">
+          <button class="app-notif-btn app-notif-btn-primary">View Applications</button>
+          <button class="app-notif-btn app-notif-btn-ghost">Dismiss</button>
+        </div>
+        <div class="app-notif-progress" style="animation-duration:${duration}ms;"></div>
+      `;
+
+      const dismiss = () => {
+        card.classList.add('dismissing');
+        setTimeout(() => card.remove(), 320);
+        if (timer) clearTimeout(timer);
+      };
+
+      card.querySelector('.app-notif-close').addEventListener('click', dismiss);
+      card.querySelector('.app-notif-btn-ghost').addEventListener('click', dismiss);
+      card.querySelector('.app-notif-btn-primary').addEventListener('click', () => {
+        dismiss();
+        if (typeof onView === 'function') onView();
+        else if (window.app && typeof window.app.loadModule === 'function') {
+          window.app.loadModule('applications');
+        }
+      });
+
+      container.appendChild(card);
+      const timer = setTimeout(dismiss, duration);
+    }
+
+    // ── Navigate to applications tab ──
+    function goToApplications() {
+      if (window.app && typeof window.app.loadModule === 'function') {
+        window.app.loadModule('applications');
       }
     }
+
+    // ── Check for new applications since last visit ──
+    async function checkOnLogin() {
+      if (!window.supabaseClient) return;
+      try {
+        const lastSeen = localStorage.getItem(LS_KEY);
+        let query = window.supabaseClient
+          .from('applications')
+          .select('id, student_name, grade, created_at', { count: 'exact' })
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false });
+
+        if (lastSeen) {
+          query = query.gt('created_at', lastSeen);
+        } else {
+          // First time: show apps from last 7 days
+          const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+          query = query.gt('created_at', since);
+        }
+
+        const { data: newApps, count } = await query;
+        if (!newApps || newApps.length === 0) return;
+
+        const n = newApps.length;
+        if (n === 1) {
+          const a = newApps[0];
+          const name = a.student_name || 'Unknown Applicant';
+          const grade = a.grade ? ` • Grade ${a.grade}` : '';
+          const when = a.created_at ? new Date(a.created_at).toLocaleString() : '';
+          show({
+            title: '📋 New Application Received',
+            body: `<strong>${name}</strong>${grade}<br><span style="color:#94a3b8;font-size:0.78rem;">${when}</span>`,
+            duration: 12000,
+            onView: goToApplications
+          });
+        } else {
+          show({
+            title: `📋 ${n} New Applications`,
+            body: `You have <strong>${n} pending application${n > 1 ? 's' : ''}</strong> waiting for review.`,
+            duration: 12000,
+            onView: goToApplications
+          });
+        }
+
+        // Update last-seen timestamp
+        localStorage.setItem(LS_KEY, new Date().toISOString());
+      } catch (err) {
+        console.warn('[AppNotif] Login check failed:', err);
+      }
+    }
+
+    // ── Subscribe to real-time new applications ──
+    function subscribeRealtime() {
+      if (!window.supabaseClient) return;
+      if (_realtimeChannel) return;
+
+      _realtimeChannel = window.supabaseClient
+        .channel('app-new-applications')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'applications' },
+          (payload) => {
+            const a = payload.new || {};
+            const name  = a.student_name || 'New Applicant';
+            const grade = a.grade ? ` applying for Grade ${a.grade}` : '';
+            const when  = a.created_at ? new Date(a.created_at).toLocaleString() : 'just now';
+            show({
+              title: '🔔 New Application Submitted',
+              body: `<strong>${name}</strong>${grade}<br><span style="color:#94a3b8;font-size:0.78rem;">${when}</span>`,
+              duration: 15000,
+              onView: () => {
+                goToApplications();
+                localStorage.setItem(LS_KEY, new Date().toISOString());
+              }
+            });
+          }
+        )
+        .subscribe();
+    }
+
+    // ── Init: called after data is ready ──
+    function init() {
+      checkOnLogin();
+      subscribeRealtime();
+    }
+
+    // Auto-init when Supabase data is ready
+    window.addEventListener('supabase-data-ready', () => {
+      // Small delay so the UI settles first
+      setTimeout(init, 1500);
+    });
+
+    return { show, init, goToApplications };
+  })();
   </script>
 
   <!-- Main App (must be last) -->
