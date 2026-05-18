@@ -85,14 +85,6 @@
       "destination": "/teacher-portal.html"
     }
   ],
-  "routes": [
-    {
-      "src": "/(\\..env.*|\\.env)",
-      "status": 404,
-      "headers": { "content-type": "text/plain" },
-      "dest": "/404"
-    }
-  ],
   "redirects": [
     {
       "source": "/",
