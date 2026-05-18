@@ -366,7 +366,12 @@ class DataManager {
 
     try {
       const orderCol = this._orderByColumn[table] || 'created_at';
-      const { data, error } = await supabaseClient.from(table).select('*').order(orderCol, { ascending: true });
+      const TIMEOUT_MS = 15_000;
+      const fetchPromise = supabaseClient.from(table).select('*').order(orderCol, { ascending: true });
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error(`Fetch timeout for ${collection} after ${TIMEOUT_MS}ms`)), TIMEOUT_MS)
+      );
+      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
       if (error) {
         console.warn(`DataManager: Supabase fetch failed for ${collection}:`, error.message);
         // No localStorage fallback — keep cache empty until Supabase succeeds

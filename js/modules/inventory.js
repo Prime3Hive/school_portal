@@ -1480,18 +1480,25 @@ const inventoryModule = {
 
   // Assignment Actions
   async returnItem(assignmentId) {
+    const assignment = dataManager.getById('inventoryAssignments', assignmentId);
+    if (!assignment) { showToast('Assignment not found.', 'error'); return; }
+    if (assignment.status === 'returned') { showToast('Item has already been returned.', 'warning'); return; }
+
     if (!confirm('Mark this item as returned?')) return;
 
-    const assignment = dataManager.getById('inventoryAssignments', assignmentId);
     assignment.status = 'returned';
     assignment.returnedDate = new Date().toISOString();
 
-    // Update item allocated quantity
+    // Update item allocated quantity — guard against going negative
     const item = dataManager.getById('inventory', assignment.itemId);
-    item.allocated -= assignment.quantity;
-    await dataManager.update('inventory', item.id, item);
+    if (item) {
+      item.allocated = Math.max(0, (item.allocated || 0) - (assignment.quantity || 0));
+      await dataManager.update('inventory', item.id, item);
+    }
 
     await dataManager.update('inventoryAssignments', assignmentId, assignment);
+
+    const performedBy = authManager?.getSession?.()?.fullName || authManager?.getSession?.()?.name || 'Admin';
 
     // Log transaction
     await dataManager.logInventoryTransaction(
@@ -1499,7 +1506,7 @@ const inventoryModule = {
       assignment.itemId,
       assignment.itemName,
       assignment.quantity,
-      'Admin User',
+      performedBy,
       { assigneeName: assignment.assigneeName, returnedDate: assignment.returnedDate }
     );
 

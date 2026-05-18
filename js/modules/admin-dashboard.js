@@ -850,9 +850,21 @@ const adminDashboardModule = {
     const dataStudents = dataManager?.getAll('students') || [];
     const staffList = dataManager?.getAll('staff') || [];
     const classes = dataManager?.getAll('classes') || [];
-    const payments = dataManager?.getAll('payments') || [];
+    let payments = dataManager?.getAll('payments') || [];
     const assessments = dataManager?.getAll('assessments') || [];
     const inventory = dataManager?.getAll('inventory') || [];
+
+    // Apply date range filter to payments when a range is selected
+    if (this.dateRange?.start && this.dateRange?.end) {
+      const rangeStart = this.dateRange.start;
+      const rangeEnd = new Date(this.dateRange.end);
+      rangeEnd.setHours(23, 59, 59, 999);
+      payments = payments.filter(p => {
+        const d = new Date(p.paymentDate || p.payment_date || p.created_at || p.createdAt || 0);
+        return d >= rangeStart && d <= rangeEnd;
+      });
+    }
+
     const totalStudents = dataStudents.length;
     const activeStudents = dataStudents.filter(s => s.status === 'active').length;
     const totalStaff = staffList.length;
@@ -1355,7 +1367,14 @@ const adminDashboardModule = {
   },
 
   startAutoRefresh() {
-    // Auto-refresh logic
+    if (this.refreshManager) this.refreshManager.stop();
+    const INTERVAL_MS = 60_000; // 60 seconds
+    let timerId = setInterval(() => {
+      if (window.supabaseReady && dataManager?.refreshAll) {
+        dataManager.refreshAll().then(() => this.render()).catch(() => {});
+      }
+    }, INTERVAL_MS);
+    this.refreshManager = { stop() { clearInterval(timerId); timerId = null; } };
   },
 
   initDateRangePicker() {
@@ -1427,7 +1446,13 @@ const adminDashboardModule = {
   },
 
   updateNotificationBadge() {
-    // Notification badge update
+    const pending = (dataManager?.getAll('applications') || []).filter(a => a.status === 'pending').length
+      + this.getPendingVerifications().length;
+    const badges = document.querySelectorAll('[data-notification-badge]');
+    badges.forEach(el => {
+      el.textContent = pending > 0 ? pending : '';
+      el.style.display = pending > 0 ? 'inline-flex' : 'none';
+    });
   }
 };
 

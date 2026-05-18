@@ -792,14 +792,27 @@ const applicationsModule = {
 
             // Auto-apply grade fee structure
             if (typeof feeManager !== 'undefined' && result.studentId && app.grade) {
-                feeManager.applyFeeStructure(result.studentId, app.grade)
-                    .then(r => { if (!r.success) console.warn('[Applications] Fee structure apply:', r.error); });
+                try {
+                    const feeResult = await feeManager.applyFeeStructure(result.studentId, app.grade);
+                    if (!feeResult?.success) console.warn('[Applications] Fee structure apply:', feeResult?.error);
+                } catch (feeErr) {
+                    console.warn('[Applications] Fee structure apply threw:', feeErr);
+                    showToast('Fee structure could not be applied — please set it manually.', 'warning');
+                }
             }
 
             // Auto-enroll in grade subjects
             if (typeof subjectManager !== 'undefined') {
-                subjectManager.autoEnroll(result.studentId, app.student_name, app.grade, 'A')
-                    .then(r => { if (!r.success && !r.existing) console.warn('[Applications] Subject auto-enroll:', r.error); });
+                try {
+                    const enrollResult = await subjectManager.autoEnroll(result.studentId, app.student_name, app.grade, 'A');
+                    if (!enrollResult?.success && !enrollResult?.existing) {
+                        console.warn('[Applications] Subject auto-enroll:', enrollResult?.error);
+                        showToast('Subject enrollment could not be completed — please enroll manually.', 'warning');
+                    }
+                } catch (enrollErr) {
+                    console.warn('[Applications] Subject auto-enroll threw:', enrollErr);
+                    showToast('Subject enrollment could not be completed — please enroll manually.', 'warning');
+                }
             }
 
             // Update application status
