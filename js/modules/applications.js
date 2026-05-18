@@ -10,6 +10,17 @@ const applicationsModule = {
     sortBy: 'date',
     sortOrder: 'desc',
 
+    // XSS helper — delegates to global escapeHtml when available
+    _esc(str) {
+        if (typeof window.escapeHtml === 'function') return window.escapeHtml(String(str ?? ''));
+        return String(str ?? '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    },
+
     async init(container) {
         if (container) this.container = container;
 
@@ -87,7 +98,7 @@ const applicationsModule = {
           <p class="module-subtitle" style="margin-top: 0.5rem;">Review and manage student application submissions</p>
         </div>
         <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
-          <button class="btn btn-danger" onclick="applicationsModule.clearAllApplications()"
+          <button class="btn btn-danger" onclick="applicationsModule.clearAllApplications()" title="Permanently delete all application records"
             style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;">
             <i class="fas fa-trash-alt"></i> Clear All Applications
           </button>
@@ -416,7 +427,12 @@ const applicationsModule = {
             incomplete: { bg: 'hsl(30, 100%, 95%)', border: 'hsl(30, 100%, 50%)', text: 'hsl(30, 100%, 30%)', icon: 'fa-exclamation-triangle', gradient: 'linear-gradient(135deg, hsl(30, 100%, 50%), hsl(30, 100%, 40%))' }
         };
 
-        const statusInfo = statusColors[app.status];
+        const statusInfo = statusColors[app.status] || statusColors.pending;
+        const safeName    = this._esc(app.student_name || app.studentName || '');
+        const safeParent  = this._esc(app.parent_name  || app.parentName  || '');
+        const safePhone   = this._esc(app.parent_phone || app.parentPhone || '');
+        const safeGrade   = this._esc(app.grade || '');
+        const safeAppNo   = this._esc(app.application_number || app.id || '');
         const submittedDate = new Date(app.submitted_date || app.submittedDate).toLocaleDateString('en-US', {
             year: 'numeric',
             month: 'short',
@@ -443,7 +459,7 @@ const applicationsModule = {
         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1.5rem;">
           <div style="flex: 1;">
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
-              <h3 style="margin: 0; color: var(--text-primary); font-size: 1.25rem;">${app.student_name || app.studentName}</h3>
+              <h3 style="margin: 0; color: var(--text-primary); font-size: 1.25rem;">${safeName}</h3>
               <span style="background: ${statusInfo.gradient}; color: white; padding: 0.375rem 0.875rem; border-radius: 20px; font-size: 0.8125rem; font-weight: 600; text-transform: capitalize; box-shadow: 0 2px 8px ${statusInfo.border}40;">
                 <i class="fas ${statusInfo.icon}"></i> ${app.status}
               </span>
@@ -456,7 +472,7 @@ const applicationsModule = {
             <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
               <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
                 <i class="fas fa-hashtag" style="color: var(--text-tertiary);"></i>
-                <strong>${app.application_number || app.id}</strong>
+                <strong>${safeAppNo}</strong>
               </p>
               ${docCount > 0 ? `<p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
                 <i class="fas fa-paperclip" style="color: var(--text-tertiary);"></i>
@@ -477,7 +493,7 @@ const applicationsModule = {
             </div>
             <div>
               <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.125rem; text-transform: uppercase; letter-spacing: 0.5px;">Grade</div>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${app.grade}</div>
+              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${safeGrade}</div>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -486,7 +502,7 @@ const applicationsModule = {
             </div>
             <div>
               <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.125rem; text-transform: uppercase; letter-spacing: 0.5px;">Parent/Guardian</div>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${app.parent_name || app.parentName}</div>
+              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${safeParent}</div>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -495,7 +511,7 @@ const applicationsModule = {
             </div>
             <div>
               <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.125rem; text-transform: uppercase; letter-spacing: 0.5px;">Contact</div>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${app.parent_phone || app.parentPhone}</div>
+              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${safePhone}</div>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -736,7 +752,8 @@ const applicationsModule = {
         const paymentMethod = app.payment_method || app.paymentMethod;
         
         // Only block approval if payment method is bank-transfer and fee is not yet paid
-        if (paymentMethod === 'bank-transfer' && !applicationFeePaid) {
+        // Accept both 'bank-transfer' (hyphen) and 'bank_transfer' (underscore) from DB
+        if ((paymentMethod === 'bank-transfer' || paymentMethod === 'bank_transfer') && !applicationFeePaid) {
             showToast('Cannot approve application. Application fee payment must be verified first.', 'error');
             return;
         }
@@ -817,11 +834,12 @@ const applicationsModule = {
 
             // Update application status
             console.log('[Applications] Updating application status...');
+            const reviewedAt = new Date().toISOString();
             const updateResult = await dataManager.update('applications', id, {
                 status: 'approved',
                 notes: notes,
-                reviewed_date: new Date().toISOString(),
-                reviewed_by: authManager?.getSession()?.id || null,
+                reviewed_date: reviewedAt,
+                reviewed_by: authManager?.getSession()?.supabaseId || null,
                 student_id: result.studentId,
                 guardian_auth_id: result.guardianAuthId
             });
@@ -1030,10 +1048,28 @@ const applicationsModule = {
         }
     },
 
-    async clearAllApplications() {
-        if (!confirm('⛔ This will permanently delete ALL application records. This cannot be undone.\n\nContinue?')) return;
-        if (!confirm('Last chance — are you absolutely sure you want to delete all applications?')) return;
+    clearAllApplications() {
+        showModal('Clear All Applications', `
+            <div style="text-align:center;">
+                <div style="width:64px;height:64px;margin:0 auto 1.25rem;background:linear-gradient(135deg,hsl(0,80%,55%),hsl(0,80%,45%));border-radius:50%;display:flex;align-items:center;justify-content:center;">
+                    <i class="fas fa-trash-alt" style="color:white;font-size:1.75rem;"></i>
+                </div>
+                <h3 style="margin:0 0 0.75rem;color:hsl(0,80%,35%);">Permanently Delete All Applications?</h3>
+                <p style="color:var(--text-secondary);margin-bottom:1.5rem;">
+                    This will remove <strong>every</strong> application record. The action cannot be undone.
+                </p>
+                <div style="display:flex;gap:0.75rem;justify-content:center;">
+                    <button class="btn-danger" onclick="applicationsModule._confirmClearAll()">
+                        <i class="fas fa-trash-alt"></i> Yes, Delete Everything
+                    </button>
+                    <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </div>
+        `);
+    },
 
+    async _confirmClearAll() {
+        closeModal();
         try {
             showToast('Clearing all applications…', 'info');
             // Nullify student_id FK first to avoid constraint errors
@@ -1056,26 +1092,35 @@ const applicationsModule = {
             pending: this.applications.filter(app => app.status === 'pending').length,
             approved: this.applications.filter(app => app.status === 'approved').length,
             rejected: this.applications.filter(app => app.status === 'rejected').length,
-            pendingPayments: this.applications.filter(app =>
-                (app.payment_method === 'bank-transfer' || app.paymentMethod === 'bank-transfer') &&
-                !app.application_fee_paid && !app.applicationFeePaid
-            ).length
+            pendingPayments: this.applications.filter(app => {
+                const pm = app.payment_method || app.paymentMethod || '';
+                return (pm === 'bank-transfer' || pm === 'bank_transfer') &&
+                    !app.application_fee_paid && !app.applicationFeePaid;
+            }).length
         };
+    },
+
+    _isBankTransfer(app) {
+        const pm = app.payment_method || app.paymentMethod || '';
+        return pm === 'bank-transfer' || pm === 'bank_transfer';
     },
 
     // Render pending payment verification cards
     renderPendingPayments() {
         const pending = this.applications.filter(app =>
-            (app.payment_method === 'bank-transfer' || app.paymentMethod === 'bank-transfer') &&
+            this._isBankTransfer(app) &&
             !app.application_fee_paid && !app.applicationFeePaid
         );
 
         if (pending.length === 0) return '<p style="color: var(--text-tertiary); text-align: center;">No pending payment verifications.</p>';
 
         return pending.map(app => {
-            const receiptUrl = app.receipt_url || app.receiptUrl;
-            const paymentRef = app.payment_reference || app.paymentReference || 'N/A';
-            const feeAmount = app.application_fee_amount || app.applicationFeeAmount || 0;
+            const receiptUrl  = app.receipt_url  || app.receiptUrl;
+            const paymentRef  = this._esc(app.payment_reference || app.paymentReference || 'N/A');
+            const feeAmount   = app.application_fee_amount || app.applicationFeeAmount || 0;
+            const pName       = this._esc(app.student_name || app.studentName || '');
+            const pAppNo      = this._esc(app.application_number || app.id || '');
+            const pGrade      = this._esc(app.grade || '');
             const submittedDate = new Date(app.submitted_date || app.submittedDate).toLocaleDateString('en-US', {
                 year: 'numeric', month: 'short', day: 'numeric'
             });
@@ -1084,11 +1129,11 @@ const applicationsModule = {
             <div style="padding: 1.25rem; border: 1px solid var(--border-primary); border-radius: 12px; border-left: 4px solid hsl(280, 70%, 55%); background: hsl(280, 30%, 98%);">
               <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem;">
                 <div style="flex: 1; min-width: 200px;">
-                  <h4 style="margin: 0 0 0.5rem; color: var(--text-primary);">${app.student_name || app.studentName}</h4>
+                  <h4 style="margin: 0 0 0.5rem; color: var(--text-primary);">${pName}</h4>
                   <div style="display: grid; gap: 0.35rem; font-size: 0.875rem; color: var(--text-secondary);">
-                    <div><i class="fas fa-hashtag" style="width: 16px;"></i> ${app.application_number || app.id}</div>
-                    <div><i class="fas fa-graduation-cap" style="width: 16px;"></i> ${app.grade}</div>
-                    <div><i class="fas fa-money-bill" style="width: 16px;"></i> ₦${feeAmount.toLocaleString()}</div>
+                    <div><i class="fas fa-hashtag" style="width: 16px;"></i> ${pAppNo}</div>
+                    <div><i class="fas fa-graduation-cap" style="width: 16px;"></i> ${pGrade}</div>
+                    <div><i class="fas fa-money-bill" style="width: 16px;"></i> &#8358;${feeAmount.toLocaleString()}</div>
                     <div><i class="fas fa-receipt" style="width: 16px;"></i> Ref: ${paymentRef}</div>
                     <div><i class="fas fa-calendar" style="width: 16px;"></i> ${submittedDate}</div>
                   </div>
@@ -1114,12 +1159,31 @@ const applicationsModule = {
     },
 
     // Approve bank transfer payment for an application
-    async approvePayment(id) {
+    approvePayment(id) {
         const app = this.applications.find(a => a.id === id);
         if (!app) { showToast('Application not found', 'error'); return; }
 
-        if (!confirm(`Approve payment of ₦${(app.application_fee_amount || app.applicationFeeAmount || 0).toLocaleString()} for ${app.student_name || app.studentName}?`)) return;
+        const safeName = this._esc(app.student_name || app.studentName || '');
+        const feeAmt = (app.application_fee_amount || app.applicationFeeAmount || 0).toLocaleString();
 
+        showModal('Approve Payment', `
+            <p style="margin-bottom:1.5rem;">
+                Approve payment of <strong>&#8358;${feeAmt}</strong> for <strong>${safeName}</strong>?
+            </p>
+            <div style="display:flex;gap:0.75rem;">
+                <button class="btn-success" onclick="applicationsModule._confirmApprovePayment('${id}')">
+                    <i class="fas fa-check"></i> Confirm Approval
+                </button>
+                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+            </div>
+        `);
+    },
+
+    async _confirmApprovePayment(id) {
+        const app = this.applications.find(a => a.id === id);
+        if (!app) { showToast('Application not found', 'error'); closeModal(); return; }
+
+        closeModal();
         try {
             const { data, error } = await supabaseClient
                 .from('applications')
