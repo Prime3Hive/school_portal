@@ -56,7 +56,11 @@ const settingsModule = {
       currentTerm: 'Second Term',
       theme: 'dark',
       sessionTimeout: '24',
-      currency: 'NGN'
+      currency: 'NGN',
+      bankName: 'First Bank of Nigeria',
+      bankAccountNo: '0123456789',
+      bankAccountName: 'TBD Academy',
+      bankSortCode: '011151003'
     };
   },
 
@@ -234,6 +238,39 @@ const settingsModule = {
             </div>
           </div>
 
+          <!-- Bank Account Details -->
+          <div class="card">
+            <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
+              🏦 Bank Account Details
+            </h3>
+            <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-5);">
+              These details are shown to parents when recording a bank deposit payment.
+            </p>
+            <form onsubmit="settingsModule.saveBankDetails(event)">
+              <div class="grid grid-cols-2 gap-4">
+                <div class="form-group">
+                  <label class="form-label">Bank Name</label>
+                  <input type="text" id="settingBankName" class="form-input" value="${s.bankName || ''}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Account Number</label>
+                  <input type="text" id="settingBankAccountNo" class="form-input" value="${s.bankAccountNo || ''}" maxlength="20">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Account Name</label>
+                  <input type="text" id="settingBankAccountName" class="form-input" value="${s.bankAccountName || ''}">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Sort Code</label>
+                  <input type="text" id="settingBankSortCode" class="form-input" value="${s.bankSortCode || ''}" maxlength="20">
+                </div>
+              </div>
+              <div style="display: flex; justify-content: flex-end; margin-top: var(--space-4);">
+                <button type="submit" class="btn btn-primary">💾 Save Bank Details</button>
+              </div>
+            </form>
+          </div>
+
           <!-- Data Management -->
           <div class="card">
             <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
@@ -317,6 +354,31 @@ const settingsModule = {
       showToast('Unexpected error: ' + e.message, 'error');
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '💾 Save Academic Settings'; }
+    }
+  },
+
+  async saveBankDetails(event) {
+    event.preventDefault();
+    const btn = event.target.querySelector('button[type="submit"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
+    try {
+      const updates = {
+        bankName:        (document.getElementById('settingBankName')?.value || '').trim(),
+        bankAccountNo:   (document.getElementById('settingBankAccountNo')?.value || '').trim(),
+        bankAccountName: (document.getElementById('settingBankAccountName')?.value || '').trim(),
+        bankSortCode:    (document.getElementById('settingBankSortCode')?.value || '').trim()
+      };
+      const { ok, error } = await this.saveSettings(updates);
+      if (ok) {
+        showToast('Bank details updated!', 'success');
+      } else {
+        showToast('Save failed: ' + (error || 'Could not reach database'), 'error');
+      }
+    } catch (e) {
+      console.error('[Settings] saveBankDetails error:', e);
+      showToast('Unexpected error: ' + e.message, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Save Bank Details'; }
     }
   },
 

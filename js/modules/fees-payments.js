@@ -99,8 +99,31 @@ const feesPaymentsModule = {
   _getRecordedBy() {
     try {
       const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
-      return session.supabaseId || null;
+      return session.fullName || session.name || session.email || session.supabaseId || null;
     } catch { return null; }
+  },
+
+  _esc(str) {
+    return typeof window.escapeHtml === 'function'
+      ? window.escapeHtml(str)
+      : String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  },
+
+  _getBankDetails() {
+    const s = window.settingsModule?.settings || {};
+    return {
+      bankName:    s.bankName    || 'First Bank of Nigeria',
+      accountNo:   s.bankAccountNo   || '0123456789',
+      accountName: s.bankAccountName || (window.schoolConfig?.name || 'TBD Academy'),
+      sortCode:    s.bankSortCode    || '011151003'
+    };
+  },
+
+  _academicYearOptions(selected) {
+    const y = new Date().getFullYear();
+    return [`${y - 1}-${y}`, `${y}-${y + 1}`, `${y + 1}-${y + 2}`]
+      .map(yr => `<option value="${yr}" ${yr === selected ? 'selected' : ''}>${yr}</option>`)
+      .join('');
   },
 
   async _refreshAndRender() {
@@ -329,7 +352,7 @@ const feesPaymentsModule = {
     const payments = dataManager.getAll('payments') || [];
     const recentPayments = payments.slice(-10).reverse();
     const stats = this.calculateStats(payments);
-    const collectionRate = stats.totalCollected > 0 ? Math.round((stats.totalCollected / (stats.totalCollected + stats.totalPending)) * 100) : 0;
+    const collectionRate = this._computeBreakdownTotals().rate;
 
     return `
       <!-- Quick Stats Row -->
@@ -410,14 +433,26 @@ const feesPaymentsModule = {
   _paymentsSearch: '',
   _paymentsFilterType: '',
   _paymentsFilterMethod: '',
+  _paymentsFilterStatus: '',
   _paymentsPage: 1,
   _pendingPage: 1,
   _pageSize: 15,
 
   renderPaymentsTab() {
     const payments = dataManager.getAll('payments') || [];
-    let filtered = payments.filter(p => p.status === 'paid');
+    let filtered = [...payments];
 
+    // Apply status filter (default shows all)
+    if (this._paymentsFilterStatus) {
+      if (this._paymentsFilterStatus === 'pending-verification') {
+        filtered = filtered.filter(p => this._isPendingVerification(p));
+      } else if (this._paymentsFilterStatus === 'rejected') {
+        filtered = filtered.filter(p => this._isRejected(p));
+      } else {
+        filtered = filtered.filter(p => p.status === this._paymentsFilterStatus
+          && !this._isPendingVerification(p) && !this._isRejected(p));
+      }
+    }
     // Apply search
     if (this._paymentsSearch) {
       const q = this._paymentsSearch.toLowerCase();
@@ -436,10 +471,9 @@ const feesPaymentsModule = {
       filtered = filtered.filter(p => p.paymentMethod === this._paymentsFilterMethod);
     }
 
-    // Get unique fee types and methods for filter dropdowns
-    const allPaid = payments.filter(p => p.status === 'paid');
-    const feeTypes = [...new Set(allPaid.map(p => p.feeType).filter(Boolean))];
-    const methods = [...new Set(allPaid.map(p => p.paymentMethod).filter(Boolean))];
+    // Get unique fee types and methods for filter dropdowns (from all payments)
+    const feeTypes = [...new Set(payments.map(p => p.feeType).filter(Boolean))];
+    const methods = [...new Set(payments.map(p => p.paymentMethod).filter(Boolean))];
 
     // Paginate
     const start = (this._paymentsPage - 1) * this._pageSize;
@@ -463,20 +497,32 @@ const feesPaymentsModule = {
                 style="font-size: var(--font-size-sm);">
             </div>
             <div style="flex: 1; min-width: 140px;">
+              <select class="form-select" onchange="feesPaymentsModule.filterPayments('status', this.value)"
+                style="font-size: var(--font-size-sm);">
+                <option value="">All Statuses</option>
+                <option value="paid" ${this._paymentsFilterStatus === 'paid' ? 'selected' : ''}>✅ Paid</option>
+                <option value="pending-verification" ${this._paymentsFilterStatus === 'pending-verification' ? 'selected' : ''}>⏳ Pending Verification</option>
+                <option value="pending" ${this._paymentsFilterStatus === 'pending' ? 'selected' : ''}>🕐 Pending</option>
+                <option value="partial" ${this._paymentsFilterStatus === 'partial' ? 'selected' : ''}>⚠️ Partial</option>
+                <option value="overdue" ${this._paymentsFilterStatus === 'overdue' ? 'selected' : ''}>🔴 Overdue</option>
+                <option value="rejected" ${this._paymentsFilterStatus === 'rejected' ? 'selected' : ''}>❌ Rejected</option>
+              </select>
+            </div>
+            <div style="flex: 1; min-width: 140px;">
               <select class="form-select" onchange="feesPaymentsModule.filterPayments('type', this.value)"
                 style="font-size: var(--font-size-sm);">
                 <option value="">All Fee Types</option>
-                ${feeTypes.map(t => `<option value="${t}" ${this._paymentsFilterType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                ${feeTypes.map(t => `<option value="${t}" ${this._paymentsFilterType === t ? 'selected' : ''}>${this._esc(t)}</option>`).join('')}
               </select>
             </div>
             <div style="flex: 1; min-width: 140px;">
               <select class="form-select" onchange="feesPaymentsModule.filterPayments('method', this.value)"
                 style="font-size: var(--font-size-sm);">
                 <option value="">All Methods</option>
-                ${methods.map(m => `<option value="${m}" ${this._paymentsFilterMethod === m ? 'selected' : ''} style="text-transform: capitalize;">${m.replace('-', ' ')}</option>`).join('')}
+                ${methods.map(m => `<option value="${m}" ${this._paymentsFilterMethod === m ? 'selected' : ''} style="text-transform: capitalize;">${this._esc(m.replace(/-/g, ' '))}</option>`).join('')}
               </select>
             </div>
-            ${(this._paymentsSearch || this._paymentsFilterType || this._paymentsFilterMethod) ? `
+            ${(this._paymentsSearch || this._paymentsFilterType || this._paymentsFilterMethod || this._paymentsFilterStatus) ? `
               <button class="btn btn-ghost btn-sm" onclick="feesPaymentsModule.clearPaymentsFilters()" style="white-space: nowrap;">
                 ✕ Clear
               </button>
@@ -545,6 +591,7 @@ const feesPaymentsModule = {
     if (filterType === 'search') this._paymentsSearch = value;
     else if (filterType === 'type') this._paymentsFilterType = value;
     else if (filterType === 'method') this._paymentsFilterMethod = value;
+    else if (filterType === 'status') this._paymentsFilterStatus = value;
     this._paymentsPage = 1;
 
     const contentDiv = document.getElementById('fees-tab-content');
@@ -557,6 +604,7 @@ const feesPaymentsModule = {
     this._paymentsSearch = '';
     this._paymentsFilterType = '';
     this._paymentsFilterMethod = '';
+    this._paymentsFilterStatus = '';
     this._paymentsPage = 1;
 
     const contentDiv = document.getElementById('fees-tab-content');
@@ -809,7 +857,7 @@ const feesPaymentsModule = {
           </div>
           <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;">
             <button class="btn btn-ghost" onclick="feesPaymentsModule.resetFeeStructureToDefaults()">↺ Reset to Defaults</button>
-            <button class="btn btn-secondary" onclick="(function(){ const n=prompt('Enter new grade name (e.g. JSS 4):'); if(n) feesPaymentsModule.addGrade(n); })()">+ Add Grade</button>
+            <button class="btn btn-secondary" onclick="feesPaymentsModule.promptAddGrade()">+ Add Grade</button>
             <button class="btn btn-primary" onclick="feesPaymentsModule.saveFeeStructure()"
               style="background:linear-gradient(135deg,#059669,#10b981);">
               💾 Save Fee Structure
@@ -896,6 +944,35 @@ const feesPaymentsModule = {
     showToast(`Grade "${name}" added. Add fee items then Save.`, 'success');
   },
 
+  promptAddGrade() {
+    createModal('Add New Grade', `
+      <div>
+        <div class="form-group">
+          <label class="form-label">Grade Name <span style="color:var(--color-danger);">*</span></label>
+          <input type="text" id="new-grade-name-input" class="form-input"
+            placeholder="e.g. JSS 4, Primary 6, Senior Secondary 1"
+            maxlength="50">
+        </div>
+        <p style="font-size:var(--font-size-sm);color:var(--text-secondary);margin-top:var(--space-2);">
+          Add fee items to this grade after saving, then click <strong>Save Fee Structure</strong>.
+        </p>
+        <div class="flex gap-3 mt-4">
+          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button class="btn btn-primary flex-1" onclick="feesPaymentsModule._confirmAddGrade()">+ Add Grade</button>
+        </div>
+      </div>
+    `);
+    setTimeout(() => document.getElementById('new-grade-name-input')?.focus(), 50);
+  },
+
+  _confirmAddGrade() {
+    const input = document.getElementById('new-grade-name-input');
+    const name = input ? input.value.trim() : '';
+    if (!name) { input?.focus(); showToast('Please enter a grade name.', 'warning'); return; }
+    document.querySelector('.modal-backdrop')?.remove();
+    this.addGrade(name);
+  },
+
   async saveFeeStructure() {
     if (!window.feeStructure) { showToast('Fee structure not loaded', 'error'); return; }
     if (!window.supabaseClient) { showToast('Not connected to database', 'error'); return; }
@@ -934,7 +1011,14 @@ const feesPaymentsModule = {
 
   resetFeeStructureToDefaults() {
     if (!confirm('Reset all fee items to the built-in defaults? Any unsaved edits will be lost.')) return;
-    location.reload();
+    if (window.feeStructure?._builtInFeeItems) {
+      window.feeStructure.feeItems = JSON.parse(JSON.stringify(window.feeStructure._builtInFeeItems));
+      const contentDiv = document.getElementById('fees-tab-content');
+      if (contentDiv) contentDiv.innerHTML = this.renderFeeStructureTab();
+      showToast('Fee structure reset to built-in defaults. Click Save to persist.', 'info');
+    } else {
+      location.reload();
+    }
   },
 
   renderPaymentList(payments) {
@@ -957,10 +1041,10 @@ const feesPaymentsModule = {
                onmouseout="this.style.background='var(--bg-secondary)'">
             <div>
               <p style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-1);">
-                ${payment.studentName}
+                ${this._esc(payment.studentName)}
               </p>
               <p style="color: var(--text-secondary); font-size: var(--font-size-sm);">
-                ${payment.feeType} • ${formatDate(payment.paymentDate)}
+                ${this._esc(payment.feeType)} • ${formatDate(payment.paymentDate)}
               </p>
             </div>
             <div style="text-align: right;">
@@ -968,7 +1052,7 @@ const feesPaymentsModule = {
                 ${formatCurrency(parseFloat(payment.amount) || 0)}
               </p>
               <p style="font-size: var(--font-size-sm); color: var(--text-secondary); text-transform: capitalize;">
-                ${payment.paymentMethod?.replace(/-/g, ' ') || ''}
+                ${this._esc((payment.paymentMethod || '').replace(/-/g, ' '))}
               </p>
               ${this._isPendingVerification(payment) ? '<span class="badge badge-warning" style="font-size: 10px;">⏳ Pending</span>' : ''}
             </div>
@@ -1008,13 +1092,13 @@ const feesPaymentsModule = {
           <tbody>
             ${payments.map(payment => `
               <tr>
-                <td style="font-family: monospace; font-weight: var(--font-weight-semibold);">${payment.receiptNo}</td>
+                <td style="font-family: monospace; font-weight: var(--font-weight-semibold);">${this._esc(payment.receiptNo)}</td>
                 <td>${formatDate(payment.paymentDate)}</td>
-                <td style="font-weight: var(--font-weight-semibold);">${payment.studentName}</td>
-                <td>${payment.feeType}</td>
+                <td style="font-weight: var(--font-weight-semibold);">${this._esc(payment.studentName)}</td>
+                <td>${this._esc(payment.feeType)}</td>
                 <td style="color: var(--color-success); font-weight: var(--font-weight-bold);">${formatCurrency(parseFloat(payment.amount) || 0)}</td>
-                <td style="text-transform: capitalize;">${payment.paymentMethod}</td>
-                <td style="font-family: monospace; font-size: var(--font-size-sm);">${payment.transactionRef || '-'}</td>
+                <td style="text-transform: capitalize;">${this._esc((payment.paymentMethod || '').replace(/-/g, ' '))}</td>
+                <td style="font-family: monospace; font-size: var(--font-size-sm);">${this._esc(payment.transactionRef || '-')}</td>
                 <td>${this._isPendingVerification(payment)
         ? createBadge('Pending', 'warning')
         : this._isRejected(payment)
@@ -1080,12 +1164,16 @@ const feesPaymentsModule = {
                   .filter(p => (p.studentId || p.student_id) === student.id && p.status !== 'paid')
                   .reduce((s, p) => s + parseFloat(p.amount || 0), 0);
               }
+              const gradeRaw = student.grade || '';
+              const gradeDisplay = gradeRaw
+                ? (gradeRaw.toLowerCase().startsWith('grade ') ? gradeRaw : 'Grade ' + gradeRaw)
+                : '-';
               return `
               <tr>
-                <td>${student.rollNo || student.roll_no || '-'}</td>
-                <td style="font-weight: var(--font-weight-semibold);">${student.name}</td>
-                <td>${student.grade ? 'Grade ' + student.grade : '-'}</td>
-                <td>${student.section ? 'Section ' + student.section : '-'}</td>
+                <td>${this._esc(student.rollNo || student.roll_no || '-')}</td>
+                <td style="font-weight: var(--font-weight-semibold);">${this._esc(student.name)}</td>
+                <td>${this._esc(gradeDisplay)}</td>
+                <td>${student.section ? 'Section ' + this._esc(student.section) : '-'}</td>
                 <td style="text-align:right; font-weight:700; color:${outstanding > 0 ? 'var(--color-danger)' : 'var(--text-secondary)'};">${outstanding > 0 ? formatCurrency(outstanding) : '—'}</td>
                 <td>${createBadge(statusLabels[student.fees] || 'Pending', statusColors[student.fees] || 'warning')}</td>
                 <td>
@@ -1104,7 +1192,9 @@ const feesPaymentsModule = {
   renderMonthlyChart() {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const payments = dataManager.getAll('payments') || [];
-    const currentYear = new Date().getFullYear();
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonthIndex = now.getMonth();
 
     // Calculate monthly totals for current year
     const monthlyData = months.map((month, index) => {
@@ -1130,6 +1220,7 @@ const feesPaymentsModule = {
         position: relative;
       ">
         ${months.map((month, i) => {
+          if (i > currentMonthIndex) return ''; // hide future months
           const height = (monthlyData[i] / maxAmount) * 100;
           const amount = monthlyData[i];
           return `
@@ -1454,20 +1545,18 @@ const feesPaymentsModule = {
           <div class="form-group">
             <label class="form-label">Academic Year *</label>
             <select class="form-select" name="academicYear" required>
-              <option value="${window.CURRENT_ACADEMIC_YEAR || '2025-2026'}" selected>${window.CURRENT_ACADEMIC_YEAR || '2025-2026'}</option>
-              <option value="2024-2025">2024-2025</option>
-              <option value="2026-2027">2026-2027</option>
+              ${this._academicYearOptions(window.CURRENT_ACADEMIC_YEAR || '2025-2026')}
             </select>
           </div>
 
           <div id="bank-deposit-details" style="display: none; grid-column: span 2; padding: var(--space-4); background: var(--bg-tertiary); border-radius: var(--radius-md); border-left: 4px solid var(--color-primary);">
             <h4 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3);">🏦 School Bank Details</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); font-size: var(--font-size-sm);">
-              <div><strong>Bank:</strong> First Bank of Nigeria</div>
-              <div><strong>Account No:</strong> 0123456789</div>
-              <div><strong>Account Name:</strong> TBD Academy</div>
-              <div><strong>Sort Code:</strong> 011151003</div>
-            </div>
+            ${(() => { const b = this._getBankDetails(); return `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); font-size: var(--font-size-sm);">
+              <div><strong>Bank:</strong> ${this._esc(b.bankName)}</div>
+              <div><strong>Account No:</strong> ${this._esc(b.accountNo)}</div>
+              <div><strong>Account Name:</strong> ${this._esc(b.accountName)}</div>
+              <div><strong>Sort Code:</strong> ${this._esc(b.sortCode)}</div>
+            </div>`; })()}
           </div>
 
           <div class="form-group" id="transaction-ref-group" style="display: none;">
@@ -1530,9 +1619,9 @@ const feesPaymentsModule = {
 
           <div class="form-group">
             <label class="form-label">Amount (₦) *</label>
-            <input type="number" class="form-input" name="amount" required min="1" step="0.01" 
+            <input type="number" class="form-input" name="amount" required min="1" step="0.01"
               placeholder="0.00" id="amount-input">
-            <p style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;" id="amount-hint">
+            <p style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 4px;" id="amount-hint-amount">
               💡 You can modify the amount if needed
             </p>
           </div>
@@ -1561,20 +1650,18 @@ const feesPaymentsModule = {
           <div class="form-group">
             <label class="form-label">Academic Year *</label>
             <select class="form-select" name="academicYear" required>
-              <option value="${window.CURRENT_ACADEMIC_YEAR || '2025-2026'}" selected>${window.CURRENT_ACADEMIC_YEAR || '2025-2026'}</option>
-              <option value="2024-2025">2024-2025</option>
-              <option value="2026-2027">2026-2027</option>
+              ${this._academicYearOptions(window.CURRENT_ACADEMIC_YEAR || '2025-2026')}
             </select>
           </div>
 
           <div id="bank-deposit-details" style="display: none; grid-column: span 2; padding: var(--space-4); background: var(--bg-tertiary); border-radius: var(--radius-md); border-left: 4px solid var(--color-primary);">
             <h4 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3);">🏦 School Bank Details</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); font-size: var(--font-size-sm);">
-              <div><strong>Bank:</strong> First Bank of Nigeria</div>
-              <div><strong>Account No:</strong> 0123456789</div>
-              <div><strong>Account Name:</strong> TBD Academy</div>
-              <div><strong>Sort Code:</strong> 011151003</div>
-            </div>
+            ${(() => { const b = this._getBankDetails(); return `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); font-size: var(--font-size-sm);">
+              <div><strong>Bank:</strong> ${this._esc(b.bankName)}</div>
+              <div><strong>Account No:</strong> ${this._esc(b.accountNo)}</div>
+              <div><strong>Account Name:</strong> ${this._esc(b.accountName)}</div>
+              <div><strong>Sort Code:</strong> ${this._esc(b.sortCode)}</div>
+            </div>`; })()}
           </div>
 
           <div class="form-group" id="transaction-ref-group" style="display: none; grid-column: span 2;">
@@ -1603,7 +1690,7 @@ const feesPaymentsModule = {
       </form>
     `;
 
-    createModal(`Record Payment - ${student.name}`, content);
+    createModal(`Record Payment - ${this._esc(student.name)}`, content);
     // Populate fee types and outstanding summary after modal renders
     setTimeout(() => this.updateFeeTypeOptions(studentId), 50);
   },
@@ -1863,7 +1950,9 @@ const feesPaymentsModule = {
   populateFeeAmount() {
     const feeTypeSelect = document.getElementById('fee-type-select');
     const amountInput   = document.getElementById('amount-input');
-    const amountHint    = document.getElementById('amount-hint') || document.getElementById('amount-hint-fee-type');
+    const amountHint    = document.getElementById('amount-hint')
+      || document.getElementById('amount-hint-fee-type')
+      || document.getElementById('amount-hint-amount');
     const submitBtn     = document.getElementById('submit-payment-btn');
 
     if (!feeTypeSelect || !amountInput) return;
@@ -2270,15 +2359,29 @@ const feesPaymentsModule = {
     const payment = dataManager.getById('payments', paymentId);
     if (!payment) return;
 
-    const isPending = this._isPendingVerification(payment);
+    const isPending  = this._isPendingVerification(payment);
     const isRejected = this._isRejected(payment);
+
+    // Escape all DB-sourced strings before injecting into HTML
+    const safeReceiptNo   = this._esc(payment.receiptNo   || '');
+    const safeStudentName = this._esc(payment.studentName || '');
+    const safeRollNo      = this._esc(payment.studentRollNo || '—');
+    const safeGrade       = this._esc(payment.grade   || '');
+    const safeSection     = this._esc(payment.section || '');
+    const safeFeeType     = this._esc(payment.feeType || '');
+    const safeMethod      = this._esc((payment.paymentMethod || '').replace(/-/g, ' '));
+    const safeTxRef       = this._esc(payment.transactionRef || '');
+    const safeNotes       = this._esc(payment.notes || '');
+    const safeVerifiedBy  = this._esc(payment.verifiedBy || '');
+    const safeRejReason   = this._esc(payment.rejectionReason || payment.rejection_reason || 'No reason provided');
+
     const statusBadge = isPending
       ? '<span class="badge badge-warning" style="font-size: var(--font-size-sm);">⏳ Pending Verification</span>'
       : payment.status === 'paid'
         ? '<span class="badge badge-success" style="font-size: var(--font-size-sm);">✅ Verified & Paid</span>'
         : isRejected
           ? '<span class="badge badge-danger" style="font-size: var(--font-size-sm);">❌ Rejected</span>'
-          : `<span class="badge badge-info" style="font-size: var(--font-size-sm);">${payment.status}</span>`;
+          : `<span class="badge badge-info" style="font-size: var(--font-size-sm);">${this._esc(payment.status || '')}</span>`;
 
     const receiptSection = payment.receiptUrl ? `
         <div class="card mb-4">
@@ -2287,9 +2390,9 @@ const feesPaymentsModule = {
           </div>
           <div class="card-body" style="text-align: center;">
             ${payment.receiptUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-        ? `<img src="${payment.receiptUrl}" alt="Payment Receipt" style="max-width: 100%; max-height: 400px; border-radius: var(--radius-md); border: 1px solid var(--border-primary);">`
-        : `<a href="${payment.receiptUrl}" target="_blank" class="btn btn-secondary">📄 View Receipt Document</a>`
-      }
+              ? `<img src="${this._esc(payment.receiptUrl)}" alt="Payment Receipt" style="max-width: 100%; max-height: 400px; border-radius: var(--radius-md); border: 1px solid var(--border-primary);">`
+              : `<a href="${this._esc(payment.receiptUrl)}" target="_blank" class="btn btn-secondary">📄 View Receipt Document</a>`
+            }
           </div>
         </div>
     ` : '';
@@ -2298,7 +2401,7 @@ const feesPaymentsModule = {
         <div class="card mb-4" style="border-left: 4px solid var(--color-success);">
           <div class="card-body">
             <p style="font-size: var(--font-size-sm); color: var(--text-secondary);">
-              Verified by <strong>${payment.verifiedBy}</strong> on ${formatDate(payment.verifiedAt)}
+              Verified by <strong>${safeVerifiedBy}</strong> on ${formatDate(payment.verifiedAt)}
             </p>
           </div>
         </div>
@@ -2308,7 +2411,7 @@ const feesPaymentsModule = {
         <div class="card mb-4" style="border-left: 4px solid var(--color-danger);">
           <div class="card-body">
             <p style="font-size: var(--font-size-sm); font-weight: 600; color: var(--color-danger); margin-bottom: var(--space-2);">❌ Rejection Reason:</p>
-            <p style="font-size: var(--font-size-sm); color: var(--text-secondary); font-style: italic;">${payment.rejectionReason || payment.rejection_reason || 'No reason provided'}</p>
+            <p style="font-size: var(--font-size-sm); color: var(--text-secondary); font-style: italic;">${safeRejReason}</p>
           </div>
         </div>
     ` : '';
@@ -2328,7 +2431,7 @@ const feesPaymentsModule = {
       <div style="max-height: 70vh; overflow-y: auto;">
         <div class="mb-6" style="text-align: center; padding: var(--space-6); background: var(--bg-secondary); border-radius: var(--radius-md);">
           <h3 style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); margin-bottom: var(--space-2);">
-            Receipt #${payment.receiptNo}
+            Receipt #${safeReceiptNo}
           </h3>
           <p style="color: var(--text-secondary); margin-bottom: var(--space-2);">${formatDate(payment.paymentDate)}</p>
           ${statusBadge}
@@ -2344,19 +2447,19 @@ const feesPaymentsModule = {
             <div class="grid grid-cols-2 gap-4">
               <div>
                 <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Name</p>
-                <p style="font-weight: var(--font-weight-semibold);">${payment.studentName}</p>
+                <p style="font-weight: var(--font-weight-semibold);">${safeStudentName}</p>
               </div>
               <div>
                 <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Roll Number</p>
-                <p style="font-weight: var(--font-weight-semibold);">${payment.studentRollNo || '—'}</p>
+                <p style="font-weight: var(--font-weight-semibold);">${safeRollNo}</p>
               </div>
               <div>
                 <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Grade</p>
-                <p style="font-weight: var(--font-weight-semibold);">Grade ${payment.grade}</p>
+                <p style="font-weight: var(--font-weight-semibold);">${safeGrade}</p>
               </div>
               <div>
                 <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Section</p>
-                <p style="font-weight: var(--font-weight-semibold);">Section ${payment.section}</p>
+                <p style="font-weight: var(--font-weight-semibold);">${safeSection}</p>
               </div>
             </div>
           </div>
@@ -2370,7 +2473,7 @@ const feesPaymentsModule = {
             <div class="space-y-3">
               <div class="flex justify-between">
                 <span style="color: var(--text-secondary);">Fee Type</span>
-                <span style="font-weight: var(--font-weight-semibold);">${payment.feeType}</span>
+                <span style="font-weight: var(--font-weight-semibold);">${safeFeeType}</span>
               </div>
               <div class="flex justify-between">
                 <span style="color: var(--text-secondary);">Amount</span>
@@ -2381,21 +2484,19 @@ const feesPaymentsModule = {
               <div class="flex justify-between">
                 <span style="color: var(--text-secondary);">Payment Method</span>
                 <span style="font-weight: var(--font-weight-semibold); text-transform: capitalize;">
-                  ${(payment.paymentMethod || '').replace(/-/g, ' ')}
+                  ${safeMethod}
                 </span>
               </div>
               ${payment.transactionRef ? `
                 <div class="flex justify-between">
                   <span style="color: var(--text-secondary);">Transaction Reference</span>
-                  <span style="font-family: monospace; font-weight: var(--font-weight-semibold);">
-                    ${payment.transactionRef}
-                  </span>
+                  <span style="font-family: monospace; font-weight: var(--font-weight-semibold);">${safeTxRef}</span>
                 </div>
               ` : ''}
               ${payment.notes ? `
                 <div>
                   <p style="color: var(--text-secondary); margin-bottom: var(--space-1);">Notes</p>
-                  <p style="font-style: italic;">${payment.notes}</p>
+                  <p style="font-style: italic;">${safeNotes}</p>
                 </div>
               ` : ''}
             </div>
@@ -2461,24 +2562,64 @@ const feesPaymentsModule = {
     }
     if (!payment) { showToast('Payment record not found', 'error'); return; }
     const studentName = payment.studentName || payment.student_name || 'Unknown';
-    const reason = prompt(`Reject bank deposit from ${studentName}?\n\nPlease provide a reason:`);
-    if (reason === null) return; // cancelled
 
-    // ── BEGIN / EXECUTE / CHECK / COMMIT → ROLLBACK via RPC ───────────────
+    createModal('Reject Payment', `
+      <div>
+        <p style="margin-bottom: var(--space-4); color: var(--text-secondary);">
+          You are about to reject the bank deposit from <strong>${this._esc(studentName)}</strong>
+          (${formatCurrency(parseFloat(payment.amount) || 0)}).
+        </p>
+        <div class="form-group">
+          <label class="form-label">Rejection Reason <span style="color:var(--color-danger);">*</span></label>
+          <textarea id="rejection-reason-input" class="form-input" rows="3"
+            placeholder="e.g. Receipt not legible, incorrect account number..."
+            style="resize: vertical;"></textarea>
+        </div>
+        <div class="flex gap-3 mt-4">
+          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button class="btn flex-1" id="confirm-reject-btn"
+            style="background: var(--color-danger); color: white; border: none;"
+            onclick="feesPaymentsModule._confirmRejectPayment('${paymentId}')">
+            ❌ Confirm Rejection
+          </button>
+        </div>
+      </div>
+    `);
+  },
+
+  async _confirmRejectPayment(paymentId) {
+    const reasonEl = document.getElementById('rejection-reason-input');
+    const reason = reasonEl ? reasonEl.value.trim() : '';
+    if (!reason) {
+      reasonEl?.focus();
+      showToast('Please enter a rejection reason.', 'warning');
+      return;
+    }
+    const btn = document.getElementById('confirm-reject-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Rejecting…'; }
+
+    let payment = dataManager.getById('payments', paymentId);
+    if (!payment) {
+      const { data } = await supabaseClient.from('fees_payments').select('*').eq('id', paymentId).single();
+      payment = data;
+    }
+    const studentName = payment?.studentName || payment?.student_name || 'Unknown';
+
     const { data: rpc, error: rpcErr } = await supabaseClient.rpc('reject_fee_payment', {
       p_payment_id:  paymentId,
       p_verified_by: this._getRecordedBy(),
-      p_reason:      reason || 'No reason provided'
+      p_reason:      reason
     });
     if (rpcErr || !rpc?.success) {
       const msg = rpc?.error || rpcErr?.message || 'Failed to reject payment.';
       showToast(msg.replace(/^[A-Z_]+:/, '').trim(), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '❌ Confirm Rejection'; }
       return;
     }
 
     document.querySelector('.modal-backdrop')?.remove();
     showToast('Payment rejected. Student will be notified.', 'warning');
-    if (typeof writeAuditLog === 'function') writeAuditLog('PAYMENT_REJECTED', studentName, reason || 'No reason provided');
+    if (typeof writeAuditLog === 'function') writeAuditLog('PAYMENT_REJECTED', studentName, reason);
     await this._refreshAndRender();
   },
 
@@ -2528,10 +2669,33 @@ const feesPaymentsModule = {
   },
 
   exportPayments() {
-    const payments = dataManager.getAll('payments') || [];
+    const all = dataManager.getAll('payments') || [];
+    let payments = [...all];
+
+    // Apply same filters as the Payment Records tab
+    if (this._paymentsFilterStatus) {
+      if (this._paymentsFilterStatus === 'pending-verification') {
+        payments = payments.filter(p => this._isPendingVerification(p));
+      } else if (this._paymentsFilterStatus === 'rejected') {
+        payments = payments.filter(p => this._isRejected(p));
+      } else {
+        payments = payments.filter(p => p.status === this._paymentsFilterStatus
+          && !this._isPendingVerification(p) && !this._isRejected(p));
+      }
+    }
+    if (this._paymentsSearch) {
+      const q = this._paymentsSearch.toLowerCase();
+      payments = payments.filter(p =>
+        (p.studentName || '').toLowerCase().includes(q) ||
+        (p.receiptNo || '').toLowerCase().includes(q) ||
+        (p.studentRollNo || '').toLowerCase().includes(q)
+      );
+    }
+    if (this._paymentsFilterType) payments = payments.filter(p => p.feeType === this._paymentsFilterType);
+    if (this._paymentsFilterMethod) payments = payments.filter(p => p.paymentMethod === this._paymentsFilterMethod);
 
     if (payments.length === 0) {
-      showToast('No payments to export', 'warning');
+      showToast('No payments match the current filter — nothing to export', 'warning');
       return;
     }
 
@@ -2771,7 +2935,7 @@ const feesPaymentsModule = {
     const statusText = percentagePaid === 100 ? 'Fully Paid' : percentagePaid > 0 ? 'Partially Paid' : 'Not Paid';
 
     return `
-      <div class="card mb-4 student-fee-card" data-student-name="${student.name?.toLowerCase()}" data-roll-no="${student.roll_no?.toLowerCase()}" data-grade="${student.grade}" data-status="${statusText.toLowerCase().replace(' ', '')}">
+      <div class="card mb-4 student-fee-card" data-student-name="${this._esc(student.name?.toLowerCase())}" data-roll-no="${this._esc(student.roll_no?.toLowerCase())}" data-grade="${this._esc(student.grade)}" data-status="${statusText.toLowerCase().replace(' ', '')}">
         <div class="card-header" style="background: var(--bg-secondary); cursor: pointer;" onclick="feesPaymentsModule.toggleStudentFeeDetails('${student.id}')">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
             <div style="display: flex; align-items: center; gap: 12px;">
@@ -2779,9 +2943,9 @@ const feesPaymentsModule = {
                 ${student.photo || '👤'}
               </div>
               <div>
-                <h5 class="mb-1" style="font-weight: 700;">${student.name}</h5>
+                <h5 class="mb-1" style="font-weight: 700;">${this._esc(student.name)}</h5>
                 <div class="text-sm text-secondary">
-                  ${student.roll_no} • ${student.grade} ${student.section ? `- ${student.section}` : ''}
+                  ${this._esc(student.roll_no)} • ${this._esc(student.grade)} ${student.section ? `- ${this._esc(student.section)}` : ''}
                 </div>
               </div>
             </div>
@@ -2831,19 +2995,21 @@ const feesPaymentsModule = {
                 <tbody>
                   ${items.map(item => {
                     const balance = parseFloat(item.amount) - parseFloat(item.amount_paid || 0);
-                    const itemStatusBadge = item.status === 'paid' ? 'badge-success' : 
+                    const itemStatusBadge = item.status === 'paid' ? 'badge-success' :
                                            item.status === 'partial' ? 'badge-warning' : 'badge-secondary';
+                    const safeItemName = this._esc(item.item_name);
+                    const safeItemType = this._esc(item.item_type);
                     return `
                       <tr>
-                        <td><strong>${item.item_name}</strong></td>
-                        <td><span class="badge badge-light">${item.item_type}</span></td>
+                        <td><strong>${safeItemName}</strong></td>
+                        <td><span class="badge badge-light">${safeItemType}</span></td>
                         <td class="text-right">₦${parseFloat(item.amount).toLocaleString()}</td>
                         <td class="text-right text-success">₦${parseFloat(item.amount_paid || 0).toLocaleString()}</td>
                         <td class="text-right ${balance > 0 ? 'text-danger' : 'text-success'}">₦${balance.toLocaleString()}</td>
-                        <td><span class="badge ${itemStatusBadge}">${item.status}</span></td>
+                        <td><span class="badge ${itemStatusBadge}">${this._esc(item.status)}</span></td>
                         <td>
                           ${item.status !== 'paid' ? `
-                            <button class="btn btn-sm btn-primary" onclick="feesPaymentsModule.recordPaymentForItem('${student.id}', '${item.id}', '${item.item_name}', ${balance})">
+                            <button class="btn btn-sm btn-primary" onclick="feesPaymentsModule.recordPaymentForItem('${student.id}', '${item.id}', ${JSON.stringify(item.item_name)}, ${balance})">
                               Pay
                             </button>
                           ` : '<span class="text-success">✓ Paid</span>'}

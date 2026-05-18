@@ -278,6 +278,9 @@ const feeStructure = {
 
 window.feeStructure = feeStructure;
 
+// Capture built-in defaults before any Supabase overrides are applied
+feeStructure._builtInFeeItems = JSON.parse(JSON.stringify(feeStructure.feeItems));
+
 // Auto-load saved overrides once Supabase is available
 (function tryLoad() {
   if (window.supabaseClient) {
