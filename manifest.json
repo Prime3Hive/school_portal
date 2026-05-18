@@ -1,0 +1,38 @@
+{
+  "name": "TBD Academy School Portal",
+  "short_name": "TBD Academy",
+  "description": "Comprehensive school management portal for TBD Academy",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#137fec",
+  "orientation": "any",
+  "scope": "/",
+  "lang": "en",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23137fec'/><text y='.9em' font-size='70' x='15'>🎓</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/index.html#admin-dashboard",
+      "description": "Admin dashboard overview"
+    },
+    {
+      "name": "Students",
+      "url": "/index.html#student-directory",
+      "description": "Student directory"
+    },
+    {
+      "name": "Fees & Payments",
+      "url": "/index.html#fees-payments",
+      "description": "Fee management"
+    }
+  ]
+}

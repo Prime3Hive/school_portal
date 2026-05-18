@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Apply to TBD Academy - Download application form, view admission requirements, fee structure, and submit your application online.">
+    <title>Admissions - TBD Academy</title>
+
+    <!-- Open Graph / Social Media -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://school-portal-tbd.vercel.app/admissions.html">
+    <meta property="og:title" content="Admissions - TBD Academy">
+    <meta property="og:description" content="Apply to TBD Academy for the 2026/2027 academic year. Download the application form, review fee structures, and submit online.">
+    <meta property="og:image" content="https://picsum.photos/seed/tbdacademy/1200/630">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Admissions - TBD Academy">
+    <meta name="twitter:description" content="Apply to TBD Academy for the 2026/2027 academic year. Download the application form, review fee structures, and submit online.">
+
+    <link rel="icon" type="image/svg+xml"
+        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+    <link rel="stylesheet" href="css/public-blog.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Environment Variables Loader -->
+    <script src="js/env-loader.js"></script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="navbar-container">
+            <a href="public-blog.html" class="navbar-logo">
+                <div class="navbar-logo-icon">T</div>
+                <span>TBD Academy</span>
+            </a>
+
+            <ul class="navbar-menu" id="navbarMenu">
+                <li><a href="public-blog.html" class="navbar-link">Home</a></li>
+                <li><a href="about.html" class="navbar-link">About</a></li>
+                <li><a href="academics.html" class="navbar-link">Academics</a></li>
+                <li><a href="admissions.html" class="navbar-link active">Admissions</a></li>
+                <li><a href="contact.html" class="navbar-link">Contact</a></li>
+            </ul>
+
+            <a href="login.html" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.875rem; white-space: nowrap;">
+                <i class="fas fa-sign-in-alt"></i>
+                <span>Portal Login</span>
+            </a>
+
+            <button class="navbar-toggle" id="navbarToggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Page Header -->
+    <section class="hero" style="min-height: 60vh; padding-top: 8rem;">
+        <div class="hero-container" style="grid-template-columns: 1fr; text-align: center;">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <span class="hero-badge-dot"></span>
+                    <span>Now Accepting Applications for 2026/2027</span>
+                </div>
+
+                <h1 class="hero-title">Join TBD Academy</h1>
+
+                <p class="hero-subtitle" style="max-width: 700px; margin: 0 auto 2rem;">
+                    Begin your child's journey to excellence. Download our application form,
+                    fill it out, and submit it online.
+                </p>
+
+                <button onclick="generateApplicationForm()" class="btn btn-primary" style="display: inline-flex;">
+                    <i class="fas fa-download"></i>
+                    <span>Download Application Form</span>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Application Process -->
+    <section class="section" style="background: white;">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-badge">How to Apply</span>
+                <h2 class="section-title">Application Process</h2>
+                <p class="section-subtitle">
+                    Follow these simple steps to complete your application
+                </p>
+            </div>
+
+            <div class="grid grid-4">
+                <div class="card">
+                    <div
+                        style="width: 60px; height: 60px; margin-bottom: 1.5rem; background: linear-gradient(135deg, hsl(220, 70%, 50%), hsl(220, 70%, 40%)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.75rem; font-weight: 700;">
+                        1
+                    </div>
+                    <h3 class="card-title">Download Form</h3>
+                    <p class="card-text">
+                        Click the button above to download the PDF application form to your device.
+                    </p>
+                </div>
+
+                <div class="card">
+                    <div
+                        style="width: 60px; height: 60px; margin-bottom: 1.5rem; background: linear-gradient(135deg, hsl(200, 90%, 55%), hsl(200, 90%, 45%)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.75rem; font-weight: 700;">
+                        2
+                    </div>
+                    <h3 class="card-title">Fill Out Form</h3>
+                    <p class="card-text">
+                        Complete all sections of the form with accurate information about your child.
+                    </p>
+                </div>
+
+                <div class="card">
+                    <div
+                        style="width: 60px; height: 60px; margin-bottom: 1.5rem; background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.75rem; font-weight: 700;">
+                        3
+                    </div>
+                    <h3 class="card-title">Upload Form</h3>
+                    <p class="card-text">
+                        Submit the completed form using the upload section below.
+                    </p>
+                </div>
+
+                <div class="card">
+                    <div
+                        style="width: 60px; height: 60px; margin-bottom: 1.5rem; background: linear-gradient(135deg, hsl(45, 100%, 50%), hsl(45, 100%, 40%)); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-size: 1.75rem; font-weight: 700;">
+                        4
+                    </div>
+                    <h3 class="card-title">Track Status</h3>
+                    <p class="card-text">
+                        Use your Application ID to check the status of your application anytime.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Upload Application Form -->
+    <section class="section" id="upload">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-badge">Submit Application</span>
+                <h2 class="section-title">Upload Completed Form</h2>
+                <p class="section-subtitle">
+                    Fill in the details below and upload your completed application form
+                </p>
+            </div>
+
+            <div style="max-width: 700px; margin: 0 auto;">
+
+                <!-- Step Progress Indicator -->
+                <div style="display:flex; gap:0; margin-bottom:1.5rem; border-radius:0.75rem; overflow:hidden; border:1.5px solid var(--border-primary);">
+                    <div style="flex:1; padding:0.65rem 0.5rem; background:hsl(220,70%,50%); color:white; text-align:center; font-size:0.8rem; font-weight:700;">
+                        <div>① Student</div>
+                    </div>
+                    <div style="flex:1; padding:0.65rem 0.5rem; background:hsl(200,90%,55%); color:white; text-align:center; font-size:0.8rem; font-weight:700;">
+                        <div>② Parent</div>
+                    </div>
+                    <div style="flex:1; padding:0.65rem 0.5rem; background:hsl(150,65%,42%); color:white; text-align:center; font-size:0.8rem; font-weight:700;">
+                        <div>③ Documents</div>
+                    </div>
+                    <div style="flex:1; padding:0.65rem 0.5rem; background:hsl(45,100%,45%); color:white; text-align:center; font-size:0.8rem; font-weight:700;">
+                        <div>④ Payment</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <form id="applicationForm" onsubmit="handleApplicationSubmit(event)">
+                        <div style="display: grid; gap: 1.5rem;">
+
+                            <!-- ── SECTION 1: Student Information ── -->
+                            <div style="padding:0.75rem 1rem; background:hsl(220,70%,97%); border-left:4px solid hsl(220,70%,50%); border-radius:0.5rem; font-weight:700; color:hsl(220,70%,35%); font-size:0.9rem;">
+                                <i class="fas fa-user-graduate" style="margin-right:0.5rem;"></i>① Student Information
+                            </div>
+
+                            <!-- Student Name -->
+                            <div>
+                                <label for="studentName"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Student Full Name <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="text" id="studentName" name="studentName" required maxlength="100"
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'"
+                                    placeholder="Enter student's full name (Surname First)">
+                            </div>
+
+                            <!-- Student Date of Birth -->
+                            <div>
+                                <label for="studentDob"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Date of Birth
+                                </label>
+                                <input type="date" id="studentDob" name="studentDob"
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'">
+                            </div>
+
+                            <!-- Student Gender -->
+                            <div>
+                                <label for="studentGender"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Gender
+                                </label>
+                                <select id="studentGender" name="studentGender"
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'">
+                                    <option value="">Select Gender</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                </select>
+                            </div>
+
+                            <!-- Previous School -->
+                            <div>
+                                <label for="previousSchool"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Previous School (if any)
+                                </label>
+                                <input type="text" id="previousSchool" name="previousSchool" maxlength="200"
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'"
+                                    placeholder="Enter previous school name">
+                            </div>
+
+                            <!-- Grade -->
+                            <div>
+                                <label for="grade"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Grade Applying For <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <div style="display:flex; align-items:center; gap:0.75rem; flex-wrap:wrap;">
+                                    <span id="gradeFeeTag" style="display:none; padding:0.3rem 0.85rem; background:hsl(220,70%,95%); border:1.5px solid hsl(220,70%,70%); border-radius:2rem; font-size:0.825rem; font-weight:700; color:hsl(220,70%,35%); white-space:nowrap;">
+                                        Application Fee: <span id="gradeFeeAmount">—</span>
+                                    </span>
+                                </div>
+                                <select id="grade" name="grade" required
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'"
+                                    onchange="updateGradeFeeTag(this.value)">
+                                    <option value="">Select Grade</option>
+                                    <optgroup label="Early Years">
+                                        <option value="Kindergarten">Kindergarten</option>
+                                        <option value="Nursery">Nursery</option>
+                                        <option value="Pre-Primary">Pre-Primary</option>
+                                    </optgroup>
+                                    <optgroup label="Primary">
+                                        <option value="Grade 1">Grade 1</option>
+                                        <option value="Grade 2">Grade 2</option>
+                                        <option value="Grade 3">Grade 3</option>
+                                        <option value="Grade 4">Grade 4</option>
+                                        <option value="Grade 5">Grade 5</option>
+                                        <option value="Grade 6">Grade 6</option>
+                                    </optgroup>
+                                    <optgroup label="Junior Secondary">
+                                        <option value="JSS 1">JSS 1</option>
+                                        <option value="JSS 2">JSS 2</option>
+                                        <option value="JSS 3">JSS 3</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+
+                            <!-- ── SECTION 2: Parent/Guardian Information ── -->
+                            <div style="padding:0.75rem 1rem; background:hsl(200,90%,97%); border-left:4px solid hsl(200,90%,55%); border-radius:0.5rem; font-weight:700; color:hsl(200,70%,30%); font-size:0.9rem;">
+                                <i class="fas fa-user" style="margin-right:0.5rem;"></i>② Parent / Guardian Information
+                            </div>
+
+                            <!-- Parent Name -->
+                            <div>
+                                <label for="parentName"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Parent/Guardian Name <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="text" id="parentName" name="parentName" required maxlength="100"
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'"
+                                    placeholder="Enter parent/guardian full name">
+                            </div>
+
+                            <!-- Parent Address -->
+                            <div>
+                                <label for="parentStreet"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Home Address <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="text" id="parentStreet" name="parentStreet" required maxlength="200"
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease; margin-bottom: 0.75rem;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'"
+                                    placeholder="Street address">
+                                <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem;">
+                                    <input type="text" id="parentCity" name="parentCity" required maxlength="100"
+                                        style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                        onfocus="this.style.borderColor='var(--color-primary)'"
+                                        onblur="this.style.borderColor='var(--border-primary)'"
+                                        placeholder="City">
+                                    <input type="text" id="parentState" name="parentState" required maxlength="100"
+                                        style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                        onfocus="this.style.borderColor='var(--color-primary)'"
+                                        onblur="this.style.borderColor='var(--border-primary)'"
+                                        placeholder="State">
+                                </div>
+                            </div>
+
+                            <!-- Parent Email -->
+                            <div>
+                                <label for="parentEmail"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Parent/Guardian Email <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="email" id="parentEmail" name="parentEmail" required
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'"
+                                    placeholder="email@example.com">
+                            </div>
+
+                            <!-- Confirm Parent Email -->
+                            <div>
+                                <label for="confirmParentEmail"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Confirm Email Address <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="email" id="confirmParentEmail" name="confirmParentEmail" required
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'"
+                                    placeholder="Re-enter email address"
+                                    onpaste="return false;">
+                                <p style="margin:0.4rem 0 0; font-size:0.78rem; color:var(--text-tertiary);">Type the email again — paste is disabled to prevent typos.</p>
+                            </div>
+
+                            <!-- Parent Phone -->
+                            <div>
+                                <label for="parentPhone"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Parent/Guardian Phone <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="tel" id="parentPhone" name="parentPhone" required maxlength="20"
+                                    style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; transition: all 0.3s ease;"
+                                    onfocus="this.style.borderColor='var(--color-primary)'"
+                                    onblur="this.style.borderColor='var(--border-primary)'"
+                                    placeholder="+234 803 000 0000">
+                            </div>
+
+                            <!-- ── SECTION 3: Documents ── -->
+                            <div style="padding:0.75rem 1rem; background:hsl(150,65%,97%); border-left:4px solid hsl(150,65%,42%); border-radius:0.5rem; font-weight:700; color:hsl(150,60%,25%); font-size:0.9rem;">
+                                <i class="fas fa-folder-open" style="margin-right:0.5rem;"></i>③ Documents &amp; Files
+                            </div>
+
+                            <!-- Application Form Upload -->
+                            <div>
+                                <label for="applicationFile"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Completed Application Form <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="file" id="applicationFile" name="applicationFile" accept=".pdf" required
+                                    style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md);"
+                                    onchange="handleFileSelect(this, 'applicationFileInfo')">
+                                <div id="applicationFileInfo" class="file-info" style="margin-top: 0.5rem; display: none; font-size: 0.875rem; color: var(--text-secondary);"></div>
+                            </div>
+
+                            <!-- Birth Certificate Upload -->
+                            <div>
+                                <label for="birthCertificate"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Birth Certificate <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="file" id="birthCertificate" name="birthCertificate" accept=".pdf,.jpg,.jpeg,.png" required
+                                    style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md);"
+                                    onchange="handleFileSelect(this, 'birthCertificateInfo')">
+                                <div id="birthCertificateInfo" class="file-info" style="margin-top: 0.5rem; display: none; font-size: 0.875rem; color: var(--text-secondary);"></div>
+                                <div id="birthCertificatePreview" style="display:none; margin-top: 0.5rem;"></div>
+                            </div>
+
+                            <!-- Passport Photo Upload -->
+                            <div>
+                                <label for="passportPhoto"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Passport Photograph <span style="color: hsl(0, 80%, 55%);">*</span>
+                                </label>
+                                <input type="file" id="passportPhoto" name="passportPhoto" accept=".jpg,.jpeg,.png" required
+                                    style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md);"
+                                    onchange="handleFileSelect(this, 'passportPhotoInfo')">
+                                <div id="passportPhotoInfo" class="file-info" style="margin-top: 0.5rem; display: none; font-size: 0.875rem; color: var(--text-secondary);"></div>
+                                <div id="passportPhotoPreview" style="display:none; margin-top: 0.5rem;"></div>
+                            </div>
+
+                            <!-- Previous School Report Upload (Optional) -->
+                            <div>
+                                <label for="previousReport"
+                                    style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                    Previous School Report (Optional)
+                                </label>
+                                <input type="file" id="previousReport" name="previousReport" accept=".pdf,.jpg,.jpeg,.png"
+                                    style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md);"
+                                    onchange="handleFileSelect(this, 'previousReportInfo')">
+                                <div id="previousReportInfo" class="file-info" style="margin-top: 0.5rem; display: none; font-size: 0.875rem; color: var(--text-secondary);"></div>
+                                <div id="previousReportPreview" style="display:none; margin-top: 0.5rem;"></div>
+                            </div>
+
+                            <!-- ── SECTION 4: Payment ── -->
+                            <div style="padding:0.75rem 1rem; background:hsl(45,100%,96%); border-left:4px solid hsl(45,100%,45%); border-radius:0.5rem; font-weight:700; color:hsl(45,80%,25%); font-size:0.9rem;">
+                                <i class="fas fa-credit-card" style="margin-right:0.5rem;"></i>④ Application Fee Payment
+                            </div>
+
+                            <!-- Payment Method Selection -->
+                            <div>
+                                <p style="font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 1rem;">
+                                    Application fee: <strong id="applicationFeeDisplay">&#8358;5,000</strong> &#8212; Select your preferred payment method below.
+                                </p>
+                                <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border: 2px solid var(--color-primary); border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease; background: hsla(220, 70%, 50%, 0.05); flex: 1; min-width: 200px;" id="paymentMethodPaystack" onclick="selectPaymentMethod('paystack')">
+                                        <input type="radio" name="paymentMethod" value="paystack" checked style="accent-color: var(--color-primary); width: 18px; height: 18px;">
+                                        <div>
+                                            <div style="font-weight: 600; color: var(--text-primary);"><i class="fas fa-bolt" style="color: hsl(45, 100%, 45%);"></i> Paystack (Online)</div>
+                                            <div style="font-size: 0.8rem; color: var(--text-tertiary);">Pay instantly with card</div>
+                                        </div>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease; flex: 1; min-width: 200px;" id="paymentMethodBank" onclick="selectPaymentMethod('bank-transfer')">
+                                        <input type="radio" name="paymentMethod" value="bank-transfer" style="accent-color: var(--color-primary); width: 18px; height: 18px;">
+                                        <div>
+                                            <div style="font-weight: 600; color: var(--text-primary);"><i class="fas fa-university" style="color: hsl(220, 70%, 50%);"></i> Bank Transfer</div>
+                                            <div style="font-size: 0.8rem; color: var(--text-tertiary);">Deposit and upload receipt</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Bank Transfer Details (hidden by default) -->
+                            <div id="bankTransferSection" style="display: none;">
+                                <div style="padding: 1.25rem; background: linear-gradient(135deg, hsl(220, 70%, 97%), hsl(220, 70%, 93%)); border-radius: var(--radius-md); border-left: 4px solid hsl(220, 70%, 50%); margin-bottom: 1rem;">
+                                    <h4 style="margin: 0 0 0.75rem; color: hsl(220, 70%, 35%); display: flex; align-items: center; gap: 0.5rem;">
+                                        <i class="fas fa-university"></i> School Bank Details
+                                    </h4>
+                                    <div id="bankDetailsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
+                                        <div><strong>Bank:</strong> <span id="bdBank">First Bank of Nigeria</span></div>
+                                        <div><strong>Account No:</strong> <span id="bdAcctNo">Contact school office</span></div>
+                                        <div><strong>Account Name:</strong> <span id="bdAcctName">TBD Academy</span></div>
+                                        <div><strong>Branch:</strong> <span id="bdBranch">Makurdi Main</span></div>
+                                    </div>
+                                    <p style="margin: 0.75rem 0 0; font-size: 0.8rem; color: hsl(220, 50%, 40%);">
+                                        <i class="fas fa-info-circle"></i> Make the deposit, then upload the receipt below. Your application will be reviewed after payment verification by admin.
+                                    </p>
+                                </div>
+                                <div style="margin-bottom: 1rem;">
+                                    <label for="bankTransactionRef" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                        Transaction Reference / Teller Number <span style="color: hsl(0, 80%, 55%);">*</span>
+                                    </label>
+                                    <input type="text" id="bankTransactionRef" name="bankTransactionRef"
+                                        style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem;"
+                                        placeholder="Enter deposit reference or teller number">
+                                </div>
+                                <div>
+                                    <label for="bankReceipt" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
+                                        Upload Payment Receipt <span style="color: hsl(0, 80%, 55%);">*</span>
+                                    </label>
+                                    <input type="file" id="bankReceipt" name="bankReceipt" accept=".jpg,.jpeg,.png,.pdf"
+                                        style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md);"
+                                        onchange="handleFileSelect(this, 'bankReceiptInfo')">
+                                    <div id="bankReceiptInfo" class="file-info" style="margin-top: 0.5rem; display: none; font-size: 0.875rem; color: var(--text-secondary);"></div>
+                                    <div id="bankReceiptPreview" style="display:none; margin-top: 0.5rem;"></div>
+                                    <p style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">Accepted: JPG, PNG, PDF (max 5MB)</p>
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <button type="submit" class="btn btn-primary" id="submitApplicationBtn"
+                                style="width: 100%; justify-content: center; padding: 1rem;">
+                                <i class="fas fa-paper-plane"></i>
+                                <span id="submitBtnText">Pay and Submit Application</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Check Application Status -->
+    <section class="section" style="background: white;">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-badge">Track Application</span>
+                <h2 class="section-title">Check Application Status</h2>
+                <p class="section-subtitle">
+                    Enter your Application ID to check the status of your application
+                </p>
+            </div>
+
+            <div style="max-width: 600px; margin: 0 auto;">
+                <div class="card">
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; border-bottom: 2px solid var(--border-primary); padding-bottom: 0.75rem;">
+                        <button id="lookupByIdTab" onclick="switchLookupTab('id')" style="flex:1; padding:0.5rem; border:none; border-radius:0.375rem; cursor:pointer; font-weight:600; background:var(--color-primary,#3b82f6); color:white; font-size:0.875rem;">By Application ID</button>
+                        <button id="lookupByEmailTab" onclick="switchLookupTab('email')" style="flex:1; padding:0.5rem; border:2px solid var(--border-primary); border-radius:0.375rem; cursor:pointer; font-weight:600; background:transparent; color:var(--text-secondary); font-size:0.875rem;">By Email Address</button>
+                    </div>
+                    <div id="lookupById" style="display:flex; gap: 1rem;">
+                        <input type="text" id="applicationIdInput"
+                            placeholder="Enter Application ID (e.g., TBD-2026-XXXXXXX)"
+                            style="flex: 1; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem;">
+                        <button onclick="checkApplicationStatus()" class="btn btn-primary">
+                            <i class="fas fa-search"></i>
+                            <span>Check</span>
+                        </button>
+                    </div>
+                    <div id="lookupByEmail" style="display:none; gap: 1rem; flex-direction:column;">
+                        <input type="email" id="applicationEmailInput"
+                            placeholder="Enter parent/guardian email address"
+                            style="width:100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; box-sizing:border-box;">
+                        <button onclick="checkApplicationStatusByEmail()" class="btn btn-primary" style="align-self:flex-start;">
+                            <i class="fas fa-search"></i>
+                            <span>Check by Email</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div id="statusResult" style="margin-top: 2rem;"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Fee Structure -->
+    <section class="section" id="fees">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-badge">Tuition & Fees</span>
+                <h2 class="section-title">Fee Structure (Per Term)</h2>
+                <p class="section-subtitle">
+                    Transparent pricing for quality education
+                </p>
+            </div>
+
+            <div class="grid grid-3">
+                <div class="card">
+                    <h3 class="card-title" style="color: hsl(45, 100%, 40%);">Nursery</h3>
+                    <div style="font-size: 2.5rem; font-weight: 700; color: var(--color-primary); margin: 1rem 0;">
+                        ₦185,000
+                    </div>
+                    <div style="display: grid; gap: 0.75rem; color: var(--text-secondary);">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Tuition:</span>
+                            <strong>₦150,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Development:</span>
+                            <strong>₦20,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>PTA:</span>
+                            <strong>₦5,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Uniform (yearly):</span>
+                            <strong>₦15,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Books (yearly):</span>
+                            <strong>₦10,000</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="border: 2px solid var(--color-primary);">
+                    <div
+                        style="background: var(--gradient-primary); color: white; padding: 0.5rem 1rem; border-radius: var(--radius-md); display: inline-block; margin-bottom: 1rem; font-size: 0.875rem; font-weight: 600;">
+                        MOST POPULAR
+                    </div>
+                    <h3 class="card-title" style="color: hsl(200, 90%, 45%);">Primary (1-6)</h3>
+                    <div style="font-size: 2.5rem; font-weight: 700; color: var(--color-primary); margin: 1rem 0;">
+                        ₦218,000
+                    </div>
+                    <div style="display: grid; gap: 0.75rem; color: var(--text-secondary);">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Tuition:</span>
+                            <strong>₦180,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Development:</span>
+                            <strong>₦25,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>PTA:</span>
+                            <strong>₦5,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Exam:</span>
+                            <strong>₦8,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Uniform (yearly):</span>
+                            <strong>₦18,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Books (yearly):</span>
+                            <strong>₦15,000</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3 class="card-title" style="color: hsl(150, 70%, 35%);">JSS (1-3)</h3>
+                    <div style="font-size: 2.5rem; font-weight: 700; color: var(--color-primary); margin: 1rem 0;">
+                        ₦285,000
+                    </div>
+                    <div style="display: grid; gap: 0.75rem; color: var(--text-secondary);">
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Tuition:</span>
+                            <strong>₦220,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Development:</span>
+                            <strong>₦30,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>PTA:</span>
+                            <strong>₦5,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Exam:</span>
+                            <strong>₦10,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Lab:</span>
+                            <strong>₦15,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Uniform (yearly):</span>
+                            <strong>₦20,000</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span>Books (yearly):</span>
+                            <strong>₦20,000</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Payment Confirmation Modal -->
+    <div id="payConfirmModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.55); align-items:center; justify-content:center; padding:1rem;">
+        <div style="background:var(--bg-primary,#fff); border-radius:1rem; max-width:440px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.25); overflow:hidden;">
+            <div style="background:var(--gradient-primary,linear-gradient(135deg,#1e40af,#3b82f6)); padding:1.5rem; color:white; text-align:center;">
+                <div style="font-size:2.5rem; margin-bottom:0.5rem;">💳</div>
+                <h3 style="margin:0; font-size:1.25rem;">Confirm Payment</h3>
+            </div>
+            <div style="padding:1.5rem;">
+                <div id="payConfirmDetails" style="background:var(--bg-secondary,#f8fafc); border-radius:0.75rem; padding:1rem; margin-bottom:1.25rem; display:grid; gap:0.6rem; font-size:0.95rem;"></div>
+                <p id="payConfirmNote" style="font-size:0.85rem; color:var(--text-secondary,#64748b); margin:0 0 1.25rem; line-height:1.5;"></p>
+                <div style="display:flex; gap:0.75rem;">
+                    <button id="payConfirmCancel" style="flex:1; padding:0.75rem; border:2px solid var(--border-primary,#e2e8f0); background:transparent; border-radius:0.5rem; font-size:0.95rem; cursor:pointer; font-weight:600; color:var(--text-secondary,#64748b);">Cancel</button>
+                    <button id="payConfirmProceed" style="flex:2; padding:0.75rem; background:var(--gradient-primary,linear-gradient(135deg,#1e40af,#3b82f6)); color:white; border:none; border-radius:0.5rem; font-size:0.95rem; cursor:pointer; font-weight:600;">Proceed</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-grid">
+                <div>
+                    <div class="footer-brand">TBD Academy</div>
+                    <p class="footer-description">
+                        Excellence in Education, Character in Action. Nurturing young minds
+                        for a brighter future since 2011.
+                    </p>
+                    <div class="footer-social">
+                        <a href="#" class="footer-social-link" aria-label="Facebook">
+                            <i class="fab fa-facebook-f"></i>
+                        </a>
+                        <a href="#" class="footer-social-link" aria-label="X (Twitter)">
+                            <i class="fab fa-x-twitter"></i>
+                        </a>
+                        <a href="#" class="footer-social-link" aria-label="Instagram">
+                            <i class="fab fa-instagram"></i>
+                        </a>
+                        <a href="#" class="footer-social-link" aria-label="LinkedIn">
+                            <i class="fab fa-linkedin-in"></i>
+                        </a>
+                        <a href="https://wa.me/2348031234567" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
+                            <i class="fab fa-whatsapp"></i>
+                        </a>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="footer-section-title">Quick Links</h4>
+                    <ul class="footer-links">
+                        <li><a href="public-blog.html" class="footer-link">Home</a></li>
+                        <li><a href="about.html" class="footer-link">About Us</a></li>
+                        <li><a href="academics.html" class="footer-link">Academics</a></li>
+                        <li><a href="admissions.html" class="footer-link">Admissions</a></li>
+                        <li><a href="contact.html" class="footer-link">Contact</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="footer-section-title">Resources</h4>
+                    <ul class="footer-links">
+                        <li><a href="admissions.html#upload" class="footer-link">Application Form</a></li>
+                        <li><a href="admissions.html#fees" class="footer-link">Fee Structure</a></li>
+                        <li><a href="academics.html" class="footer-link">Academic Calendar</a></li>
+                    </ul>
+                </div>
+
+                <div>
+                    <h4 class="footer-section-title">Contact</h4>
+                    <ul class="footer-links">
+                        <li class="footer-link">
+                            <i class="fas fa-map-marker-alt"></i> Makurdi, Benue State
+                        </li>
+                        <li class="footer-link">
+                            <i class="fas fa-phone"></i> +234 803 123 4567
+                        </li>
+                        <li class="footer-link">
+                            <i class="fas fa-envelope"></i> info@tbdacademy.edu.ng
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; 2026 TBD Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Wait for environment variables to load before initializing app
+        (async function initializeApp() {
+            try {
+                // Wait for environment variables to be ready
+                await window.envReady;
+                console.log('✅ Environment variables loaded:', window.ENV);
+                
+                // Now load the rest of the scripts in order
+                const scripts = [
+                    'js/config.js',
+                    'js/supabase-client.js',
+                    'js/school-config.js',
+                    'js/validation-manager.js',
+                    'js/file-upload-manager.js',
+                    'js/application-form-generator.js',
+                    'js/application-manager.js'
+                ];
+                
+                for (const src of scripts) {
+                    await loadScript(src);
+                }
+                
+                console.log('✅ All scripts loaded successfully');
+            } catch (error) {
+                console.error('❌ Error initializing app:', error);
+            }
+        })();
+        
+        // Helper function to load scripts dynamically
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.body.appendChild(script);
+            });
+        }
+        
+        // File selection handler with preview
+        function handleFileSelect(input, infoId) {
+            const file = input.files[0];
+            const infoDiv = document.getElementById(infoId);
+            const previewId = infoId.replace('Info', 'Preview');
+            const previewDiv = document.getElementById(previewId);
+
+            if (file) {
+                const sizeMB = (file.size / 1024 / 1024).toFixed(2);
+                if (sizeMB > 5) {
+                    infoDiv.textContent = `⚠ File too large (${sizeMB} MB). Max 5MB.`;
+                    infoDiv.style.color = 'hsl(0,70%,50%)';
+                    infoDiv.style.display = 'block';
+                    input.value = '';
+                    if (previewDiv) previewDiv.style.display = 'none';
+                    return;
+                }
+                infoDiv.textContent = `✓ ${file.name} (${sizeMB} MB)`;
+                infoDiv.style.display = 'block';
+                infoDiv.style.color = 'hsl(150, 70%, 35%)';
+
+                if (previewDiv) {
+                    if (file.type.startsWith('image/')) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            previewDiv.innerHTML = `<img src="${e.target.result}" style="max-height:80px; max-width:160px; border-radius:0.375rem; border:1px solid var(--border-primary,#e2e8f0); object-fit:cover;" alt="Preview">`;
+                            previewDiv.style.display = 'block';
+                        };
+                        reader.readAsDataURL(file);
+                    } else {
+                        previewDiv.innerHTML = `<span style="font-size:0.8rem; color:var(--text-secondary,#64748b);">📄 PDF selected</span>`;
+                        previewDiv.style.display = 'block';
+                    }
+                }
+            } else {
+                infoDiv.style.display = 'none';
+                if (previewDiv) previewDiv.style.display = 'none';
+            }
+        }
+
+        // Styled payment confirmation modal (replaces browser confirm())
+        function showPaymentConfirmModal(details, note, onConfirm, onCancelCallback) {
+            const modal = document.getElementById('payConfirmModal');
+            const detailsEl = document.getElementById('payConfirmDetails');
+            const noteEl = document.getElementById('payConfirmNote');
+            const cancelBtn = document.getElementById('payConfirmCancel');
+            const proceedBtn = document.getElementById('payConfirmProceed');
+
+            detailsEl.innerHTML = details.map(([label, value]) =>
+                `<div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="color:var(--text-secondary,#64748b);">${label}</span>
+                    <strong style="color:var(--text-primary,#1e293b);">${value}</strong>
+                 </div>`
+            ).join('');
+            noteEl.textContent = note;
+
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+
+            const close = () => {
+                modal.style.display = 'none';
+                document.body.style.overflow = '';
+                cancelBtn.removeEventListener('click', onCancel);
+                proceedBtn.removeEventListener('click', onProceed);
+            };
+            const onCancel = () => { close(); if (typeof onCancelCallback === 'function') onCancelCallback(); };
+            const onProceed = () => { close(); onConfirm(); };
+
+            cancelBtn.addEventListener('click', onCancel);
+            proceedBtn.addEventListener('click', onProceed);
+            modal.addEventListener('click', (e) => { if (e.target === modal) onCancel(); }, { once: true });
+        }
+        window.showPaymentConfirmModal = showPaymentConfirmModal;
+
+        // Auto-save form draft to localStorage
+        const DRAFT_KEY = 'tbd_application_draft';
+        function saveDraft() {
+            const form = document.getElementById('applicationForm');
+            if (!form) return;
+            const data = {};
+            form.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="date"], select, textarea').forEach(el => {
+                if (el.id) data[el.id] = el.value;
+            });
+            localStorage.setItem(DRAFT_KEY, JSON.stringify({ data, ts: Date.now() }));
+        }
+        function restoreDraft() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+                if (!saved || Date.now() - saved.ts > 7 * 24 * 3600 * 1000) return; // 7-day expiry
+                const form = document.getElementById('applicationForm');
+                if (!form) return;
+                Object.entries(saved.data).forEach(([id, val]) => {
+                    const el = form.querySelector('#' + id);
+                    if (el && val) el.value = val;
+                });
+            } catch (e) { /* ignore */ }
+        }
+        function clearDraft() { localStorage.removeItem(DRAFT_KEY); }
+        window.clearApplicationDraft = clearDraft;
+
+        // Populate bank details from ENV
+        function populateBankDetails() {
+            const env = window.ENV || {};
+            const set = (id, val, fallback) => {
+                const el = document.getElementById(id);
+                if (el && val && val !== fallback) el.textContent = val;
+            };
+            set('bdBank', env.SCHOOL_BANK_NAME, undefined);
+            set('bdAcctNo', env.SCHOOL_BANK_ACCOUNT, undefined);
+            set('bdAcctName', env.SCHOOL_BANK_ACCOUNT_NAME, undefined);
+            set('bdBranch', env.SCHOOL_BANK_BRANCH, undefined);
+        }
+
+        // Payment method selection handler
+        function selectPaymentMethod(method) {
+            const bankSection = document.getElementById('bankTransferSection');
+            const paystackLabel = document.getElementById('paymentMethodPaystack');
+            const bankLabel = document.getElementById('paymentMethodBank');
+            const btnText = document.getElementById('submitBtnText');
+
+            if (method === 'bank-transfer') {
+                bankSection.style.display = 'block';
+                bankLabel.style.borderColor = 'var(--color-primary)';
+                bankLabel.style.background = 'hsla(220, 70%, 50%, 0.05)';
+                paystackLabel.style.borderColor = 'var(--border-primary)';
+                paystackLabel.style.background = 'transparent';
+                btnText.textContent = 'Submit Application (Pending Verification)';
+            } else {
+                bankSection.style.display = 'none';
+                paystackLabel.style.borderColor = 'var(--color-primary)';
+                paystackLabel.style.background = 'hsla(220, 70%, 50%, 0.05)';
+                bankLabel.style.borderColor = 'var(--border-primary)';
+                bankLabel.style.background = 'transparent';
+                btnText.textContent = 'Pay and Submit Application';
+            }
+        }
+
+        // Show application fee badge when grade is selected
+        function updateGradeFeeTag(grade) {
+            const tag = document.getElementById('gradeFeeTag');
+            const amountEl = document.getElementById('gradeFeeAmount');
+            if (!tag || !amountEl) return;
+            if (!grade) { tag.style.display = 'none'; return; }
+            // Inline fee map as fallback in case appManager hasn't loaded yet
+            const FEE_MAP = {
+                'Kindergarten': 5000, 'Nursery': 5000, 'Pre-Primary': 5000,
+                'Grade 1': 5000, 'Grade 2': 5000, 'Grade 3': 5000,
+                'Grade 4': 5000, 'Grade 5': 5000, 'Grade 6': 5000,
+                'JSS 1': 7500, 'JSS 2': 7500, 'JSS 3': 7500
+            };
+            const fee = (window.appManager && window.appManager.getApplicationFee)
+                ? window.appManager.getApplicationFee(grade)
+                : (FEE_MAP[grade] ?? 5000);
+            const formatted = '₦' + fee.toLocaleString();
+            amountEl.textContent = formatted;
+            tag.style.display = 'inline-flex';
+            const feeDisplay = document.getElementById('applicationFeeDisplay');
+            if (feeDisplay) feeDisplay.innerHTML = formatted;
+        }
+        window.updateGradeFeeTag = updateGradeFeeTag;
+
+        // Lookup tab switcher
+        function switchLookupTab(tab) {
+            const byId = document.getElementById('lookupById');
+            const byEmail = document.getElementById('lookupByEmail');
+            const idTab = document.getElementById('lookupByIdTab');
+            const emailTab = document.getElementById('lookupByEmailTab');
+            if (tab === 'id') {
+                byId.style.display = 'flex';
+                byEmail.style.display = 'none';
+                idTab.style.background = 'var(--color-primary,#3b82f6)';
+                idTab.style.color = 'white';
+                idTab.style.border = 'none';
+                emailTab.style.background = 'transparent';
+                emailTab.style.color = 'var(--text-secondary)';
+                emailTab.style.border = '2px solid var(--border-primary)';
+            } else {
+                byId.style.display = 'none';
+                byEmail.style.display = 'flex';
+                idTab.style.background = 'transparent';
+                idTab.style.color = 'var(--text-secondary)';
+                idTab.style.border = '2px solid var(--border-primary)';
+                emailTab.style.background = 'var(--color-primary,#3b82f6)';
+                emailTab.style.color = 'white';
+                emailTab.style.border = 'none';
+            }
+        }
+        window.switchLookupTab = switchLookupTab;
+
+        // Check application status by email
+        async function checkApplicationStatusByEmail() {
+            const email = document.getElementById('applicationEmailInput')?.value.trim();
+            const statusResult = document.getElementById('statusResult');
+            if (!email || !statusResult) return;
+            if (!window.appManager) {
+                statusResult.innerHTML = '<p style="color:var(--text-secondary);">Status checker is loading. Please try again in a moment.</p>';
+                return;
+            }
+            statusResult.innerHTML = '<p style="color:var(--text-secondary);">Searching...</p>';
+            try {
+                const applications = await window.appManager.getApplicationsByEmail(email);
+                if (!applications || applications.length === 0) {
+                    const safeEmail = typeof window.escapeHtml === 'function' ? window.escapeHtml(email) : email.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                statusResult.innerHTML = `<div class="card" style="text-align:center; padding:2rem; color:var(--text-secondary);">No applications found for <strong>${safeEmail}</strong>.</div>`;
+                    return;
+                }
+                statusResult.innerHTML = applications.map(app => window.appManager.renderStatusCard(app)).join('');
+            } catch (err) {
+                statusResult.innerHTML = `<div class="card" style="color:hsl(0,70%,50%);">Error: ${err.message}</div>`;
+            }
+        }
+        window.checkApplicationStatusByEmail = checkApplicationStatusByEmail;
+
+        // Wire up auto-save & draft restore
+        document.addEventListener('DOMContentLoaded', function() {
+            // Restore saved draft and warn user that files must be re-attached
+            const _hadDraft = (() => {
+                try {
+                    const saved = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null');
+                    return !!(saved && Date.now() - saved.ts <= 7 * 24 * 3600 * 1000 && Object.keys(saved.data || {}).length > 0);
+                } catch (_) { return false; }
+            })();
+            restoreDraft();
+            if (_hadDraft) {
+                setTimeout(() => {
+                    const notice = document.createElement('div');
+                    notice.style.cssText = 'margin-bottom:1rem; padding:0.875rem 1rem; background:hsl(45,100%,95%); border:1.5px solid hsl(45,100%,50%); border-radius:0.5rem; font-size:0.875rem; color:hsl(45,80%,25%); display:flex; align-items:flex-start; gap:0.75rem;';
+                    notice.innerHTML = '<i class="fas fa-exclamation-triangle" style="margin-top:0.1rem;flex-shrink:0;"></i><span><strong>Draft restored.</strong> Your previously entered details have been filled in. You must <strong>re-attach all uploaded documents</strong> before submitting — files cannot be saved in drafts.</span>';
+                    const form = document.getElementById('applicationForm');
+                    if (form) form.prepend(notice);
+                }, 400);
+            }
+
+            // Auto-save draft every 10 seconds while user is typing
+            const form = document.getElementById('applicationForm');
+            if (form) {
+                let draftTimer;
+                form.addEventListener('input', () => {
+                    clearTimeout(draftTimer);
+                    draftTimer = setTimeout(saveDraft, 2000);
+                });
+                form.addEventListener('change', saveDraft);
+            }
+
+            // Populate bank details once ENV is ready
+            if (window.envReady) {
+                window.envReady.then(populateBankDetails).catch(() => {});
+            }
+        });
+    </script>
+</body>
+
+</html>
