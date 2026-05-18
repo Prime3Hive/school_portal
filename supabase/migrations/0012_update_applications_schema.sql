@@ -48,29 +48,32 @@ UPDATE public.applications
 SET    submitted_date = created_at
 WHERE  submitted_date IS NULL AND created_at IS NOT NULL;
 
--- Backfill student_name from full_name (old column name) where present
-UPDATE public.applications
-SET    student_name = full_name
-WHERE  student_name IS NULL
-  AND  full_name IS NOT NULL
-  AND  EXISTS (
+-- Backfill student_name from full_name (old column name) — uses EXECUTE so
+-- PostgreSQL only parses the UPDATE at runtime, after checking column existence.
+DO $$
+BEGIN
+  IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE  table_schema = 'public'
     AND    table_name   = 'applications'
     AND    column_name  = 'full_name'
-  );
+  ) THEN
+    EXECUTE 'UPDATE public.applications SET student_name = full_name WHERE student_name IS NULL AND full_name IS NOT NULL';
+  END IF;
+END $$;
 
--- Backfill grade from grade_applying_for (old column name) where present
-UPDATE public.applications
-SET    grade = grade_applying_for
-WHERE  grade IS NULL
-  AND  grade_applying_for IS NOT NULL
-  AND  EXISTS (
+-- Backfill grade from grade_applying_for (old column name)
+DO $$
+BEGIN
+  IF EXISTS (
     SELECT 1 FROM information_schema.columns
     WHERE  table_schema = 'public'
     AND    table_name   = 'applications'
     AND    column_name  = 'grade_applying_for'
-  );
+  ) THEN
+    EXECUTE 'UPDATE public.applications SET grade = grade_applying_for WHERE grade IS NULL AND grade_applying_for IS NOT NULL';
+  END IF;
+END $$;
 
 -- Add FK to students table (wrapped in DO block so it is skipped if students table doesn't exist yet)
 DO $$
