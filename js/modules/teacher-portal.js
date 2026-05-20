@@ -184,7 +184,7 @@ const teacherPortalModule = {
         ${[
           { icon:'📝', label:'Enter Grades',   bg:'#f0f9ff', c:'#0ea5e9', tab:'grades'   },
           { icon:'👥', label:'My Students',    bg:'#eef2ff', c:'#6366f1', tab:'students' },
-          { icon:'📅', label:'Class Schedule', bg:'#fffbeb', c:'#f59e0b', hash:'class-schedule' },
+          { icon:'🎓', label:'Academic Hub',   bg:'#eef2ff', c:'#6366f1', hash:'academics' },
           { icon:'📋', label:'Lesson Plan',    bg:'#f0fdf4', c:'#10b981', fn:'createLessonPlan' },
         ].map(a => `
           <button onclick="${a.tab ? `teacherPortalModule.switchTab('${a.tab}')` : a.hash ? `window.location.hash='${a.hash}'` : `teacherPortalModule.${a.fn}()`}"

@@ -113,7 +113,7 @@ const adminDashboardModule = {
               <span class="dash-action-icon" style="background: linear-gradient(135deg,#f093fb,#f5576c);">💳</span>
               <span>Record Payment</span>
             </button>
-            <button class="dash-action-btn" onclick="window.app.loadModule('class-schedule')">
+            <button class="dash-action-btn" onclick="window.app.loadModule('academics')">
               <span class="dash-action-icon" style="background: linear-gradient(135deg,#4facfe,#00f2fe);">&#x1F3EB;</span>
               <span>Manage Classes</span>
             </button>
@@ -169,7 +169,7 @@ const adminDashboardModule = {
 
             <!-- Inline stat chips -->
             <div class="dash-chip-grid">
-              <div class="dash-chip" onclick="window.app.loadModule('class-schedule')" style="cursor:pointer;">
+              <div class="dash-chip" onclick="window.app.loadModule('academics')" style="cursor:pointer;">
                 <span class="dash-chip-icon">🏫</span>
                 <div><div class="dash-chip-label">Active Classes</div><div class="dash-chip-value">${stats.activeClasses}</div></div>
               </div>

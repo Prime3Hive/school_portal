@@ -112,7 +112,7 @@ const teacherDashboardModule = {
               { icon:'👥', label:'My Classes',    color:'#6366f1', bg:'#eef2ff', hash:'teacher-portal' },
               { icon:'📝', label:'Enter Grades',  color:'#0ea5e9', bg:'#f0f9ff', hash:'teacher-portal' },
               { icon:'📚', label:'Lesson Plans',  color:'#10b981', bg:'#f0fdf4', hash:'teacher-portal' },
-              { icon:'📅', label:'Class Schedule',color:'#f59e0b', bg:'#fffbeb', hash:'class-schedule' },
+              { icon:'🎓', label:'Academic Hub',  color:'#6366f1', bg:'#eef2ff', hash:'academics' },
             ].map(a => `
               <button onclick="window.location.hash='${a.hash}'"
                 style="display:flex;align-items:center;gap:12px;padding:16px 18px;background:white;border:1px solid #e2e8f0;border-radius:14px;cursor:pointer;transition:all 0.2s;text-align:left;width:100%;"

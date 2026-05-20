@@ -540,4 +540,5 @@ const lessonPlansModule = {
   }
 };
 
-if (typeof window !== 'undefined') window.lessonPlansModule = lessonPlansModule;
+// Only set the legacy export when the consolidated academicsModule hasn't been loaded yet.
+if (typeof window !== 'undefined' && !window.academicsModule) window.lessonPlansModule = lessonPlansModule;

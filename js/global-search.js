@@ -209,14 +209,12 @@ const globalSearch = {
       { label:'Students', module:'student-directory', icon:'🎓' },
       { label:'Staff', module:'staff-management', icon:'👨‍🏫' },
       { label:'Fees & Payments', module:'fees-payments', icon:'💰' },
-      { label:'Grades & Subjects', module:'academics', icon:'📊' },
-      { label:'Class Schedule', module:'class-schedule', icon:'🗓️' },
+      { label:'Academic Hub', module:'academics', icon:'🎓' },
       { label:'Applications', module:'applications', icon:'📋' },
       { label:'Inventory', module:'inventory', icon:'📦' },
       { label:'Calendar', module:'calendar', icon:'📅' },
       { label:'Settings', module:'settings', icon:'⚙️' },
       { label:'Report Cards', module:'report-cards', icon:'📄' },
-      { label:'Lesson Plans', module:'lesson-plans', icon:'📖' },
     ];
     shortcuts.filter(s => s.label.toLowerCase().includes(q)).forEach(s => results.push({
       type: 'shortcut', icon: s.icon,

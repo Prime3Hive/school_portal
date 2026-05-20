@@ -1724,4 +1724,5 @@ const classScheduleModule = {
   }
 };
 
-window.classScheduleModule = classScheduleModule;
+// Only set the legacy export when the consolidated academicsModule hasn't been loaded yet.
+if (!window.academicsModule) window.classScheduleModule = classScheduleModule;

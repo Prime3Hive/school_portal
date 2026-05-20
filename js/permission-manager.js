@@ -25,8 +25,7 @@ class PermissionManager {
                     'teacher-portal',
                     'teacher-dashboard',
                     'my-classes',
-                    'assessments',
-                    'class-schedule'
+                    'academics'
                 ],
                 actions: [
                     'view_students',
@@ -146,7 +145,7 @@ class PermissionManager {
                 { icon: '📊', label: 'Dashboard', module: 'admin-dashboard' },
                 { icon: '👥', label: 'Students', module: 'student-directory' },
                 { icon: '👨‍🏫', label: 'Staff', module: 'staff-management' },
-                { icon: '📅', label: 'Classes & Schedule', module: 'class-schedule' },
+                { icon: '🎓', label: 'Academic Hub', module: 'academics' },
                 { icon: '💰', label: 'Fees & Payments', module: 'fees-payments' },
                 { icon: '📦', label: 'Inventory', module: 'inventory' },
                 { icon: '�', label: 'Academics', module: 'academics' },
@@ -159,7 +158,7 @@ class PermissionManager {
                 { icon: '📊', label: 'Teacher Portal', module: 'teacher-portal' },
                 { icon: '👥', label: 'My Classes', module: 'my-classes' },
                 { icon: '�', label: 'Academics', module: 'academics' },
-                { icon: '📅', label: 'Schedule', module: 'class-schedule' },
+                { icon: '🎓', label: 'Academic Hub', module: 'academics' },
             ],
             staff: [
                 { icon: '📊', label: 'Dashboard', module: 'admin-dashboard' },
