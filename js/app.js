@@ -120,17 +120,15 @@ class SchoolPortalApp {
             'admin-dashboard': 'Admin Dashboard',
             'student-directory': 'Student Directory',
             'staff-management': 'Staff Management',
-            'class-schedule': 'Class & Schedule',
             'fees-payments': 'Fees & Payments',
             'inventory': 'Inventory Management',
-            'academics': 'Academics',
+            'academics': 'Academic Hub',
             'applications': 'Applications',
             'user-management': 'User Management',
             'admin-profile': 'My Profile',
             'settings': 'Settings',
             'calendar': 'School Calendar',
             'teacher-tasks': 'Assignments',
-            'lesson-plans': 'Lesson Plans',
             'report-cards': 'Report Cards'
         };
 
