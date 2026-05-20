@@ -140,12 +140,10 @@ const feesPaymentsModule = {
     const stats = this.calculateStats(payments);
     const pendingVerifications = payments.filter(p => this._isPendingVerification(p));
 
-    // Use fee-item-based outstanding balance when bills have been assigned,
-    // otherwise fall back to payment-record-based pending (for legacy data)
+    // Unified outstanding balance and student count from single source of truth
     const t = this._computeBreakdownTotals();
-    const displayPending = t.totalExpected > 0 ? t.totalUnpaid : stats.totalPending;
-    const pendingStudentCount = (dataManager.getAll('students') || [])
-      .filter(s => s.status === 'active' && (s.fees === 'pending' || s.fees === 'overdue' || s.fees === 'partial')).length;
+    const displayPending = t.totalUnpaid;
+    const pendingStudentCount = t.pendingStudentCount;
 
     this.container.innerHTML = `
       <div class="animate-fadeIn">
@@ -208,10 +206,10 @@ const feesPaymentsModule = {
             </div>
           </div>
           ` : ''}
-          ${this.createGradientStatCard('Total Collected', formatCurrency(stats.totalCollected), '💵', 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', stats.paidTransactions + ' paid transactions')}
-          ${this.createGradientStatCard('Pending Payments', formatCurrency(displayPending), '⏳', 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', pendingStudentCount + ' student' + (pendingStudentCount !== 1 ? 's' : '') + ' owing')}
-          ${this.createGradientStatCard('This Month', formatCurrency(stats.thisMonth), '📅', 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', new Date().toLocaleDateString('en-US', { month: 'long' }))}
-          ${this.createGradientStatCard('Pending Approval', String(pendingVerifications.length), '🏦', 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)', 'Bank deposits to verify')}
+          ${this.createGradientStatCard('Total Billed', formatCurrency(t.totalExpected), '📋', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', t.billedCount + ' of ' + t.totalStudents + ' student' + (t.totalStudents !== 1 ? 's' : '') + ' billed')}
+          ${this.createGradientStatCard('Total Collected', formatCurrency(stats.totalCollected), '💵', 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', stats.paidTransactions + ' confirmed payment' + (stats.paidTransactions !== 1 ? 's' : ''))}
+          ${this.createGradientStatCard('Outstanding Balance', formatCurrency(displayPending), '⏳', 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', pendingStudentCount + ' student' + (pendingStudentCount !== 1 ? 's' : '') + ' still owing')}
+          ${this.createGradientStatCard('Collection Rate', t.rate + '%', '📈', 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', 'This month: ' + formatCurrency(stats.thisMonth))}
         </div>
 
         <!-- Tabs -->
@@ -282,29 +280,58 @@ const feesPaymentsModule = {
   },
 
   _computeBreakdownTotals() {
-    const allStudents   = dataManager.getAll('students') || [];
+    const allStudents    = dataManager.getAll('students') || [];
     const activeStudents = allStudents.filter(s => s.status === 'active');
-    const feeItems      = dataManager.getAll('feeItems') || [];
-    const payments      = dataManager.getAll('payments') || [];
+    const feeItems       = dataManager.getAll('feeItems') || [];
+    const payments       = dataManager.getAll('payments') || [];
 
-    // What has been formally billed (fee item records)
+    // ── Billed: what has been formally charged to students ──
     const totalExpected = feeItems.reduce((s, i) => s + parseFloat(i.amount || 0), 0);
-    // What has been marked paid against specific fee item bills
-    const totalPaidOnItems = feeItems.reduce((s, i) => s + parseFloat(i.amount_paid || 0), 0);
-    // Cross-check: actual payment transactions with status=paid (excludes pending bank deposits)
-    const totalPaidTransactions = payments
+
+    // ── Collected: confirmed payment transactions (status=paid, not pending bank deposits) ──
+    // Payment records are the authoritative source for actual cash received
+    const totalPaid = payments
       .filter(p => p.status === 'paid' && !this._isPendingVerification(p))
       .reduce((s, p) => s + parseFloat(p.amount || 0), 0);
 
-    // Use the higher of the two paid figures as the most complete picture
-    const totalPaid   = Math.max(totalPaidOnItems, totalPaidTransactions);
-    const totalUnpaid = Math.max(0, totalExpected - totalPaid);
-    const rate        = totalExpected > 0 ? Math.round((totalPaid / totalExpected) * 100) : 0;
+    // ── Outstanding: per-bill balances from feeItems ledger (most accurate) ──
+    // Falls back to pending/partial payment records when no fee items assigned yet
+    const totalUnpaid = totalExpected > 0
+      ? Math.max(0, feeItems.reduce((s, i) => {
+          const bal = parseFloat(i.amount || 0) - parseFloat(i.amount_paid || 0);
+          return s + Math.max(0, bal);
+        }, 0))
+      : payments
+          .filter(p =>
+            (p.status === 'pending' || p.status === 'partial' || p.status === 'overdue') &&
+            !this._isPendingVerification(p) && !this._isRejected(p)
+          )
+          .reduce((s, p) => s + parseFloat(p.amount || 0), 0);
 
-    // Students breakdown
+    // ── Collection rate: from feeItem ledger when available (accurate per-bill tracking) ──
+    const totalPaidOnItems = feeItems.reduce((s, i) => s + parseFloat(i.amount_paid || 0), 0);
+    const rate = totalExpected > 0
+      ? Math.min(100, Math.round((totalPaidOnItems / totalExpected) * 100))
+      : (totalPaid + totalUnpaid > 0
+          ? Math.min(100, Math.round((totalPaid / (totalPaid + totalUnpaid)) * 100))
+          : 0);
+
+    // ── Student counts ──
     const billedIds     = new Set(feeItems.map(i => i.student_id || i.studentId).filter(Boolean));
     const billedCount   = activeStudents.filter(s => billedIds.has(s.id)).length;
     const unbilledCount = activeStudents.length - billedCount;
+
+    // Students with outstanding balance — from feeItems when available, else student.fees flag
+    const pendingStudentCount = totalExpected > 0
+      ? new Set(
+          feeItems
+            .filter(i => parseFloat(i.amount || 0) - parseFloat(i.amount_paid || 0) > 0.01)
+            .map(i => i.student_id || i.studentId)
+            .filter(Boolean)
+        ).size
+      : activeStudents.filter(s =>
+          s.fees === 'pending' || s.fees === 'overdue' || s.fees === 'partial'
+        ).length;
 
     return {
       totalExpected,
@@ -313,7 +340,8 @@ const feesPaymentsModule = {
       rate,
       billedCount,
       unbilledCount,
-      totalStudents: activeStudents.length
+      totalStudents: activeStudents.length,
+      pendingStudentCount
     };
   },
 
@@ -350,7 +378,9 @@ const feesPaymentsModule = {
 
   renderOverviewTab() {
     const payments = dataManager.getAll('payments') || [];
-    const recentPayments = payments.slice(-10).reverse();
+    const recentPayments = [...payments]
+      .sort((a, b) => new Date(b.paymentDate || b.payment_date || 0) - new Date(a.paymentDate || a.payment_date || 0))
+      .slice(0, 10);
     const stats = this.calculateStats(payments);
     const collectionRate = this._computeBreakdownTotals().rate;
 
@@ -615,10 +645,25 @@ const feesPaymentsModule = {
 
   renderPendingTab() {
     const students = dataManager.getAll('students') || [];
-    const payments = dataManager.getAll('payments') || [];
+    const feeItems = dataManager.getAll('feeItems') || [];
 
-    // Get students with pending payments
-    const pendingStudents = students.filter(s => s.status === 'active' && (s.fees === 'pending' || s.fees === 'overdue' || s.fees === 'partial'));
+    let pendingStudents;
+
+    if (feeItems.length > 0) {
+      // Authoritative: students who have an unpaid balance in the feeItems ledger
+      const studentIdsWithBalance = new Set(
+        feeItems
+          .filter(i => parseFloat(i.amount || 0) - parseFloat(i.amount_paid || 0) > 0.01)
+          .map(i => i.student_id || i.studentId)
+          .filter(Boolean)
+      );
+      pendingStudents = students.filter(s => s.status === 'active' && studentIdsWithBalance.has(s.id));
+    } else {
+      // Fallback: use student.fees flag for legacy data
+      pendingStudents = students.filter(s =>
+        s.status === 'active' && (s.fees === 'pending' || s.fees === 'overdue' || s.fees === 'partial')
+      );
+    }
 
     // Paginate
     const start = (this._pendingPage - 1) * this._pageSize;
@@ -627,10 +672,16 @@ const feesPaymentsModule = {
     return `
       <div class="card">
         <div class="card-header">
-          <h3 class="card-title">Students with Outstanding Payments (${pendingStudents.length})</h3>
+          <h3 class="card-title">Students with Outstanding Balance (${pendingStudents.length})</h3>
         </div>
         <div class="card-body">
-          ${this.renderPendingPaymentsTable(paginated)}
+          ${pendingStudents.length === 0 ? `
+            <div style="text-align:center;padding:var(--space-10) 0;color:var(--text-secondary);">
+              <div style="font-size:3rem;margin-bottom:var(--space-4);">✅</div>
+              <h4 style="margin-bottom:var(--space-2);">All Clear!</h4>
+              <p>No students have outstanding fee balances.</p>
+            </div>
+          ` : this.renderPendingPaymentsTable(paginated)}
           ${this.renderPagination(pendingStudents.length, this._pendingPage, 'feesPaymentsModule.goToPendingPage')}
         </div>
       </div>
@@ -924,13 +975,31 @@ const feesPaymentsModule = {
 
   deleteGrade(grade) {
     if (!window.feeStructure?.feeItems?.[grade]) return;
-    if (!confirm(`Delete the entire fee structure for "${grade}"? Students in this grade will no longer have fee items auto-assigned until a structure is re-created.`)) return;
+    const safeGrade = this._esc(grade);
+    createModal('Delete Grade Fee Structure', `
+      <div>
+        <p style="margin-bottom:var(--space-3);">Delete the entire fee structure for <strong>${safeGrade}</strong>?</p>
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:var(--space-6);">Students in this grade will no longer have fee items auto-assigned until a structure is re-created.</p>
+        <div class="flex gap-3">
+          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button class="btn btn-danger flex-1" id="confirm-delete-grade-btn">🗑️ Delete Grade</button>
+        </div>
+      </div>
+    `);
+    // Attach handler after modal is in DOM
+    setTimeout(() => {
+      const btn = document.getElementById('confirm-delete-grade-btn');
+      if (btn) btn.onclick = () => feesPaymentsModule._confirmDeleteGrade(grade);
+    }, 0);
+  },
+
+  _confirmDeleteGrade(grade) {
+    document.querySelector('.modal-backdrop')?.remove();
     delete window.feeStructure.feeItems[grade];
-    // Also remove from gradeAliases so it is hidden everywhere
     if (window.feeStructure.gradeAliases?.[grade]) delete window.feeStructure.gradeAliases[grade];
     const contentDiv = document.getElementById('fees-tab-content');
     if (contentDiv) contentDiv.innerHTML = this.renderFeeStructureTab();
-    showToast(`Grade "${grade}" removed. Click Save to persist.`, 'warning');
+    showToast('Grade "' + grade + '" removed. Click Save to persist.', 'warning');
   },
 
   addGrade(gradeName) {
@@ -1010,15 +1079,30 @@ const feesPaymentsModule = {
   },
 
   resetFeeStructureToDefaults() {
-    if (!confirm('Reset all fee items to the built-in defaults? Any unsaved edits will be lost.')) return;
-    if (window.feeStructure?._builtInFeeItems) {
-      window.feeStructure.feeItems = JSON.parse(JSON.stringify(window.feeStructure._builtInFeeItems));
-      const contentDiv = document.getElementById('fees-tab-content');
-      if (contentDiv) contentDiv.innerHTML = this.renderFeeStructureTab();
-      showToast('Fee structure reset to built-in defaults. Click Save to persist.', 'info');
-    } else {
-      location.reload();
-    }
+    createModal('Reset Fee Structure', `
+      <div>
+        <p style="margin-bottom:var(--space-3);">Reset all fee items to the built-in defaults?</p>
+        <p style="font-size:0.85rem;color:var(--color-warning);font-weight:600;margin-bottom:var(--space-6);">⚠️ Any unsaved edits will be lost.</p>
+        <div class="flex gap-3">
+          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button class="btn btn-primary flex-1" id="confirm-reset-btn">↺ Reset to Defaults</button>
+        </div>
+      </div>
+    `);
+    setTimeout(() => {
+      const btn = document.getElementById('confirm-reset-btn');
+      if (btn) btn.onclick = () => {
+        document.querySelector('.modal-backdrop')?.remove();
+        if (window.feeStructure?._builtInFeeItems) {
+          window.feeStructure.feeItems = JSON.parse(JSON.stringify(window.feeStructure._builtInFeeItems));
+          const contentDiv = document.getElementById('fees-tab-content');
+          if (contentDiv) contentDiv.innerHTML = this.renderFeeStructureTab();
+          showToast('Fee structure reset to built-in defaults. Click Save to persist.', 'info');
+        } else {
+          location.reload();
+        }
+      };
+    }, 0);
   },
 
   renderPaymentList(payments) {
@@ -1425,9 +1509,7 @@ const feesPaymentsModule = {
       return;
     }
 
-    if (!confirm(`Assign ${feeType} (\u20a6${amount.toLocaleString()}) to ${students.length} student(s)?\nThis will create ${students.length} payment records.`)) return;
-
-    // Disable button during processing
+// Disable button during processing
     const submitBtn = event.target.querySelector('button[type="submit"]');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Processing...'; }
 
@@ -2535,9 +2617,35 @@ const feesPaymentsModule = {
     if (!payment) { showToast('Payment record not found', 'error'); return; }
     const studentName = payment.studentName || payment.student_name || 'Unknown';
     const amount = parseFloat(payment.amount) || 0;
-    if (!confirm(`Approve bank deposit of ${formatCurrency(amount)} from ${studentName}?\n\nThis will mark the fee as PAID.`)) return;
+    createModal('Approve Payment', `
+      <div>
+        <p style="margin-bottom:var(--space-3);">
+          Approve bank deposit of <strong>${formatCurrency(amount)}</strong> from <strong>${this._esc(studentName)}</strong>?
+        </p>
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:var(--space-6);">
+          This will mark the fee as <strong>PAID</strong>. Cannot be undone without voiding the payment.
+        </p>
+        <div class="flex gap-3">
+          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button class="btn btn-primary flex-1" id="confirm-verify-btn"
+            onclick="feesPaymentsModule._confirmVerifyPayment('${paymentId}')">&#x2705; Approve Payment</button>
+        </div>
+      </div>
+    `);
+  },
 
-    // ── BEGIN / EXECUTE / CHECK / COMMIT → ROLLBACK via RPC ───────────────
+  async _confirmVerifyPayment(paymentId) {
+    const btn = document.getElementById('confirm-verify-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
+
+    let payment = dataManager.getById('payments', paymentId);
+    if (!payment) {
+      const { data } = await supabaseClient.from('fees_payments').select('*').eq('id', paymentId).single();
+      payment = data;
+    }
+    const studentName = payment?.studentName || payment?.student_name || 'Unknown';
+    const amount = parseFloat(payment?.amount) || 0;
+
     const { data: rpc, error: rpcErr } = await supabaseClient.rpc('verify_fee_payment', {
       p_payment_id:  paymentId,
       p_verified_by: this._getRecordedBy()
@@ -2545,16 +2653,17 @@ const feesPaymentsModule = {
     if (rpcErr || !rpc?.success) {
       const msg = rpc?.error || rpcErr?.message || 'Failed to approve payment.';
       showToast(msg.replace(/^[A-Z_]+:/, '').trim(), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Approve Payment'; }
       return;
     }
 
     document.querySelector('.modal-backdrop')?.remove();
     showToast('Payment verified and approved!', 'success');
-    if (typeof writeAuditLog === 'function') writeAuditLog('PAYMENT_VERIFIED', studentName, `\u20a6${amount.toLocaleString()} approved`);
+    if (typeof writeAuditLog === 'function') writeAuditLog('PAYMENT_VERIFIED', studentName, `₦${amount.toLocaleString()} approved`);
     await this._refreshAndRender();
   },
 
-  async rejectPayment(paymentId) {
+    async rejectPayment(paymentId) {
     let payment = dataManager.getById('payments', paymentId);
     if (!payment) {
       const { data } = await supabaseClient.from('fees_payments').select('*').eq('id', paymentId).single();
@@ -2627,21 +2736,45 @@ const feesPaymentsModule = {
     const payment = dataManager.getById('payments', paymentId);
     if (!payment) return;
 
-    const confirmed = confirm(`Are you sure you want to void payment ${payment.receiptNo}?\n\nAmount: ${formatCurrency(parseFloat(payment.amount) || 0)}\nStudent: ${payment.studentName}\n\nThis action cannot be undone.`);
-    if (!confirmed) return;
+    createModal('Void Payment', `
+      <div>
+        <p style="margin-bottom:var(--space-2);">
+          Are you sure you want to void payment <strong>#${this._esc(payment.receiptNo)}</strong>?
+        </p>
+        <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:var(--space-4);margin-bottom:var(--space-4);">
+          <p style="margin:0 0 4px;font-size:0.85rem;"><strong>Amount:</strong> ${formatCurrency(parseFloat(payment.amount) || 0)}</p>
+          <p style="margin:0;font-size:0.85rem;"><strong>Student:</strong> ${this._esc(payment.studentName || '')}</p>
+        </div>
+        <p style="font-size:0.82rem;color:var(--color-danger);font-weight:600;margin-bottom:var(--space-6);">⚠️ This action cannot be undone.</p>
+        <div class="flex gap-3">
+          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button class="btn flex-1" id="confirm-void-btn"
+            style="background:var(--color-danger);color:white;border:none;"
+            onclick="feesPaymentsModule._confirmVoidPayment('${paymentId}')">🗑️ Void Payment</button>
+        </div>
+      </div>
+    `);
+  },
 
-    // ── BEGIN / EXECUTE / CHECK / COMMIT → ROLLBACK via RPC ───────────────
+  async _confirmVoidPayment(paymentId) {
+    const btn = document.getElementById('confirm-void-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Voiding…'; }
+
+    const payment = dataManager.getById('payments', paymentId);
+    const receiptNo = payment?.receiptNo || paymentId;
+
     const { data: rpc, error: rpcErr } = await supabaseClient.rpc('void_fee_payment', {
       p_payment_id: paymentId
     });
     if (rpcErr || !rpc?.success) {
       const msg = rpc?.error || rpcErr?.message || 'Failed to void payment.';
       showToast(msg.replace(/^[A-Z_]+:/, '').trim(), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '🗑️ Void Payment'; }
       return;
     }
 
     document.querySelector('.modal-backdrop')?.remove();
-    showToast(`Payment ${payment.receiptNo} has been voided`, 'success');
+    showToast(`Payment ${receiptNo} has been voided`, 'success');
     await this._refreshAndRender();
   },
 
