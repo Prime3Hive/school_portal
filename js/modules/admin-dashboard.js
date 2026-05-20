@@ -15,7 +15,7 @@ const adminDashboardModule = {
     this.render();
     this.initializeFeatures();
     this._onDataChange = (e) => {
-      if (['students', 'staff', 'payments', 'inventory'].includes(e.detail.collection)) this.render();
+      if (['students', 'staff', 'payments', 'inventory', 'feeItems'].includes(e.detail.collection)) this.render();
     };
     window.removeEventListener('datamanager:change', this._onDataChange);
     window.addEventListener('datamanager:change', this._onDataChange);
@@ -89,8 +89,32 @@ const adminDashboardModule = {
           ${this.createModernStatCard('Total Students', stats.totalStudents, stats.studentTrend, 'primary', '🎓', 'student-directory')}
           ${this.createModernStatCard('Total Staff', stats.totalStaff, stats.staffTrend, 'success', '👨‍🏫', 'staff-management')}
           ${this.createModernStatCard('Fees Collected', this.formatCurrency(stats.paidFees), stats.feesTrend, 'info', '&#x1F4B0;', 'fees-payments')}
-          ${this.createModernStatCard('Pending Fees', this.formatCurrency(stats.pendingFees), null, 'danger', '⚠️', 'fees-payments')}
+          ${this.createModernStatCard('Outstanding Balance', this.formatCurrency(stats.pendingFees), null, 'danger', '⚠️', 'fees-payments')}
         </div>
+
+        <!-- ═══ FEE SUMMARY BAR ═══ -->
+        ${stats.totalBilled > 0 || stats.paidFees > 0 ? `
+        <div onclick="window.app.loadModule('fees-payments')" style="cursor:pointer;display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:12px;padding:14px 20px;margin-bottom:var(--space-6);">
+          <div style="flex:1;min-width:130px;border-right:1px solid var(--border-primary);padding-right:16px;">
+            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Total Billed</div>
+            <div style="font-size:1.1rem;font-weight:800;color:var(--text-primary);">${this.formatCurrency(stats.totalBilled)}</div>
+          </div>
+          <div style="flex:1;min-width:130px;border-right:1px solid var(--border-primary);padding-right:16px;">
+            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Collection Rate</div>
+            <div style="font-size:1.1rem;font-weight:800;color:${stats.collectionRate >= 75 ? '#10b981' : stats.collectionRate >= 40 ? '#f59e0b' : '#ef4444'};">${stats.collectionRate}%</div>
+            <div style="height:4px;background:#e2e8f0;border-radius:99px;margin-top:4px;overflow:hidden;">
+              <div style="height:100%;width:${stats.collectionRate}%;background:${stats.collectionRate >= 75 ? '#10b981' : stats.collectionRate >= 40 ? '#f59e0b' : '#ef4444'};border-radius:99px;"></div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:130px;border-right:1px solid var(--border-primary);padding-right:16px;">
+            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Collected</div>
+            <div style="font-size:1.1rem;font-weight:800;color:#10b981;">${this.formatCurrency(stats.paidFees)}</div>
+          </div>
+          <div style="flex:1;min-width:130px;">
+            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Outstanding</div>
+            <div style="font-size:1.1rem;font-weight:800;color:#ef4444;">${this.formatCurrency(stats.pendingFees)}</div>
+          </div>
+        </div>` : ''}
 
         <!-- ═══ PENDING VERIFICATIONS ALERT ═══ -->
         ${this.renderPendingVerifications()}
@@ -853,6 +877,7 @@ const adminDashboardModule = {
     let payments = dataManager?.getAll('payments') || [];
     const assessments = dataManager?.getAll('assessments') || [];
     const inventory = dataManager?.getAll('inventory') || [];
+    const feeItems = dataManager?.getAll('feeItems') || [];
 
     // Apply date range filter to payments when a range is selected
     if (this.dateRange?.start && this.dateRange?.end) {
@@ -869,13 +894,27 @@ const adminDashboardModule = {
     const activeStudents = dataStudents.filter(s => s.status === 'active').length;
     const totalStaff = staffList.length;
 
-    // Fees from payments table — exclude bank deposits awaiting verification and rejected deposits
-    const paidFees = payments.filter(p => p.status === 'paid').reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-    const pendingFees = payments.filter(p =>
-      (p.status === 'pending' || p.status === 'partial' || p.status === 'overdue')
-      && !this._isPendingVerification(p)
-      && !(p.status === 'overdue' && (p.rejectionReason || p.rejection_reason))
-    ).reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
+    // ── Fees Collected: confirmed payment transactions (status=paid) ──
+    const paidFees = payments
+      .filter(p => p.status === 'paid' && !this._isPendingVerification(p))
+      .reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
+
+    // ── Total Billed: from feeItems ledger (formally assigned fee bills) ──
+    const totalBilled = feeItems.reduce((a, i) => a + parseFloat(i.amount || 0), 0);
+
+    // ── Outstanding Balance: per-bill balances from feeItems (most accurate) ──
+    // Falls back to pending/partial payment records when no feeItems assigned yet
+    const pendingFees = totalBilled > 0
+      ? feeItems.reduce((a, i) => {
+          const bal = parseFloat(i.amount || 0) - parseFloat(i.amount_paid || 0);
+          return a + Math.max(0, bal);
+        }, 0)
+      : payments.filter(p =>
+          (p.status === 'pending' || p.status === 'partial' || p.status === 'overdue')
+          && !this._isPendingVerification(p)
+          && !(p.status === 'overdue' && (p.rejectionReason || p.rejection_reason))
+        ).reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
+
     const totalFees = paidFees + pendingFees;
 
     // Inventory value as proxy for expenses
@@ -900,12 +939,16 @@ const adminDashboardModule = {
     // Calculate trends based on historical data (last 30 days comparison)
     const trends = this.calculateTrends(dataStudents, staffList, payments, inventory);
 
+    const collectionRate = totalBilled > 0 ? Math.min(100, Math.round((paidFees / totalBilled) * 100)) : 0;
+
     return {
       totalStudents,
       activeStudents,
       totalStaff,
       paidFees,
       pendingFees,
+      totalBilled,
+      collectionRate,
       totalFees,
       totalExpenses,
       expenses,
@@ -1023,11 +1066,15 @@ const adminDashboardModule = {
       activities.push({ icon: '🎓', text: `Student: ${s.name} (Grade ${s.grade}${s.section || ''})`, time: formatTime(s.createdAt || s.created_at), type: 'student' });
     });
 
-    // Recent payments
+    // Recent payments — sort by date before slicing
     const payments = dataManager?.getAll('payments') || [];
-    payments.filter(p => p.status === 'paid').slice(-3).reverse().forEach(p => {
-      activities.push({ icon: '💰', text: `Payment received: ₦${(parseFloat(p.amount) || 0).toLocaleString()} from ${p.studentName || 'Student'}`, time: formatTime(p.paymentDate || p.payment_date || p.createdAt), type: 'payment' });
-    });
+    [...payments]
+      .filter(p => p.status === 'paid')
+      .sort((a, b) => new Date(b.paymentDate || b.payment_date || b.createdAt || 0) - new Date(a.paymentDate || a.payment_date || a.createdAt || 0))
+      .slice(0, 3)
+      .forEach(p => {
+        activities.push({ icon: '💰', text: `Payment received: ₦${(parseFloat(p.amount) || 0).toLocaleString()} from ${p.studentName || 'Student'}`, time: formatTime(p.paymentDate || p.payment_date || p.createdAt), type: 'payment' });
+      });
 
     // Recent staff
     const staffList = dataManager?.getAll('staff') || [];
@@ -1085,8 +1132,7 @@ const adminDashboardModule = {
   // ── Pending Bank Deposit Verification ──
   _isPendingVerification(payment) {
     return payment && payment.status === 'pending'
-      && (payment.paymentMethod === 'bank-deposit' || payment.payment_method === 'bank-deposit')
-      && (payment.receiptUrl || payment.receipt_url);
+      && (payment.paymentMethod === 'bank-deposit' || payment.payment_method === 'bank-deposit');
   },
 
   getPendingVerifications() {
@@ -1199,13 +1245,32 @@ const adminDashboardModule = {
     if (error) console.warn('[Dashboard] Update student fees status failed:', error.message);
   },
 
-  async approvePayment(paymentId) {
+  approvePayment(paymentId) {
     const payment = dataManager.getById('payments', paymentId);
     if (!payment) { showToast('Payment not found', 'error'); return; }
-    if (!confirm('Approve bank deposit of \u20a6' + (parseFloat(payment.amount) || 0).toLocaleString() + ' from ' + (payment.studentName || 'student') + '?\n\nThis will mark the fee as PAID.')) return;
+    const studentName = payment.studentName || payment.student_name || 'student';
+    const amount = parseFloat(payment.amount) || 0;
 
+    createModal('Approve Payment', `
+      <div>
+        <p style="margin-bottom:var(--space-3);">Approve bank deposit of <strong>&#x20A6;${amount.toLocaleString()}</strong> from <strong>${studentName}</strong>?</p>
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:var(--space-6);">This will mark the fee as <strong>PAID</strong>. Cannot be undone without voiding.</p>
+        <div class="flex gap-3">
+          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button class="btn btn-primary flex-1" id="dash-approve-btn">&#x2705; Approve Payment</button>
+        </div>
+      </div>
+    `);
+    setTimeout(() => {
+      const btn = document.getElementById('dash-approve-btn');
+      if (btn) btn.onclick = () => adminDashboardModule._confirmApprovePayment(paymentId);
+    }, 0);
+  },
+
+  async _confirmApprovePayment(paymentId) {
+    const btn = document.getElementById('dash-approve-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
     try {
-      // ── BEGIN / EXECUTE / CHECK / COMMIT → ROLLBACK via RPC ─────────────
       const { data: rpc, error: rpcErr } = await supabaseClient.rpc('verify_fee_payment', {
         p_payment_id:  paymentId,
         p_verified_by: this._getRecordedBy()
@@ -1213,43 +1278,70 @@ const adminDashboardModule = {
       if (rpcErr || !rpc?.success) {
         const msg = rpc?.error || rpcErr?.message || 'Failed to approve payment.';
         showToast(msg.replace(/^[A-Z_]+:/, '').trim(), 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '✅ Approve Payment'; }
         return;
       }
-
-      await Promise.all([dataManager.refresh('payments'), dataManager.refresh('students')]);
+      document.querySelector('.modal-backdrop')?.remove();
+      await Promise.all([dataManager.refresh('payments'), dataManager.refresh('students'), dataManager.refresh('feeItems')]);
       showToast('Payment verified and approved!', 'success');
       this.render();
     } catch (err) {
       console.error('Approve payment error:', err);
       showToast('Failed to approve: ' + (err.message || 'Unknown error'), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '✅ Approve Payment'; }
     }
   },
 
-  async rejectPayment(paymentId) {
+  rejectPayment(paymentId) {
     const payment = dataManager.getById('payments', paymentId);
     if (!payment) { showToast('Payment not found', 'error'); return; }
-    const reason = prompt('Reject bank deposit from ' + (payment.studentName || 'student') + '?\n\nPlease provide a reason:');
-    if (reason === null) return;
+    const studentName = payment.studentName || payment.student_name || 'student';
 
+    createModal('Reject Payment', `
+      <div>
+        <p style="margin-bottom:var(--space-4);color:var(--text-secondary);">Reject bank deposit from <strong>${studentName}</strong>?</p>
+        <div class="form-group">
+          <label class="form-label">Rejection Reason <span style="color:var(--color-danger);">*</span></label>
+          <textarea id="dash-reject-reason" class="form-input" rows="3" placeholder="e.g. Receipt not legible..." style="resize:vertical;"></textarea>
+        </div>
+        <div class="flex gap-3 mt-4">
+          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button class="btn flex-1" id="dash-reject-btn" style="background:var(--color-danger);color:white;border:none;">&#x274C; Confirm Rejection</button>
+        </div>
+      </div>
+    `);
+    setTimeout(() => {
+      const btn = document.getElementById('dash-reject-btn');
+      if (btn) btn.onclick = () => adminDashboardModule._confirmRejectPayment(paymentId);
+    }, 0);
+  },
+
+  async _confirmRejectPayment(paymentId) {
+    const reasonEl = document.getElementById('dash-reject-reason');
+    const reason = reasonEl ? reasonEl.value.trim() : '';
+    if (!reason) { reasonEl?.focus(); showToast('Please enter a rejection reason.', 'warning'); return; }
+    const btn = document.getElementById('dash-reject-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Rejecting…'; }
     try {
-      // ── BEGIN / EXECUTE / CHECK / COMMIT → ROLLBACK via RPC ─────────────
       const { data: rpc, error: rpcErr } = await supabaseClient.rpc('reject_fee_payment', {
         p_payment_id:  paymentId,
         p_verified_by: this._getRecordedBy(),
-        p_reason:      reason || 'No reason provided'
+        p_reason:      reason
       });
       if (rpcErr || !rpc?.success) {
         const msg = rpc?.error || rpcErr?.message || 'Failed to reject payment.';
         showToast(msg.replace(/^[A-Z_]+:/, '').trim(), 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '❌ Confirm Rejection'; }
         return;
       }
-
+      document.querySelector('.modal-backdrop')?.remove();
       await Promise.all([dataManager.refresh('payments'), dataManager.refresh('students')]);
       showToast('Payment rejected.', 'warning');
       this.render();
     } catch (err) {
       console.error('Reject payment error:', err);
       showToast('Failed to reject: ' + (err.message || 'Unknown error'), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '❌ Confirm Rejection'; }
     }
   },
 
