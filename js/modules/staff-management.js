@@ -322,7 +322,7 @@ const staffManagementModule = {
       }
 
       if (result && result.success) {
-        writeAuditLog('ADD_STAFF', data.email, `Name: ${data.name} | Role: ${role} | Portal ID: ${result.schoolId}`);
+        if (typeof writeAuditLog === 'function') writeAuditLog('STAFF_CREATED', data.email, `Name: ${data.name} | Role: ${role} | Portal ID: ${result.schoolId}`);
         showToast(`"${data.name}" added successfully!`, 'success');
         // Show credential modal — same flow as the invite/add-user path
         const roleLabel = data.type === 'teaching' ? 'Teacher' : 'Staff';
@@ -447,16 +447,19 @@ const staffManagementModule = {
       }
     }
 
+    const name = document.getElementById('eName').value.trim();
+    const role = document.getElementById('eRole').value.trim();
     await dataManager.update('staff', id, {
-      name: document.getElementById('eName').value.trim(),
-      role: document.getElementById('eRole').value.trim(),
-      position: document.getElementById('eRole').value.trim(),
+      name,
+      role,
+      position: role,
       department: document.getElementById('eDept').value.trim(),
       email: email,
       phone: phone,
       address: document.getElementById('eAddress').value.trim()
     });
     document.querySelector('.modal-backdrop')?.remove();
+    if (typeof writeAuditLog === 'function') writeAuditLog('STAFF_UPDATED', email || id, `Name: ${name} | Role: ${role}`);
     showToast('Staff record updated!', 'success');
     this.refresh();
   },
@@ -466,6 +469,7 @@ const staffManagementModule = {
     if (!s) return;
     const newStatus = (s.status || 'active') === 'active' ? 'inactive' : 'active';
     await dataManager.update('staff', id, { status: newStatus });
+    if (typeof writeAuditLog === 'function') writeAuditLog('STAFF_STATUS_CHANGED', s.email || s.name, `Status changed to ${newStatus}`);
     showToast(`Staff ${newStatus === 'active' ? 'activated' : 'deactivated'}`, newStatus === 'active' ? 'success' : 'warning');
     this.refresh();
   },
@@ -475,6 +479,7 @@ const staffManagementModule = {
     if (!s) return;
     if (confirm(`Permanently delete "${s.name}"? This cannot be undone.`)) {
       await dataManager.delete('staff', id);
+      if (typeof writeAuditLog === 'function') writeAuditLog('STAFF_DELETED', s.email || s.name, `Name: ${s.name} | Role: ${s.role}`);
       showToast('Staff member deleted.', 'success');
       this.refresh();
     }

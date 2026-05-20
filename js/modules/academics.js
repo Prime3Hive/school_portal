@@ -366,7 +366,10 @@ const academicsModule = {
     if (!grade || !section) { showToast('Grade and section are required', 'error'); return; }
     const res = await this._insertClass({ grade, section, class_teacher: teacher, room });
     document.querySelector('.modal-backdrop')?.remove();
-    if (res) { await this._refreshAndRender(); showToast('Class added', 'success'); }
+    if (res) {
+      writeAuditLog('CLASS_CREATED', `Grade ${grade}-${section}`, `Room: ${room || 'N/A'} | Teacher: ${teacher || 'Unassigned'}`);
+      await this._refreshAndRender(); showToast('Class added', 'success');
+    }
   },
 
   showEditClassModal(id) {
@@ -403,7 +406,10 @@ const academicsModule = {
     const room    = (document.getElementById('ecls-room')?.value || '').trim();
     const ok = await this._updateClass(id, { section, class_teacher: teacher, room });
     document.querySelector('.modal-backdrop')?.remove();
-    if (ok) { await this._refreshAndRender(); showToast('Class updated', 'success'); }
+    if (ok) {
+      writeAuditLog('CLASS_UPDATED', `Section ${section}`, `Room: ${room || 'N/A'} | Teacher: ${teacher || 'Unassigned'}`);
+      await this._refreshAndRender(); showToast('Class updated', 'success');
+    }
   },
 
   deleteClass(id) {
@@ -416,8 +422,12 @@ const academicsModule = {
   },
 
   async _confirmDeleteClass(id) {
+    const c = this._getClasses().find(x => x.id === id);
     const ok = await this._deleteClassRow(id);
-    if (ok) { await this._refreshAndRender(); showToast('Class deleted', 'info'); }
+    if (ok) {
+      writeAuditLog('CLASS_DELETED', `Grade ${c?.grade}-${c?.section}`, `ID: ${id}`);
+      await this._refreshAndRender(); showToast('Class deleted', 'info');
+    }
   },
 
   // ================================================================
@@ -610,7 +620,10 @@ const academicsModule = {
 
   async _doSaveSchedule(d) {
     const res = await this._insertSchedule({ type: 'class', title: d.subject, subject: d.subject, grade: d.grade, section: d.section, day: d.day, period: d.period, start_time: d.startTime, end_time: d.endTime, room: d.room, teacher: d.teacher, status: 'active', academic_year: '2025-2026' });
-    if (res) { await this._refreshAndRender(); showToast('Schedule added', 'success'); }
+    if (res) {
+      writeAuditLog('SCHEDULE_CREATED', `Grade ${d.grade}-${d.section}`, `${d.subject} | ${d.day} Period ${d.period || 'N/A'} | Teacher: ${d.teacher || 'N/A'}`);
+      await this._refreshAndRender(); showToast('Schedule added', 'success');
+    }
   },
 
   showEditScheduleModal(id) {
@@ -686,7 +699,10 @@ const academicsModule = {
 
     const ok = await this._updateSchedule(id, { title: subject, subject, grade, section, day, period, start_time: startTime, end_time: endTime, room, teacher });
     document.querySelector('.modal-backdrop')?.remove();
-    if (ok) { await this._refreshAndRender(); showToast('Schedule updated', 'success'); }
+    if (ok) {
+      writeAuditLog('SCHEDULE_UPDATED', `Grade ${grade}-${section}`, `${subject} | ${day} Period ${period || 'N/A'}`);
+      await this._refreshAndRender(); showToast('Schedule updated', 'success');
+    }
   },
 
   deleteSchedule(id) {
@@ -699,8 +715,12 @@ const academicsModule = {
   },
 
   async _confirmDeleteSchedule(id) {
+    const s = this._getSchedules().find(x => x.id === id);
     const ok = await this._deleteScheduleRow(id);
-    if (ok) { await this._refreshAndRender(); showToast('Schedule deleted', 'info'); }
+    if (ok) {
+      writeAuditLog('SCHEDULE_DELETED', `Grade ${s?.grade}-${s?.section}`, `${s?.subject || s?.title || 'N/A'} | ${s?.day || ''}`);
+      await this._refreshAndRender(); showToast('Schedule deleted', 'info');
+    }
   },
 
   // ================================================================
@@ -835,6 +855,7 @@ const academicsModule = {
     });
     if (!result) return;
     document.querySelector('.modal-backdrop')?.remove();
+    writeAuditLog('ASSESSMENT_CREATED', `${fd.get('name')}`, `Subject: ${fd.get('subject')} | Grade ${fd.get('grade')}-${fd.get('section')} | Marks: ${fd.get('totalMarks')}`);
     showToast('Assessment created!', 'success');
   },
 
@@ -848,7 +869,9 @@ const academicsModule = {
   },
 
   async _confirmDeleteAssessment(id) {
+    const a = this._getAssessments().find(x => x.id === id);
     await dataManager.delete('assessments', id);
+    writeAuditLog('ASSESSMENT_DELETED', a?.name || id, `Subject: ${a?.subject || ''} | Grade ${a?.grade}-${a?.section}`);
     showToast('Assessment deleted.', 'success');
   },
 
@@ -953,6 +976,7 @@ const academicsModule = {
         }
       }
       delete this._pendingGrades[this._selAssessment];
+      writeAuditLog('GRADES_SAVED', assessment?.name || this._selAssessment, `${saved} grade${saved !== 1 ? 's' : ''} saved | Subject: ${assessment?.subject || ''} | Grade ${assessment?.grade}-${assessment?.section}`);
       showToast(`${saved} grade${saved !== 1 ? 's' : ''} saved!`, 'success');
       this._selAssessment = null;
       this._refreshContent();
@@ -1173,8 +1197,17 @@ const academicsModule = {
     const c = document.getElementById('lp-days-container');
     if (c) [...c.children].forEach((_, i) => { const name = fd.get(`day_${i}_name`); const topic = fd.get(`day_${i}_topic`); const activities = fd.get(`day_${i}_activities`); if (name && topic) days.push({ day: name, topic, activities: activities || '' }); });
     const data = { title: fd.get('title'), subjectId: fd.get('subjectId'), subjectName: fd.get('subjectName'), grade: fd.get('grade'), weekStarting: fd.get('weekStarting'), term: fd.get('term'), objectives: fd.get('objectives'), materials: fd.get('materials'), days, status: fd.get('saveAs') || 'draft', teacherId: tid, teacher_id: tid, teacherName: this._currentTeacher?.name || '' };
-    if (this._lpSelectedPlan) { data.updatedAt = new Date().toISOString(); await dataManager.update('lessonPlans', this._lpSelectedPlan.id, data); showToast('Plan updated', 'success'); }
-    else { data.createdAt = new Date().toISOString(); await dataManager.create('lessonPlans', data); showToast(data.status === 'submitted' ? 'Plan submitted for approval' : 'Draft saved', 'success'); }
+    if (this._lpSelectedPlan) {
+      data.updatedAt = new Date().toISOString();
+      await dataManager.update('lessonPlans', this._lpSelectedPlan.id, data);
+      writeAuditLog('LESSON_PLAN_UPDATED', data.title, `Subject: ${data.subjectName || ''} | Grade: ${data.grade} | Status: ${data.status}`);
+      showToast('Plan updated', 'success');
+    } else {
+      data.createdAt = new Date().toISOString();
+      await dataManager.create('lessonPlans', data);
+      writeAuditLog('LESSON_PLAN_CREATED', data.title, `Subject: ${data.subjectName || ''} | Grade: ${data.grade} | Status: ${data.status}`);
+      showToast(data.status === 'submitted' ? 'Plan submitted for approval' : 'Draft saved', 'success');
+    }
     this.closeLpModal();
     this._refreshContent();
   },
@@ -1226,7 +1259,9 @@ const academicsModule = {
   },
 
   async _doSubmitPlan(id) {
+    const p = (dataManager.getAll('lessonPlans') || []).find(x => x.id === id);
     await dataManager.update('lessonPlans', id, { status: 'submitted', submittedAt: new Date().toISOString() });
+    writeAuditLog('LESSON_PLAN_SUBMITTED', p?.title || id, `Grade: ${p?.grade || ''} | Subject: ${p?.subjectName || ''}`);
     showToast('Plan submitted for review', 'success'); this._refreshContent();
   },
 
@@ -1243,8 +1278,10 @@ const academicsModule = {
   },
 
   async _doApprovePlan(id) {
+    const p = (dataManager.getAll('lessonPlans') || []).find(x => x.id === id);
     const note = (document.getElementById('lp-approve-note')?.value || '').trim() || 'Approved.';
     await dataManager.update('lessonPlans', id, { status: 'approved', adminFeedback: note, approvedAt: new Date().toISOString(), approvedBy: this._currentTeacher?.name || this._session()?.fullName || 'Admin' });
+    writeAuditLog('LESSON_PLAN_APPROVED', p?.title || id, `Teacher: ${p?.teacherName || ''} | Note: ${note}`);
     showToast('Plan approved', 'success'); this._refreshContent();
   },
 
@@ -1263,7 +1300,9 @@ const academicsModule = {
   async _doRequestRevision(id) {
     const feedback = (document.getElementById('lp-revision-note')?.value || '').trim();
     if (!feedback) { showToast('Please describe what needs revision', 'warning'); return; }
+    const p = (dataManager.getAll('lessonPlans') || []).find(x => x.id === id);
     await dataManager.update('lessonPlans', id, { status: 'needs_revision', adminFeedback: feedback });
+    writeAuditLog('LESSON_PLAN_REVISION_REQUESTED', p?.title || id, `Feedback: ${feedback}`);
     document.querySelector('.modal-backdrop')?.remove();
     showToast('Revision requested', 'info'); this._refreshContent();
   },
@@ -1278,7 +1317,9 @@ const academicsModule = {
   },
 
   async _doDeletePlan(id) {
+    const p = (dataManager.getAll('lessonPlans') || []).find(x => x.id === id);
     await dataManager.delete('lessonPlans', id);
+    writeAuditLog('LESSON_PLAN_DELETED', p?.title || id, `Grade: ${p?.grade || ''} | Teacher: ${p?.teacherName || ''}`);
     showToast('Plan deleted', 'info'); this._refreshContent();
   },
 
@@ -1392,8 +1433,15 @@ const academicsModule = {
     const selectedGrades = fd.getAll('grades');
     if (selectedGrades.length === 0) { showToast('Please select at least one grade.', 'warning'); return; }
     const payload = { name: fd.get('name'), code: fd.get('code'), grades: selectedGrades, grade: selectedGrades[0], icon: fd.get('icon'), teacherId: fd.get('teacherId') || null };
-    if (existingId) { await dataManager.update('subjectCatalog', existingId, payload); showToast('Subject updated!', 'success'); }
-    else { await dataManager.create('subjectCatalog', payload); showToast('Subject added!', 'success'); }
+    if (existingId) {
+      await dataManager.update('subjectCatalog', existingId, payload);
+      writeAuditLog('SUBJECT_UPDATED', payload.name, `Code: ${payload.code} | Grades: ${payload.grades.join(', ')}`);
+      showToast('Subject updated!', 'success');
+    } else {
+      await dataManager.create('subjectCatalog', payload);
+      writeAuditLog('SUBJECT_CREATED', payload.name, `Code: ${payload.code} | Grades: ${payload.grades.join(', ')}`);
+      showToast('Subject added!', 'success');
+    }
     document.querySelector('.modal-backdrop')?.remove();
   },
 
@@ -1406,7 +1454,12 @@ const academicsModule = {
       </div>`);
   },
 
-  async _confirmDeleteSubject(id) { await dataManager.delete('subjectCatalog', id); showToast('Subject deleted.', 'success'); },
+  async _confirmDeleteSubject(id) {
+    const s = (dataManager.getAll('subjectCatalog') || []).find(x => x.id === id);
+    await dataManager.delete('subjectCatalog', id);
+    writeAuditLog('SUBJECT_DELETED', s?.name || id, `Code: ${s?.code || ''}`);
+    showToast('Subject deleted.', 'success');
+  },
 
   _openSeedModal() {
     const existing = (dataManager.getAll('subjectCatalog') || []).map(s => s.code?.toUpperCase());

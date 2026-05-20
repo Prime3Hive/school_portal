@@ -10,28 +10,7 @@
 /** Current academic year sourced from schoolConfig (or fallback). */
 const UM_ACADEMIC_YEAR = window.CURRENT_ACADEMIC_YEAR || (window.schoolConfig?.getCurrentAcademicYear?.()) || '2025-2026';
 
-/**
- * Writes a row to the `audit_logs` Supabase table.
- * Non-blocking — failures are logged to console only.
- */
-async function writeAuditLog(action, target, details = '') {
-  try {
-    if (!window.supabaseReady) return;
-    const session = (typeof authManager !== 'undefined') && authManager.getSession();
-    const performedBy = session ? `${session.fullName || session.userId} (${session.role})` : 'system';
-    const performerId = session?.supabaseId || null;
-    await supabaseClient.from('audit_logs').insert({
-      action,
-      target,
-      details,
-      performed_by: performedBy,
-      performer_id: performerId,
-      timestamp: new Date().toISOString()
-    });
-  } catch (err) {
-    console.warn('[AuditLog] Failed to write log:', err);
-  }
-}
+// writeAuditLog() is defined globally in js/audit-logger.js (loaded before this module).
 
 /**
  * Renders a ready-to-send email template in a modal.
@@ -2464,14 +2443,40 @@ const userManagementModule = {
   /** Internal renderer — called both on initial render and after live fetch resolves. */
   _renderAuditTabContent(isLoading = false) {
     const query = (this._auditSearch || '').toLowerCase();
-    const filtered = query
-      ? this.auditLogs.filter(l =>
-          (l.action||'').toLowerCase().includes(query) ||
-          (l.performed_by||'').toLowerCase().includes(query) ||
-          (l.target||'').toLowerCase().includes(query) ||
-          (l.details||'').toLowerCase().includes(query))
+    const category = this._auditCategory || 'all';
+
+    const CATEGORY_MATCH = {
+      students:  a => /student|enroll|admission|application|admit/i.test(a),
+      staff:     a => /staff/i.test(a),
+      academics: a => /class|schedule|assessment|grade|lesson|subject/i.test(a),
+      finance:   a => /pay|fee/i.test(a),
+      inventory: a => /inventory/i.test(a),
+      system:    a => /login|logout|auth|signin|signout|setting|export|backup|user_created|user_deleted|invit/i.test(a),
+    };
+
+    let filtered = (category !== 'all' && CATEGORY_MATCH[category])
+      ? this.auditLogs.filter(l => CATEGORY_MATCH[category](l.action || ''))
       : this.auditLogs;
+
+    if (query) {
+      filtered = filtered.filter(l =>
+        (l.action||'').toLowerCase().includes(query) ||
+        (l.performed_by||'').toLowerCase().includes(query) ||
+        (l.target||'').toLowerCase().includes(query) ||
+        (l.details||'').toLowerCase().includes(query));
+    }
+
     const logs = filtered.slice(0, 500);
+
+    const CHIP_DEFS = [
+      { key:'all',       label:'All',       icon:'📋' },
+      { key:'students',  label:'Students',  icon:'👤' },
+      { key:'staff',     label:'Staff',     icon:'👥' },
+      { key:'academics', label:'Academics', icon:'🎓' },
+      { key:'finance',   label:'Finance',   icon:'💳' },
+      { key:'inventory', label:'Inventory', icon:'📦' },
+      { key:'system',    label:'System',    icon:'⚙️'  },
+    ];
 
     return `
       <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);overflow:hidden;">
@@ -2490,10 +2495,9 @@ const userManagementModule = {
                 ${isLoading ? 'Loading activity logs…' : `${this.auditLogs.length} event${this.auditLogs.length !== 1 ? 's' : ''} recorded across all modules`}
               </p>
               <div style="margin-top:var(--space-3);">
-                <input type="text" placeholder="Search logs…" value="${this._auditSearch||''}"
+                <input type="text" placeholder="Search by action, user, target…" value="${this._auditSearch||''}"
                   oninput="userManagementModule._auditSearch=this.value; const live=userManagementModule._container?.querySelector('.tab-content'); if(live) live.innerHTML=userManagementModule._renderAuditTabContent();"
-                  style="width:100%;max-width:320px;padding:8px 12px;border-radius:var(--radius-md);border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:white;font-size:0.85rem;outline:none;"
-                  placeholder="Search by action, user, target…">
+                  style="width:100%;max-width:320px;padding:8px 12px;border-radius:var(--radius-md);border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:white;font-size:0.85rem;outline:none;">
               </div>
             </div>
             <div style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
@@ -2526,6 +2530,29 @@ const userManagementModule = {
               </button>
             </div>
           </div>
+        </div>
+
+        <!-- Category Filter Chips -->
+        <div style="padding:var(--space-3) var(--space-5);background:#f8fafc;border-bottom:1px solid #e2e8f0;
+          display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;">
+          <span style="font-size:0.75rem;font-weight:600;color:#64748b;white-space:nowrap;margin-right:4px;">Filter:</span>
+          ${CHIP_DEFS.map(c => {
+            const active = category === c.key;
+            return `<button onclick="userManagementModule._auditCategory='${c.key}';const live=userManagementModule._container?.querySelector('.tab-content');if(live)live.innerHTML=userManagementModule._renderAuditTabContent();"
+              style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;
+                border:1px solid ${active ? '#667eea' : '#e2e8f0'};
+                background:${active ? '#667eea' : 'white'};
+                color:${active ? 'white' : '#64748b'};
+                font-size:0.78rem;font-weight:${active ? '700' : '500'};cursor:pointer;
+                transition:all 0.15s;white-space:nowrap;"
+              onmouseover="if('${c.key}'!=='${category}'){this.style.borderColor='#667eea';this.style.color='#667eea';}"
+              onmouseout="if('${c.key}'!=='${category}'){this.style.borderColor='#e2e8f0';this.style.color='#64748b';}"
+              >${c.icon} ${c.label}</button>`;
+          }).join('')}
+          ${filtered.length !== this.auditLogs.length ? `
+            <span style="margin-left:auto;font-size:0.75rem;color:#94a3b8;">
+              ${filtered.length} of ${this.auditLogs.length} events
+            </span>` : ''}
         </div>
 
         <!-- Content Section -->

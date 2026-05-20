@@ -980,6 +980,7 @@ const inventoryModule = {
       { unitCost: newItem.unitCost, category: newItem.category }
     );
 
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_ADDED', newItem.name, `Category: ${newItem.category} | Qty: ${newItem.quantity} | Cost: ₦${(newItem.unitCost||0).toLocaleString()}`);
     showToast('Item added successfully!', 'success');
 
     closeModal();
@@ -1084,6 +1085,7 @@ const inventoryModule = {
       { changes: 'Item details updated' }
     );
 
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_UPDATED', updates.name, `Category: ${updates.category} | Qty: ${updates.quantity}`);
     showToast('Item updated successfully!', 'success');
 
     closeModal();
@@ -1103,6 +1105,7 @@ const inventoryModule = {
     }
 
     await dataManager.delete('inventory', itemId);
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_DELETED', item.name, `Category: ${item.category} | Qty was: ${item.quantity}`);
     showToast('Item deleted successfully', 'success');
     this.render();
   },
