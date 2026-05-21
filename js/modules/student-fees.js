@@ -327,6 +327,7 @@ const studentFeesModule = {
     const totalBalance = totalDue - totalPaid;
     const grade        = this.studentData.student.grade || 'Your Grade';
     const acYear       = (typeof feeStructure !== 'undefined' && feeStructure.academicYear) || '2025/2026';
+    const payableCount = schedule.filter(i => i.balance > 0 && i.status !== 'pending-verification').length;
 
     return `
       <div class="card" style="margin-bottom:1.5rem;">
@@ -344,6 +345,9 @@ const studentFeesModule = {
           <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
             <thead>
               <tr style="background:var(--bg-tertiary);">
+                <th style="padding:0.75rem 0.5rem;text-align:center;font-weight:600;border-bottom:2px solid var(--border-primary);width:2.5rem;">
+                  ${payableCount > 0 ? `<input type="checkbox" id="fee-sel-all" title="Select all payable items" onchange="studentFeesModule._toggleSelectAll(this.checked)" style="width:1rem;height:1rem;cursor:pointer;accent-color:#6366f1;">` : ''}
+                </th>
                 <th style="padding:0.75rem 1rem;text-align:left;font-weight:600;border-bottom:2px solid var(--border-primary);">Fee Item</th>
                 <th style="padding:0.75rem 0.5rem;text-align:right;font-weight:600;border-bottom:2px solid var(--border-primary);">Amount Due</th>
                 <th style="padding:0.75rem 0.5rem;text-align:right;font-weight:600;border-bottom:2px solid var(--border-primary);">Paid</th>
@@ -358,8 +362,14 @@ const studentFeesModule = {
                 const dateStr = item.paymentDate
                   ? new Date(item.paymentDate).toLocaleDateString('en-NG', { day:'numeric', month:'short', year:'numeric' })
                   : null;
+                const isPayable = item.balance > 0 && item.status !== 'pending-verification';
                 return `
                 <tr style="border-bottom:1px solid var(--border-primary);">
+                  <td style="padding:0.5rem;text-align:center;">
+                    ${isPayable
+                      ? `<input type="checkbox" class="fee-item-cb" data-id="${item.id}" data-balance="${item.balance}" onchange="studentFeesModule._updateSelectionBar()" style="width:1rem;height:1rem;cursor:pointer;accent-color:#6366f1;">`
+                      : ''}
+                  </td>
                   <td style="padding:0.75rem 1rem;">
                     <strong>${item.name}</strong>
                     ${item.receiptNo ? `<div style="font-size:0.7rem;color:var(--text-secondary);">Receipt: ${item.receiptNo}</div>` : ''}
@@ -389,6 +399,7 @@ const studentFeesModule = {
             </tbody>
             <tfoot>
               <tr style="background:var(--bg-tertiary);font-weight:700;font-size:0.875rem;">
+                <td style="padding:0.5rem;text-align:center;"></td>
                 <td style="padding:0.75rem 1rem;">Total</td>
                 <td style="padding:0.75rem 0.5rem;text-align:right;">₦${totalDue.toLocaleString()}</td>
                 <td style="padding:0.75rem 0.5rem;text-align:right;color:#22c55e;">₦${totalPaid.toLocaleString()}</td>
@@ -404,7 +415,50 @@ const studentFeesModule = {
             </tfoot>
           </table>
         </div>
+        <div id="fee-selection-bar" style="display:none;margin-top:0.75rem;padding:0.75rem 1rem;background:linear-gradient(135deg,#6366f1,#8b5cf6);border-radius:0.5rem;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+          <div style="color:white;">
+            <span id="fee-sel-count" style="font-weight:700;font-size:0.85rem;">0 items selected</span>
+            <span style="opacity:0.85;font-size:0.82rem;"> &nbsp;·&nbsp; Total: </span>
+            <span id="fee-sel-total" style="font-weight:800;font-size:0.95rem;">₦0</span>
+          </div>
+          <button class="btn btn-sm" onclick="studentFeesModule._paySelected()" style="background:white;color:#6366f1;font-weight:700;font-size:0.82rem;padding:0.4rem 1.25rem;border:none;border-radius:0.375rem;">💳 Pay Selected</button>
+        </div>
       </div>`;
+  },
+
+  _toggleSelectAll(checked) {
+    document.querySelectorAll('.fee-item-cb').forEach(cb => { cb.checked = checked; });
+    this._updateSelectionBar();
+  },
+
+  _updateSelectionBar() {
+    const selected = [...document.querySelectorAll('.fee-item-cb:checked')];
+    const all      = document.querySelectorAll('.fee-item-cb');
+    const bar      = document.getElementById('fee-selection-bar');
+    const countEl  = document.getElementById('fee-sel-count');
+    const totalEl  = document.getElementById('fee-sel-total');
+    const saBox    = document.getElementById('fee-sel-all');
+    const total    = selected.reduce((s, cb) => s + parseFloat(cb.dataset.balance || 0), 0);
+    if (bar)     bar.style.display = selected.length > 0 ? 'flex' : 'none';
+    if (countEl) countEl.textContent = selected.length === 1 ? '1 item selected' : `${selected.length} items selected`;
+    if (totalEl) totalEl.textContent = '₦' + total.toLocaleString();
+    if (saBox) {
+      saBox.indeterminate = selected.length > 0 && selected.length < all.length;
+      saBox.checked       = all.length > 0 && selected.length === all.length;
+    }
+  },
+
+  _getSelectedItems() {
+    return [...document.querySelectorAll('.fee-item-cb:checked')]
+      .map(cb => (this.studentData?.feeSchedule || []).find(i => i.id === cb.dataset.id))
+      .filter(Boolean);
+  },
+
+  _paySelected() {
+    const items = this._getSelectedItems();
+    if (items.length === 0) { showToast('Please select at least one fee item to pay.', 'warning'); return; }
+    if (items.length === 1) { this.showPaymentModal(items[0].id); return; }
+    this._openMultiPaymentFlow(items);
   },
 
   _renderPaymentHistory(payments) {
@@ -713,6 +767,7 @@ const studentFeesModule = {
         if (payBtn) { payBtn.disabled = false; payBtn.textContent = '💳 Pay Now'; }
         return;
       }
+      await window.envReady;
       const paystackKey = AppConfig.paystack.publicKey;
       if (!paystackKey || paystackKey === 'pk_test_xxxxxxxxxxxx' || !/^pk_(test|live)_/.test(paystackKey)) {
         showToast('Online payment is not configured. Please contact the school admin.', 'error');
@@ -913,26 +968,30 @@ const studentFeesModule = {
   // ── Pay All Outstanding ────────────────────────────────────────────────────
 
   payAllOutstanding() {
-    const { feeSchedule, student } = this.studentData;
-    const unpaidItems  = feeSchedule.filter(i => i.balance > 0);
-    const totalBalance = unpaidItems.reduce((s, i) => s + i.balance, 0);
+    const { feeSchedule } = this.studentData;
+    const unpaidItems = feeSchedule.filter(i => i.balance > 0 && i.status !== 'pending-verification');
+    if (unpaidItems.reduce((s, i) => s + i.balance, 0) <= 0) { showToast('All fees are fully paid!', 'success'); return; }
+    this._openMultiPaymentFlow(unpaidItems);
+  },
 
-    if (totalBalance <= 0) { showToast('All fees are fully paid!', 'success'); return; }
-
-    const bankDetails = (typeof feeStructure !== 'undefined' && feeStructure.bankDetails)
+  _openMultiPaymentFlow(items) {
+    this._payItems = items;
+    const { student } = this.studentData;
+    const totalBalance = items.reduce((s, i) => s + i.balance, 0);
+    const bankDetails  = (typeof feeStructure !== 'undefined' && feeStructure.bankDetails)
       || { name: 'Keystone Bank', accountName: 'TBD International Academy', accountNumber: '1013525760' };
 
-    const itemList = unpaidItems.map(i =>
-      `<li style="font-size:0.82rem;padding:0.2rem 0;"><span style="flex:1;">${i.name}</span> <strong style="color:#f59e0b;">₦${i.balance.toLocaleString()}</strong></li>`
+    const itemList = items.map(i =>
+      `<li style="font-size:0.82rem;padding:0.2rem 0;display:flex;justify-content:space-between;"><span style="flex:1;">${i.name}</span> <strong style="color:#f59e0b;">₦${i.balance.toLocaleString()}</strong></li>`
     ).join('');
 
     const content = `
       <div style="margin-bottom:1rem;">
-        <p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0.75rem;">You are about to pay the full outstanding balance for all fee items:</p>
-        <ul style="list-style:none;padding:0;margin:0 0 1rem;display:flex;flex-direction:column;gap:0.1rem;background:var(--bg-tertiary);border-radius:0.5rem;padding:0.75rem 1rem;">
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 0.75rem;">You are about to pay the outstanding balance for the following fee items:</p>
+        <ul style="list-style:none;padding:0.75rem 1rem;margin:0 0 1rem;display:flex;flex-direction:column;gap:0.1rem;background:var(--bg-tertiary);border-radius:0.5rem;">
           ${itemList}
           <li style="border-top:1px solid var(--border-primary);margin-top:0.5rem;padding-top:0.5rem;font-size:0.88rem;display:flex;justify-content:space-between;">
-            <strong>Total Outstanding</strong>
+            <strong>Total</strong>
             <strong style="color:#6366f1;">₦${totalBalance.toLocaleString()}</strong>
           </li>
         </ul>
@@ -969,14 +1028,14 @@ const studentFeesModule = {
           onclick="studentFeesModule._submitPayAll()">💳 Pay ₦${totalBalance.toLocaleString()}</button>
       </div>`;
 
-    createModal('💳 Pay All Outstanding Fees', content);
+    createModal('💳 Pay Outstanding Fees', content);
   },
 
-  _onPayAllMethodChange(method) {
+    _onPayAllMethodChange(method) {
     const section = document.getElementById('pay-all-bank-section');
     const btn     = document.getElementById('pay-all-btn');
-    const { feeSchedule } = this.studentData;
-    const totalBalance = feeSchedule.filter(i => i.balance > 0).reduce((s, i) => s + i.balance, 0);
+    const items   = this._payItems || (this.studentData?.feeSchedule || []).filter(i => i.balance > 0);
+    const totalBalance = items.reduce((s, i) => s + i.balance, 0);
     if (section) section.style.display = method === 'bank-deposit' ? 'block' : 'none';
     if (btn) btn.textContent = method === 'bank-deposit'
       ? `📤 Submit for Verification`
@@ -986,7 +1045,7 @@ const studentFeesModule = {
   async _submitPayAll() {
     const method = document.getElementById('pay-all-method')?.value || 'paystack';
     const { student, feeSchedule } = this.studentData;
-    const unpaidItems  = feeSchedule.filter(i => i.balance > 0);
+    const unpaidItems  = this._payItems || feeSchedule.filter(i => i.balance > 0);
     const totalBalance = unpaidItems.reduce((s, i) => s + i.balance, 0);
     if (totalBalance <= 0) { showToast('Nothing to pay.', 'info'); return; }
 
@@ -1026,6 +1085,7 @@ const studentFeesModule = {
         if (rpc.payment) savedRecords.push(rpc.payment);
       }
       document.querySelector('.modal-backdrop')?.remove();
+      this._payItems = null;
       await dataManager.refresh('payments');
       await dataManager.refresh('enhancedPayments');
       await dataManager.refresh('feeItems');
@@ -1064,6 +1124,7 @@ const studentFeesModule = {
     if (typeof PaystackPop === 'undefined') {
       showToast('Online payment unavailable. Check your internet connection.', 'error'); return;
     }
+    await window.envReady;
     const paystackKey = AppConfig.paystack.publicKey;
     if (!paystackKey || paystackKey === 'pk_test_xxxxxxxxxxxx' || !/^pk_(test|live)_/.test(paystackKey)) {
       showToast('Online payment is not configured. Please contact the school admin.', 'error'); return;
