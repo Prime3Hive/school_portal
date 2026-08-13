@@ -1,6 +1,6 @@
 # TBD Academy Portal
 
-**Live Site**: [Coming Soon - Deploy to Netlify]
+**Live Site**: https://school-portal-tbd.vercel.app
 
 Excellence in Education, Character in Action. A comprehensive school management portal for TBD Academy, Makurdi, Benue State.
 
@@ -54,7 +54,7 @@ Secure portal for school administrators and staff:
 - **Data Export**: SheetJS
 - **Payment**: Paystack
 - **Storage**: localStorage (demo) - needs backend for production
-- **Hosting**: Netlify
+- **Hosting**: Vercel
 
 ## 🛠️ Local Development
 
@@ -100,54 +100,64 @@ Vercel is configured with `buildCommand: node scripts/build.js` and
 `outputDirectory: dist`. `api/` is intentionally excluded from `dist` — Vercel
 picks serverless functions up from the project root.
 
-## 📝 Deployment to Netlify
+## 📝 Deployment
 
-### Option 1: Drag & Drop (Easiest)
-1. Zip the entire `School portal` folder
-2. Go to [Netlify Drop](https://app.netlify.com/drop)
-3. Drag and drop the zip file
-4. Wait for deployment to complete
-5. Your site is live!
+The deploy target is **Vercel**. Always deploy through the build — never by
+uploading the repository directory.
 
-### Option 2: Git Integration
-1. Initialize git repository:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial commit"
-   ```
-2. Push to GitHub/GitLab/Bitbucket
-3. Connect repository to Netlify
-4. Configure build settings (already set in `netlify.toml`)
-5. Deploy!
+```bash
+npm run verify    # lint + tests + build
+npm run deploy    # vercel --prod
+```
 
-### Option 3: Netlify CLI
-1. Install Netlify CLI:
-   ```bash
-   npm install -g netlify-cli
-   ```
-2. Login to Netlify:
-   ```bash
-   netlify login
-   ```
-3. Deploy:
-   ```bash
-   netlify deploy --prod
-   ```
+`npm run verify` must pass before deploying. It builds into `dist/`, and only
+`dist/` is served. That distinction is the whole point: `scripts/build.js`
+decides what ships and deliberately excludes `.env*`, `supabase/`, `scripts/`,
+`sql/`, `tests/` and the Supabase CLI binary.
+
+> **Do not publish the repository root.** It contains `.env` with live
+> configuration. This project previously carried a `netlify.toml` with
+> `publish = "."` and a README section telling you to zip the whole folder and
+> drag it to Netlify Drop — either of those would have served `.env` to the open
+> internet. Both were removed for that reason. If you ever add another host,
+> point it at `dist/` and nothing else.
+
+### Database migrations
+
+Migrations live in `supabase/migrations/` as `NNNN_description.sql` and are
+applied in order:
+
+```bash
+supabase db query --linked -f supabase/migrations/00NN_name.sql
+```
+
+`supabase/migrations/archive/` holds superseded migrations. **Do not move them
+back.** `20260301_school_settings_and_custom_roles.sql` recreates
+world-writable policies on `school_settings` and `custom_roles`, and because the
+CLI applies files in lexicographic order it would run *after* the `0013`
+hardening and silently undo it.
 
 ## ⚙️ Configuration
 
-### Netlify Settings
-All configuration is in `netlify.toml`:
-- Build settings
-- Redirects for SPA routing
-- Security headers
-- Cache policies
+### Hosting settings
+All configuration is in `vercel.json`:
+- Build command and output directory
+- Rewrites and redirects
+- Security headers (HSTS, CSP, frame options)
+- Cache policies for content-hashed assets
 
-### Environment Variables (Optional)
-For production, consider adding:
-- `PAYSTACK_PUBLIC_KEY` - Your Paystack public key
-- `CONTACT_EMAIL` - Email for contact form submissions
+### Environment variables
+Set these in the Vercel project, not in a committed file. `/api/config` serves
+the public subset to the browser; anything secret must never appear there.
+
+| Variable | Where | Notes |
+|---|---|---|
+| `SUPABASE_URL` | Vercel | public |
+| `SUPABASE_ANON_KEY` | Vercel | public by design, RLS-protected |
+| `PAYSTACK_PUBLIC_KEY` | Vercel | must match the secret key's mode |
+| `APP_ENV` | Vercel | `production` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase secrets | **never** in Vercel or `/api/config` |
+| `PAYSTACK_SECRET_KEY` | Supabase secrets | **never** in Vercel or `/api/config` |
 
 ## 📱 Pages
 
@@ -164,27 +174,55 @@ For production, consider adding:
 
 ## 🔒 Security Notes
 
-**IMPORTANT**: This is a demo application using localStorage for data persistence.
+This portal holds the personal data of children — names, dates of birth, birth
+certificates, passport photographs — and it moves money. Treat changes to
+authorization as production changes.
 
-For production deployment, you MUST:
-1. ✅ Implement backend API (Node.js/Express recommended)
-2. ✅ Add database (PostgreSQL/MongoDB)
-3. ✅ Implement authentication & authorization
-4. ✅ Add HTTPS (Netlify provides this automatically)
-5. ✅ Secure API endpoints
-6. ✅ Implement CSRF protection
-7. ✅ Add rate limiting
-8. ✅ Sanitize user inputs
+**The security model:**
+
+- **Authorization lives in the database, not the UI.** Hiding a nav item is not
+  an access control. Every rule is a Postgres RLS policy or a check inside a
+  `SECURITY DEFINER` function.
+- **The anon key is public.** It ships in the source of every page. Anything it
+  can reach is effectively world-readable, which is what `npm run verify:rls`
+  probes for.
+- **Secrets never reach the browser.** `SUPABASE_SERVICE_ROLE_KEY` and
+  `PAYSTACK_SECRET_KEY` live only in Supabase function secrets. `/api/config`
+  serves the public subset and must never be extended with a secret.
+- **Payment amounts are never taken from the client.** Application fees are read
+  from `application_fee_schedule`; Paystack charges are verified server-side with
+  the secret key before anything is recorded as paid.
+
+**When changing RLS, verify the end state — not the migration text.** This
+schema has repeatedly had migrations that looked like they hardened something
+and did not:
+
+- a policy dropped by exact name, while the live policy had a different name
+- policies written against a table where RLS was never enabled, so they did
+  nothing at all
+- a view left `SECURITY DEFINER`, bypassing the policies underneath it
+- a `SECURITY DEFINER` function granted `EXECUTE` to `PUBLIC`
+
+After any policy change, run both:
+
+```bash
+npm run verify:rls                          # what the anon key can read
+supabase db advisors --linked --type security
+```
+
+`db advisors` should report zero ERRORs.
 
 ## 📊 Data Storage
 
-**Current**: Browser localStorage (suitable for demo only)
-
-**Production Recommendation**:
-- Backend: Node.js with Express
-- Database: PostgreSQL or MongoDB
-- Authentication: JWT or session-based
-- File Storage: AWS S3 or Cloudinary for uploads
+- **Database**: Supabase (PostgreSQL) with row-level security on every table
+- **Auth**: Supabase Auth; roles in `profiles.role`, read via `get_my_role()`
+  and `current_user_has_role()`
+- **Files**: Supabase Storage, `documents` bucket — **private**. Links are
+  minted on demand by `js/storage-urls.js`; stored `getPublicUrl()` links no
+  longer resolve and must not be relied on.
+- **Server logic**: Supabase edge functions (`supabase/functions/`) for anything
+  that must not be decided by the browser — application submission, Paystack
+  verification, user creation.
 
 ## 🎨 Customization
 
@@ -209,23 +247,32 @@ Update in all HTML files:
 
 ## 🐛 Known Limitations
 
-1. **No Backend**: Uses localStorage (not suitable for production)
-2. **No Authentication**: Admin portal has no login (needs implementation)
-3. **No Email Notifications**: Simulated only (needs backend integration)
-4. **File Storage**: Base64 in localStorage (needs proper file storage)
-5. **No Database**: All data in browser (needs backend database)
+1. **The Paystack webhook has never fired.** `paystack_webhook_events` is empty
+   despite 8 Paystack payments, so the endpoint is not configured in the Paystack
+   dashboard. Until it is, nothing verifies a school-fee payment server-side —
+   which is why student-recorded payments land as `pending` and need admin
+   approval (migration `0020`).
+2. **Invitation activation does not work.** The RLS policy on `invitations`
+   matches an `invitation_token` JWT claim that nothing in the codebase ever
+   sets, so the lookup returns no rows. Admins hand out credentials directly from
+   the user-management modal instead.
+3. **`invitations.default_password` is a plaintext credential.** Admin-only, but
+   it should not exist; activation belongs in an edge function.
+4. **Fee mutators are authorized but not audited by role.** `record_fee_payment`
+   and friends now check the caller, but 10 other `SECURITY DEFINER` functions
+   still lack a pinned `search_path` — see `db advisors`.
+5. **`yp_*` tables belong to a separate app** on the same Supabase project and
+   have `{public}` read policies. They are currently empty; that stops being safe
+   the moment that app stores a row.
 
 ## 🚀 Future Enhancements
 
-- [ ] Backend API development
-- [ ] User authentication system
+- [ ] Configure and verify the Paystack webhook, then let it settle payments
+- [ ] `activate-invitation` edge function, removing the plaintext password
+- [ ] CI check asserting RLS end state (see Security Notes)
+- [ ] Pin `search_path` on the remaining `SECURITY DEFINER` functions
 - [ ] Email/SMS notifications
-- [ ] Real-time updates
 - [ ] Advanced reporting
-- [ ] Mobile app
-- [ ] Parent portal
-- [ ] Teacher portal
-- [ ] Student portal
 
 ## 📞 Support
 
