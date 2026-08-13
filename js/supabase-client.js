@@ -1,5 +1,5 @@
 // ============================================
-// SUPABASE CLIENT — TBD Academy School Portal
+// SUPABASE CLIENT — TBD International Academy School Portal
 // ============================================
 // Credentials are read from window.ENV (set by env-loader.js / /api/config).
 // The values below are compile-time fallbacks only — rotate them via env vars.
@@ -69,14 +69,38 @@ function _initSupabase() {
 }
 
 // Initialize immediately with whatever credentials are available now.
-// If env-loader.js loads after this script, it will call _initSupabase() again
-// with fresh ENV values only if Supabase has not already connected.
+// Many modules (auth-manager, data-manager) read window.supabaseReady
+// synchronously at load time, so this cannot be deferred.
 _initSupabase();
 
 // Re-init after env-loader finishes (no-op if already connected)
 if (window.envReady && !window.supabaseReady) {
     window.envReady.then(() => {
         if (!window.supabaseReady) _initSupabase();
+    });
+}
+
+// ── Diagnostic: detect that the hardcoded fallback won the race ──────────────
+// env-loader.js populates window.ENV asynchronously (it fetches .env or
+// /api/config), but _initSupabase() above runs synchronously. So on a normal
+// page load the client is ALWAYS built from the fallback constants, and the
+// values configured in Vercel env vars are ignored. That is invisible until you
+// rotate the anon key or point at a different project and nothing changes.
+if (window.envReady) {
+    window.envReady.then(() => {
+        const envUrl = window.ENV?.SUPABASE_URL;
+        const envKey = window.ENV?.SUPABASE_ANON_KEY;
+        const isReal = v => v && !v.includes('your-project') && v !== 'your-anon-key-here';
+
+        if ((isReal(envUrl) && envUrl !== window.SUPABASE_URL) ||
+            (isReal(envKey) && envKey !== window.SUPABASE_ANON)) {
+            console.warn(
+                '⚠️  Supabase credentials from the environment DIFFER from the ones in use.\n' +
+                '   The client was already built from the hardcoded fallbacks in supabase-client.js\n' +
+                '   before window.ENV finished loading, so your env vars are being ignored.\n' +
+                '   Fix: update the fallback constants, or gate app boot on window.envReady.'
+            );
+        }
     });
 }
 

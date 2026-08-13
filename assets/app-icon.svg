@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TBD International Academy">
+  <!-- Maskable app icon: the navy field stands in for the shield, so the cap
+       and book read clearly at 48px. Artwork sits inside the 80% safe zone. -->
+  <rect width="512" height="512" fill="#1E2A5A" />
+  <g transform="translate(26.6 13.3) scale(2.206)">
+    <g fill="#FFFFFF">
+      <path d="M100 42 164 70l-64 28-64-28Z" />
+      <path d="M72 84v16c0 10 56 10 56 0V84l-28 12Z" />
+    </g>
+    <path d="M164 70v24" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none" />
+    <path d="M164 94c6 6 6 14 0 18-6-4-6-12 0-18Z" fill="#FFFFFF" />
+    <path d="M100 124c-13-11-36-15-58-13v54c22-2 45 2 58 13Z" fill="#FFFFFF" />
+    <path d="M100 124c13-11 36-15 58-13v54c-22-2-45 2-58 13Z" fill="#FFFFFF" />
+    <path d="M100 124v54" stroke="#1E2A5A" stroke-width="3" stroke-linecap="round" />
+    <g stroke="#1E2A5A" stroke-width="3" stroke-linecap="round" opacity="0.55">
+      <path d="M54 128h32M54 140h32M54 152h32M54 164h32" />
+      <path d="M114 128h32M114 140h32M114 152h32M114 164h32" />
+    </g>
+  </g>
+</svg>

@@ -67,6 +67,39 @@ Secure portal for school administrators and staff:
    - Public site: `http://localhost:8000/public-blog.html`
    - Admin portal: `http://localhost:8000/index.html`
 
+Dev serves the repo root directly — no build required, plain filenames, edit and
+reload.
+
+## 🏗️ Build & Checks
+
+Production runs through `scripts/build.js`, which content-hashes every JS/CSS
+filename (`js/app.js` → `js/app.4f2a1c9d.js`) and rewrites all references.
+This is what makes long-lived caching safe: the URL changes whenever the bytes
+change, so `immutable` caching never serves a stale build.
+
+| Command | What it does |
+| --- | --- |
+| `npm run build` | Build into `dist/`. Add `:verbose` to list the hash mapping. |
+| `npm run preview` | Build, then serve `dist/` — verifies the built output, not the source. |
+| `npm run lint` | Parse every JS file and check per-page global dependencies. |
+| `npm test` | Unit tests. |
+| `npm run verify` | `lint` + `test` + `build`. **Run this before deploying.** |
+| `npm run verify:rls` | Read-only probe of what the public anon key can read. |
+
+Two things to know when editing:
+
+- **`js/html-escape.js` must stay first** in each page's script list. Modules
+  interpolate database values into `innerHTML` and depend on `window.escapeHtml`.
+- **Reading a global at module top level creates a load-order dependency.** If a
+  file reads `AppConfig` outside a function, every page loading it must also load
+  `js/config.js` — otherwise the file throws and defines nothing. `npm run lint`
+  catches this; register new such globals in `TOP_LEVEL_GLOBALS` in
+  `scripts/check-syntax.js`.
+
+Vercel is configured with `buildCommand: node scripts/build.js` and
+`outputDirectory: dist`. `api/` is intentionally excluded from `dist` — Vercel
+picks serverless functions up from the project root.
+
 ## 📝 Deployment to Netlify
 
 ### Option 1: Drag & Drop (Easiest)

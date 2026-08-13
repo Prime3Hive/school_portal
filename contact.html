@@ -3,25 +3,26 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1E2A5A">
     <meta name="description"
-        content="Contact TBD Academy - Get in touch with us for inquiries, visit scheduling, and more information about our programs.">
-    <title>Contact Us - TBD Academy</title>
+        content="Contact TBD International Academy - Get in touch with us for inquiries, visit scheduling, and more information about our programs.">
+    <title>Contact Us - TBD International Academy</title>
 
     <!-- Open Graph / Social Media -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://school-portal-tbd.vercel.app/contact.html">
-    <meta property="og:title" content="Contact Us - TBD Academy">
-    <meta property="og:description" content="Reach out to TBD Academy in Makurdi, Benue State. Call, email, or WhatsApp us for admissions inquiries, campus visits, and more.">
-    <meta property="og:image" content="https://picsum.photos/seed/tbdacademy/1200/630">
+    <meta property="og:title" content="Contact Us - TBD International Academy">
+    <meta property="og:description" content="Reach out to TBD International Academy in Makurdi, Benue State. Call, email, or WhatsApp us for admissions inquiries, campus visits, and more.">
+    <meta property="og:image" content="https://school-portal-tbd.vercel.app/assets/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Contact Us - TBD Academy">
-    <meta name="twitter:description" content="Reach out to TBD Academy in Makurdi, Benue State. Call, email, or WhatsApp us for admissions inquiries, campus visits, and more.">
+    <meta name="twitter:title" content="Contact Us - TBD International Academy">
+    <meta name="twitter:description" content="Reach out to TBD International Academy in Makurdi, Benue State. Call, email, or WhatsApp us for admissions inquiries, campus visits, and more.">
 
     <link rel="icon" type="image/svg+xml"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+        href="assets/logo-mark.svg">
     <link rel="stylesheet" href="css/public-blog.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 
 <body>
@@ -29,29 +30,44 @@
     <nav class="navbar" id="navbar">
         <div class="navbar-container">
             <a href="public-blog.html" class="navbar-logo">
-                <div class="navbar-logo-icon">T</div>
-                <span>TBD Academy</span>
+                <div class="navbar-logo-icon"><img src="assets/logo-mark.svg" alt="" width="40" height="40"></div>
+                <span>TBD International Academy</span>
             </a>
 
-            <ul class="navbar-menu" id="navbarMenu">
-                <li><a href="public-blog.html" class="navbar-link">Home</a></li>
-                <li><a href="about.html" class="navbar-link">About</a></li>
-                <li><a href="academics.html" class="navbar-link">Academics</a></li>
-                <li><a href="admissions.html" class="navbar-link">Admissions</a></li>
-                <li><a href="contact.html" class="navbar-link active">Contact</a></li>
-            </ul>
+            <div class="navbar-collapse" id="navbarMenu">
+                <ul class="navbar-menu">
+                    <li><a href="public-blog.html" class="navbar-link">Home</a></li>
+                    <li><a href="about.html" class="navbar-link">About</a></li>
+                    <li><a href="academics.html" class="navbar-link">Academics</a></li>
+                    <li><a href="admissions.html" class="navbar-link">Admissions</a></li>
+                    <li><a href="contact.html" class="navbar-link active">Contact</a></li>
+                </ul>
 
-            <a href="login.html" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.875rem; white-space: nowrap;">
+                <a href="login.html" class="btn btn-primary btn-block navbar-cta">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Portal Login</span>
+                </a>
+
+                <div class="navbar-drawer-meta">
+                    <a href="tel:+2348030614777"><i class="fas fa-phone"></i> 0803 061 4777</a>
+                    <a href="mailto:tbdinternationalacademy.mkd@gmail.com"><i class="fas fa-envelope"></i> tbdinternationalacademy.mkd@gmail.com</a>
+                    <a href="contact.html"><i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi</a>
+                </div>
+            </div>
+
+            <a href="login.html" class="btn btn-primary btn-sm">
                 <i class="fas fa-sign-in-alt"></i>
                 <span>Portal Login</span>
             </a>
 
-            <button class="navbar-toggle" id="navbarToggle">
+            <button class="navbar-toggle" id="navbarToggle" type="button" aria-label="Open menu">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
         </div>
+
+        <div class="navbar-progress" aria-hidden="true"><span></span></div>
     </nav>
 
     <!-- Page Header -->
@@ -63,7 +79,7 @@
                     <span>Get In Touch</span>
                 </div>
 
-                <h1 class="hero-title">Contact TBD Academy</h1>
+                <h1 class="hero-title">Contact TBD International Academy</h1>
 
                 <p class="hero-subtitle" style="max-width: 700px; margin: 0 auto 0;">
                     Have questions? We're here to help. Reach out to us and we'll respond as soon as possible.
@@ -82,7 +98,7 @@
                     </div>
                     <h3 class="card-title">Visit Us</h3>
                     <p class="card-text">
-                        TBD Academy<br>
+                        TBD International Academy<br>
                         Makurdi, Benue State<br>
                         Nigeria
                     </p>
@@ -98,11 +114,11 @@
                     </div>
                     <h3 class="card-title">Call Us</h3>
                     <p class="card-text">
-                        Phone: +234 803 123 4567<br>
+                        Phone: 0803 061 4777<br>
                         Mobile: +234 905 987 6543<br>
                         Mon-Fri: 8:00 AM - 4:00 PM
                     </p>
-                    <a href="tel:+2348031234567" class="card-link">
+                    <a href="tel:+2348030614777" class="card-link">
                         <span>Call Now</span>
                         <i class="fas fa-arrow-right"></i>
                     </a>
@@ -114,11 +130,11 @@
                     </div>
                     <h3 class="card-title">Email Us</h3>
                     <p class="card-text">
-                        General: info@tbdacademy.edu.ng<br>
-                        Admissions: admissions@tbdacademy.edu.ng<br>
+                        General: tbdinternationalacademy.mkd@gmail.com<br>
+                        Admissions: tbdinternationalacademy.mkd@gmail.com<br>
                         We reply within 24 hours
                     </p>
-                    <a href="mailto:info@tbdacademy.edu.ng" class="card-link">
+                    <a href="mailto:tbdinternationalacademy.mkd@gmail.com" class="card-link">
                         <span>Send Email</span>
                         <i class="fas fa-arrow-right"></i>
                     </a>
@@ -133,7 +149,7 @@
                         Chat with us on WhatsApp for quick responses to your questions.<br>
                         Mon-Fri: 8:00 AM - 6:00 PM
                     </p>
-                    <a href="https://wa.me/2348031234567" target="_blank" rel="noopener" class="card-link">
+                    <a href="https://wa.me/2348030614777" target="_blank" rel="noopener" class="card-link">
                         <span>Chat on WhatsApp</span>
                         <i class="fas fa-arrow-right"></i>
                     </a>
@@ -249,7 +265,7 @@
                 <span class="section-badge">Location</span>
                 <h2 class="section-title">Find Us</h2>
                 <p class="section-subtitle">
-                    TBD Academy is located in Makurdi, Benue State
+                    TBD International Academy is located in Makurdi, Benue State
                 </p>
             </div>
 
@@ -258,7 +274,7 @@
                     src="https://maps.google.com/maps?q=Makurdi,Benue+State,Nigeria&t=&z=13&ie=UTF8&iwloc=&output=embed"
                     width="100%" height="450" style="border:0; display:block;" allowfullscreen="" loading="lazy"
                     referrerpolicy="no-referrer-when-downgrade"
-                    title="TBD Academy location in Makurdi, Benue State">
+                    title="TBD International Academy location in Makurdi, Benue State">
                 </iframe>
             </div>
             <p style="text-align:center; color:var(--text-tertiary); font-size:0.875rem; margin-top:0.75rem;">
@@ -313,7 +329,8 @@
         <div class="footer-container">
             <div class="footer-grid">
                 <div>
-                    <div class="footer-brand">TBD Academy</div>
+                    <div class="footer-brand">TBD International Academy</div>
+                    <p class="footer-motto">Planting Seeds of Knowledge</p>
                     <p class="footer-description">
                         Excellence in Education, Character in Action. Nurturing young minds
                         for a brighter future since 2011.
@@ -331,7 +348,7 @@
                         <a href="#" class="footer-social-link" aria-label="LinkedIn">
                             <i class="fab fa-linkedin-in"></i>
                         </a>
-                        <a href="https://wa.me/2348031234567" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
+                        <a href="https://wa.me/2348030614777" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
                             <i class="fab fa-whatsapp"></i>
                         </a>
                     </div>
@@ -361,24 +378,25 @@
                     <h4 class="footer-section-title">Contact</h4>
                     <ul class="footer-links">
                         <li class="footer-link">
-                            <i class="fas fa-map-marker-alt"></i> Makurdi, Benue State
+                            <i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi
                         </li>
                         <li class="footer-link">
-                            <i class="fas fa-phone"></i> +234 803 123 4567
+                            <i class="fas fa-phone"></i> 0803 061 4777
                         </li>
                         <li class="footer-link">
-                            <i class="fas fa-envelope"></i> info@tbdacademy.edu.ng
+                            <i class="fas fa-envelope"></i> tbdinternationalacademy.mkd@gmail.com
                         </li>
                     </ul>
                 </div>
             </div>
 
             <div class="footer-bottom">
-                <p>&copy; 2026 TBD Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
+                <p>&copy; <span data-year>2026</span> TBD International Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
             </div>
         </div>
     </footer>
 
+    <script src="js/html-escape.js"></script>
     <script src="js/blog-navigation.js"></script>
 
     <script>
@@ -444,6 +462,9 @@
             });
         }
     </script>
+    <button class="to-top" type="button" aria-label="Back to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
 </body>
 
 </html>

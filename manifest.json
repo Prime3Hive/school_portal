@@ -1,21 +1,27 @@
 {
-  "name": "TBD Academy School Portal",
+  "name": "TBD International Academy School Portal",
   "short_name": "TBD Academy",
-  "description": "Comprehensive school management portal for TBD Academy",
+  "description": "Comprehensive school management portal for TBD International Academy",
   "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#137fec",
+  "theme_color": "#1E2A5A",
   "orientation": "any",
   "scope": "/",
   "lang": "en",
   "categories": ["education", "productivity"],
   "icons": [
     {
-      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%23137fec'/><text y='.9em' font-size='70' x='15'>🎓</text></svg>",
+      "src": "/assets/logo-mark.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/assets/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [

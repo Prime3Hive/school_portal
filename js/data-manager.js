@@ -22,6 +22,9 @@ class DataManager {
     this._pollInterval = null;
     this._lastChangeTs = {};  // track last known update per collection
     this._syncPaused = false; // pause sync during local writes to avoid echo
+    this._realtimeHealthy = false; // true while the Realtime channel is SUBSCRIBED
+    this._pollSignatures = {};     // collection → last seen "<count>:<maxUpdatedAt>"
+    this._pollSkips = 0;           // throttles polling while Realtime is healthy
 
     // Collection → Supabase table name mapping
     this._tableMap = {
@@ -83,9 +86,20 @@ class DataManager {
       'subjectCatalog', 'assessments', 'grades', 'assignments',
       'studentSubjects', 'studentSchedules', 'schoolSchedules', 'invitations',
       'lessonPlans', 'teacherAssessments',
-      'inventoryRequests', 'inventoryAssignments', 'inventoryHistory',
-      'applications', 'auditLogs', 'emailLogs', 'paymentTransactions'
+      'inventoryRequests', 'inventoryAssignments',
+      'applications'
     ];
+
+    // Tier 3 — append-only log tables. NOT prefetched at all.
+    //
+    // These grow without bound: a year of operation puts tens of thousands of
+    // rows in audit_logs alone, and every one of them was being downloaded on
+    // every page load by every user. They are also read by exactly one screen
+    // each, which then sorts newest-first and slices to ~100 rows.
+    //
+    // getAll() triggers a fetch on first access, so leaving them out here makes
+    // them load on demand with no change to calling code. See _collectionCaps
+    // for the row limit applied when they are finally requested.
 
     // _readyPromise resolves after Tier 1 only — modules can render immediately
     this._readyPromise = Promise.all(
@@ -366,21 +380,37 @@ class DataManager {
 
     try {
       const orderCol = this._orderByColumn[table] || 'created_at';
-      const TIMEOUT_MS = 15_000;
-      const fetchPromise = supabaseClient.from(table).select('*').order(orderCol, { ascending: true });
+      const cap = this._collectionCaps[collection];
+      const TIMEOUT_MS = 30_000;
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error(`Fetch timeout for ${collection} after ${TIMEOUT_MS}ms`)), TIMEOUT_MS)
       );
-      const { data, error } = await Promise.race([fetchPromise, timeoutPromise]);
+      const { data, error } = await Promise.race([
+        // Capped collections are log tables — take the newest rows, not the oldest.
+        this._fetchAllPages(table, orderCol, { limit: cap, descending: Boolean(cap) }),
+        timeoutPromise
+      ]);
       if (error) {
         console.warn(`DataManager: Supabase fetch failed for ${collection}:`, error.message);
         // No localStorage fallback — keep cache empty until Supabase succeeds
         if (!this._cache[collection]) this._cache[collection] = [];
       } else {
         let rows = data || [];
-        // Security: strip sensitive fields from client-side cache
+        // Security: strip sensitive fields from client-side cache.
+        // NOTE: this is damage limitation only — the values still travelled over
+        // the wire and are visible in devtools. The real fix is a column-level
+        // grant / view so PostgREST never returns them.
         if (collection === 'invitations') {
-          rows = rows.map(r => { const c = { ...r }; delete c.default_password; return c; });
+          rows = rows.map(r => {
+            const c = { ...r };
+            delete c.default_password;
+            // Older rows also mirror the plaintext password inside metadata.
+            if (c.metadata && typeof c.metadata === 'object') {
+              c.metadata = { ...c.metadata };
+              delete c.metadata.password;
+            }
+            return c;
+          });
         }
         if (collection === 'staff') {
           const role = authManager?.getSession?.()?.role;
@@ -403,6 +433,53 @@ class DataManager {
     }
 
     return this._cache[collection];
+  }
+
+  /**
+   * Fetch every row of a table, paging past PostgREST's default 1000-row ceiling.
+   *
+   * `select('*')` without a range silently returns only the first 1000 rows, so
+   * any school past that many grades/payments/audit rows was computing totals
+   * and report cards from a truncated cache. Paging fixes the arithmetic.
+   *
+   * Returns the same `{ data, error }` shape as a plain supabase-js query.
+   *
+   * @param {string}  table
+   * @param {string}  orderCol
+   * @param {object}  [options]
+   * @param {number}  [options.limit]       stop after this many rows
+   * @param {boolean} [options.descending]  newest-first (for capped log tables)
+   */
+  async _fetchAllPages(table, orderCol, options = {}) {
+    const { limit = null, descending = false } = options;
+    const PAGE_SIZE = 1000;
+    const ceiling   = limit ?? 50_000;   // safety valve — see console warning below
+    const rows = [];
+
+    for (let from = 0; from < ceiling; from += PAGE_SIZE) {
+      const pageSize = Math.min(PAGE_SIZE, ceiling - from);
+
+      const { data, error } = await supabaseClient
+        .from(table)
+        .select('*')
+        .order(orderCol, { ascending: !descending })
+        .range(from, from + pageSize - 1);
+
+      if (error) return { data: null, error };
+
+      rows.push(...(data || []));
+
+      // A short page means we've reached the end of the table.
+      if (!data || data.length < pageSize) return { data: rows, error: null };
+    }
+
+    if (limit === null) {
+      console.warn(
+        `DataManager: ${table} exceeds ${ceiling} rows — cache truncated. ` +
+        `This table needs server-side filtering/pagination rather than a full client cache.`
+      );
+    }
+    return { data: rows, error: null };
   }
 
   // _persistCreate, _persistUpdate, _persistDelete are no longer needed.
@@ -514,6 +591,22 @@ class DataManager {
   // ─────────────────────────────────────────
   _orderByColumn = {
     payment_transactions: 'initiated_at',  // uses initiated_at, no created_at column
+  };
+
+  /**
+   * Row caps for unbounded append-only tables, keyed by collection name.
+   *
+   * These are fetched newest-first and truncated. Every consumer of them already
+   * sorts descending and shows the most recent ~100 entries, so a cap costs
+   * nothing visible while bounding memory and transfer as the school accumulates
+   * history. Anything needing the full record set should query the DB directly
+   * with a date range rather than reading the client cache.
+   */
+  _collectionCaps = {
+    auditLogs:           2000,
+    emailLogs:           1000,
+    paymentTransactions: 2000,
+    inventoryHistory:    2000,
   };
 
   // ─────────────────────────────────────────
@@ -655,10 +748,14 @@ class DataManager {
     });
 
     channel.subscribe((status) => {
+      // _realtimeHealthy gates how hard the polling fallback works — when Realtime
+      // is live, polling drops to a slow heartbeat instead of a full sync.
+      this._realtimeHealthy = status === 'SUBSCRIBED';
+
       if (status === 'SUBSCRIBED') {
         console.log('DataManager: 🔴 Realtime connected — listening for changes on', tables.length, 'tables');
-      } else if (status === 'CHANNEL_ERROR') {
-        console.warn('DataManager: Realtime channel error — polling will keep data fresh');
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.warn(`DataManager: Realtime ${status} — polling will keep data fresh`);
       }
     });
 
@@ -726,39 +823,91 @@ class DataManager {
     this._pollInterval = setInterval(() => this._pollForChanges(), 60000);
   }
 
+  /**
+   * Safety-net sync for anything Realtime dropped.
+   *
+   * This used to re-download every loaded table in full (`select('*')`, no
+   * filter, no limit) once a minute and JSON.stringify both the old and new
+   * arrays to diff them — tens of MB of egress per minute per open tab, plus
+   * long main-thread stalls on big tables. It also hard-coded `created_at` as
+   * the sort column, so tables ordered by something else errored every cycle
+   * and were never actually synced.
+   *
+   * Now it asks each table for a cheap signature (exact row count + newest
+   * updated_at) and only re-fetches the ones whose signature moved.
+   */
   async _pollForChanges() {
     if (this._syncPaused || !window.supabaseReady) return;
 
-    // Only poll collections that have been loaded
+    // Nothing is looking at this tab — don't burn the user's data plan.
+    if (typeof document !== 'undefined' && document.hidden) return;
+
+    // Realtime is connected and healthy, so it is already delivering changes.
+    // Keep the safety net but run it far less often.
+    if (this._realtimeHealthy) {
+      this._pollSkips = (this._pollSkips || 0) + 1;
+      if (this._pollSkips % 5 !== 0) return;   // ~every 5 minutes instead of every minute
+    }
+
     const loadedCollections = Object.keys(this._loaded).filter(k => this._loaded[k]);
+    if (!this._pollSignatures) this._pollSignatures = {};
 
-    for (const collection of loadedCollections) {
-      const table = this._tableMap[collection];
-      if (!table) continue;
-
-      try {
-        const { data, error } = await supabaseClient
-          .from(table)
-          .select('*')
-          .order('created_at', { ascending: true });
-
-        if (error || !data) continue;
-
-        const normalized = this._normalizeRows(collection, data);
-        const oldJson = JSON.stringify(this._cache[collection] || []);
-        const newJson = JSON.stringify(normalized);
-
-        if (oldJson !== newJson) {
-          this._cache[collection] = normalized;
-          this._emitChange(collection, 'POLL');
+    // Check signatures concurrently — a slow table no longer stalls the others.
+    const stale = await Promise.all(
+      loadedCollections.map(async collection => {
+        const table = this._tableMap[collection];
+        if (!table) return null;
+        try {
+          const signature = await this._tableSignature(table);
+          if (signature === null) return null;             // signature unavailable — skip
+          if (this._pollSignatures[collection] === signature) return null;
+          this._pollSignatures[collection] = signature;
+          return collection;
+        } catch {
+          return null; // silent fail — retry next cycle
         }
-      } catch (err) {
-        // Silent fail — will retry next cycle
-      }
+      })
+    );
+
+    // _fetchFromSupabase only de-dupes on _loading, so it always refetches here.
+    // It emits its own change event on first load; emit POLL for later refreshes.
+    for (const collection of stale.filter(Boolean)) {
+      const wasLoaded = this._loaded[collection];
+      await this._fetchFromSupabase(collection);
+      if (wasLoaded) this._emitChange(collection, 'POLL');
     }
   }
 
+  /**
+   * Cheap change-detection fingerprint for a table: `<exactRowCount>:<maxUpdatedAt>`.
+   * Two small requests instead of downloading the whole table.
+   * Returns null when the table has no usable timestamp column.
+   */
+  async _tableSignature(table) {
+    const { count, error: countError } = await supabaseClient
+      .from(table)
+      .select('id', { count: 'exact', head: true });
+    if (countError) return null;
+
+    // Prefer updated_at, fall back to the table's declared sort column.
+    const columns   = this._tableColumns[table] || [];
+    const stampCol  = columns.includes('updated_at')
+      ? 'updated_at'
+      : (this._orderByColumn[table] || (columns.includes('created_at') ? 'created_at' : null));
+    if (!stampCol) return `${count}`;   // count-only signature; misses in-place edits
+
+    const { data, error } = await supabaseClient
+      .from(table)
+      .select(stampCol)
+      .order(stampCol, { ascending: false, nullsFirst: false })
+      .limit(1);
+    if (error) return `${count}`;
+
+    return `${count}:${data?.[0]?.[stampCol] ?? ''}`;
+  }
+
   stopSync() {
+    this._realtimeHealthy = false;
     if (this._realtimeChannel) {
       supabaseClient.removeChannel(this._realtimeChannel);
       this._realtimeChannel = null;

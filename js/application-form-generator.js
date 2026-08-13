@@ -1,4 +1,4 @@
-// Application Form Generator for TBD Academy
+// Application Form Generator for TBD International Academy
 // Generates downloadable PDF application forms using jsPDF
 
 (function () {
@@ -260,7 +260,7 @@
 
         doc.setFontSize(9);
         doc.setFont('helvetica', 'normal');
-        const declaration = 'I hereby declare that the information provided above is true and accurate to the best of my knowledge. I understand that providing false information may result in the cancellation of this application. I agree to abide by the rules and regulations of TBD Academy.';
+        const declaration = 'I hereby declare that the information provided above is true and accurate to the best of my knowledge. I understand that providing false information may result in the cancellation of this application. I agree to abide by the rules and regulations of TBD International Academy.';
         yPos = addText(declaration, margin, yPos, pageWidth - 2 * margin, 9);
         yPos += 10;
 
@@ -289,9 +289,9 @@
             doc.setPage(i);
             doc.setFontSize(8);
             doc.setTextColor(150, 150, 150);
-            doc.text(`TBD Academy Application Form - Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
-            const _schoolPhone = (typeof AppConfig !== 'undefined' && AppConfig.school?.phone) || '+234 803 123 4567';
-            doc.text(`info@tbdacademy.edu.ng | ${_schoolPhone}`, pageWidth / 2, pageHeight - 6, { align: 'center' });
+            doc.text(`TBD International Academy Application Form - Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+            const _schoolPhone = (typeof AppConfig !== 'undefined' && AppConfig.school?.phone) || '0803 061 4777';
+            doc.text(`tbdinternationalacademy.mkd@gmail.com | ${_schoolPhone}`, pageWidth / 2, pageHeight - 6, { align: 'center' });
         }
 
         // Save the PDF

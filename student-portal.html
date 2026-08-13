@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Student / Guardian Portal - TBD Academy</title>
+    <title>Student / Guardian Portal - TBD International Academy</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
+    <meta name="theme-color" content="#1E2A5A">
 
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/design-system.css">
@@ -118,7 +120,7 @@
             <div class="nav-logo">
                 <div class="nav-logo-icon">🎓</div>
                 <div class="nav-logo-text">
-                    <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD Academy</div>
+                    <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD International Academy</div>
                     <div style="font-size: var(--font-size-xs); color: var(--text-tertiary);" id="portal-label">Student Portal</div>
                 </div>
             </div>
@@ -193,6 +195,8 @@
     <!-- Scripts -->
     <!-- Supabase (must be first) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/html-escape.js"></script>
+    <script src="js/storage-urls.js"></script>
     <script src="js/supabase-client.js"></script>
     <script src="js/bcrypt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -243,7 +247,7 @@
             // Update portal label to reflect role
             const label = document.getElementById('portal-label');
             if (label) label.textContent = session.role === 'guardian' ? 'Guardian Portal' : 'Student Portal';
-            document.title = session.role === 'guardian' ? 'Guardian Portal - TBD Academy' : 'Student Portal - TBD Academy';
+            document.title = session.role === 'guardian' ? 'Guardian Portal - TBD International Academy' : 'Student Portal - TBD International Academy';
         })();
 
         // Initialize navigation — guardians get a simplified nav
@@ -449,7 +453,7 @@
                 container.innerHTML = `
                     <div style="display:grid;gap:1.5rem;">
                         <h2 style="margin:0;">👨‍👩‍👧 Guardian Dashboard</h2>
-                        <p style="color:var(--text-secondary);margin:0;">Viewing information for your child(ren) at TBD Academy.</p>
+                        <p style="color:var(--text-secondary);margin:0;">Viewing information for your child(ren) at TBD International Academy.</p>
                         ${students.map(s => `
                         <div class="card" style="display:grid;grid-template-columns:auto 1fr;gap:1.5rem;align-items:center;">
                             <div style="width:64px;height:64px;border-radius:50%;background:var(--gradient-primary);display:flex;align-items:center;justify-content:center;color:white;font-size:1.5rem;font-weight:bold;">

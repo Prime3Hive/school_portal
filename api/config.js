@@ -20,13 +20,13 @@ module.exports = function handler(req, res) {
         SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
         PAYSTACK_PUBLIC_KEY: process.env.PAYSTACK_PUBLIC_KEY || '',
         APP_ENV: process.env.APP_ENV || 'production',
-        SCHOOL_NAME: process.env.SCHOOL_NAME || 'TBD Academy',
+        SCHOOL_NAME: process.env.SCHOOL_NAME || 'TBD International Academy',
         SCHOOL_EMAIL: process.env.SCHOOL_EMAIL || '',
         SCHOOL_PHONE: process.env.SCHOOL_PHONE || '',
         SCHOOL_ADDRESS: process.env.SCHOOL_ADDRESS || '',
         APP_URL: process.env.APP_URL || '',
         EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS || '',
-        EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || 'TBD Academy',
+        EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || 'TBD International Academy',
         SESSION_TIMEOUT_MINUTES: process.env.SESSION_TIMEOUT_MINUTES || '30',
     };
 

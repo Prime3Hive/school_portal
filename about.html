@@ -3,25 +3,26 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1E2A5A">
     <meta name="description"
-        content="Learn about TBD Academy - Our mission, vision, values, facilities, and dedicated team committed to excellence in education.">
-    <title>About Us - TBD Academy</title>
+        content="Learn about TBD International Academy - Our mission, vision, values, facilities, and dedicated team committed to excellence in education.">
+    <title>About Us - TBD International Academy</title>
 
     <!-- Open Graph / Social Media -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://school-portal-tbd.vercel.app/about.html">
-    <meta property="og:title" content="About Us - TBD Academy">
-    <meta property="og:description" content="Since 2011, TBD Academy has been at the forefront of quality education in Makurdi, nurturing young minds and building character for 15 years.">
-    <meta property="og:image" content="https://picsum.photos/seed/tbdacademy/1200/630">
+    <meta property="og:title" content="About Us - TBD International Academy">
+    <meta property="og:description" content="Since 2011, TBD International Academy has been at the forefront of quality education in Makurdi, nurturing young minds and building character for 15 years.">
+    <meta property="og:image" content="https://school-portal-tbd.vercel.app/assets/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="About Us - TBD Academy">
-    <meta name="twitter:description" content="Since 2011, TBD Academy has been at the forefront of quality education in Makurdi, nurturing young minds and building character for 15 years.">
+    <meta name="twitter:title" content="About Us - TBD International Academy">
+    <meta name="twitter:description" content="Since 2011, TBD International Academy has been at the forefront of quality education in Makurdi, nurturing young minds and building character for 15 years.">
 
     <link rel="icon" type="image/svg+xml"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+        href="assets/logo-mark.svg">
     <link rel="stylesheet" href="css/public-blog.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 
 <body>
@@ -29,29 +30,44 @@
     <nav class="navbar" id="navbar">
         <div class="navbar-container">
             <a href="public-blog.html" class="navbar-logo">
-                <div class="navbar-logo-icon">T</div>
-                <span>TBD Academy</span>
+                <div class="navbar-logo-icon"><img src="assets/logo-mark.svg" alt="" width="40" height="40"></div>
+                <span>TBD International Academy</span>
             </a>
 
-            <ul class="navbar-menu" id="navbarMenu">
-                <li><a href="public-blog.html" class="navbar-link">Home</a></li>
-                <li><a href="about.html" class="navbar-link active">About</a></li>
-                <li><a href="academics.html" class="navbar-link">Academics</a></li>
-                <li><a href="admissions.html" class="navbar-link">Admissions</a></li>
-                <li><a href="contact.html" class="navbar-link">Contact</a></li>
-            </ul>
+            <div class="navbar-collapse" id="navbarMenu">
+                <ul class="navbar-menu">
+                    <li><a href="public-blog.html" class="navbar-link">Home</a></li>
+                    <li><a href="about.html" class="navbar-link active">About</a></li>
+                    <li><a href="academics.html" class="navbar-link">Academics</a></li>
+                    <li><a href="admissions.html" class="navbar-link">Admissions</a></li>
+                    <li><a href="contact.html" class="navbar-link">Contact</a></li>
+                </ul>
 
-            <a href="login.html" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.875rem; white-space: nowrap;">
+                <a href="login.html" class="btn btn-primary btn-block navbar-cta">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Portal Login</span>
+                </a>
+
+                <div class="navbar-drawer-meta">
+                    <a href="tel:+2348030614777"><i class="fas fa-phone"></i> 0803 061 4777</a>
+                    <a href="mailto:tbdinternationalacademy.mkd@gmail.com"><i class="fas fa-envelope"></i> tbdinternationalacademy.mkd@gmail.com</a>
+                    <a href="contact.html"><i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi</a>
+                </div>
+            </div>
+
+            <a href="login.html" class="btn btn-primary btn-sm">
                 <i class="fas fa-sign-in-alt"></i>
                 <span>Portal Login</span>
             </a>
 
-            <button class="navbar-toggle" id="navbarToggle">
+            <button class="navbar-toggle" id="navbarToggle" type="button" aria-label="Open menu">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
         </div>
+
+        <div class="navbar-progress" aria-hidden="true"><span></span></div>
     </nav>
 
     <!-- Page Header -->
@@ -60,13 +76,13 @@
             <div class="hero-content">
                 <div class="hero-badge">
                     <i class="fas fa-school"></i>
-                    <span>About TBD Academy</span>
+                    <span>About TBD International Academy</span>
                 </div>
 
                 <h1 class="hero-title">Shaping Tomorrow's Leaders Today</h1>
 
                 <p class="hero-subtitle" style="max-width: 700px; margin: 0 auto 0;">
-                    Since 2011, TBD Academy has been at the forefront of quality education in Makurdi,
+                    Since 2011, TBD International Academy has been at the forefront of quality education in Makurdi,
                     nurturing young minds and building character for 15 years.
                 </p>
             </div>
@@ -113,7 +129,7 @@
                 <span class="section-badge">Our Foundation</span>
                 <h2 class="section-title">Core Values</h2>
                 <p class="section-subtitle">
-                    These values guide everything we do at TBD Academy
+                    These values guide everything we do at TBD International Academy
                 </p>
             </div>
 
@@ -260,10 +276,7 @@
             <div class="grid grid-3">
                 <div class="card" style="text-align: center;">
                     <div
-                        style="width: 120px; height: 120px; margin: 0 auto 1.5rem; border-radius: 50%; background: var(--gradient-primary); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.25rem; font-weight: 700; overflow: hidden;">
-                        <img src="https://picsum.photos/seed/principal-tbd/120/120" alt="Mr. Emmanuel Ahua"
-                            style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;"
-                            onerror="this.style.display='none'; this.parentElement.textContent='EA'">
+                        style="width: 120px; height: 120px; margin: 0 auto 1.5rem; border-radius: 50%; background: var(--gradient-primary); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.25rem; font-weight: 700; overflow: hidden;">EA
                     </div>
                     <h3 class="card-title">Mr. Emmanuel Ahua</h3>
                     <p style="color: var(--color-primary); font-weight: 600; margin-bottom: 0.25rem;">
@@ -280,10 +293,7 @@
 
                 <div class="card" style="text-align: center;">
                     <div
-                        style="width: 120px; height: 120px; margin: 0 auto 1.5rem; border-radius: 50%; background: linear-gradient(135deg, hsl(200, 90%, 55%), hsl(200, 90%, 45%)); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.25rem; font-weight: 700; overflow: hidden;">
-                        <img src="https://picsum.photos/seed/vpacademics-tbd/120/120" alt="Mrs. Rebecca Iorhemen"
-                            style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;"
-                            onerror="this.style.display='none'; this.parentElement.textContent='RI'">
+                        style="width: 120px; height: 120px; margin: 0 auto 1.5rem; border-radius: 50%; background: linear-gradient(135deg, hsl(200, 90%, 55%), hsl(200, 90%, 45%)); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.25rem; font-weight: 700; overflow: hidden;">RI
                     </div>
                     <h3 class="card-title">Mrs. Rebecca Iorhemen</h3>
                     <p style="color: var(--color-secondary); font-weight: 600; margin-bottom: 0.25rem;">
@@ -300,10 +310,7 @@
 
                 <div class="card" style="text-align: center;">
                     <div
-                        style="width: 120px; height: 120px; margin: 0 auto 1.5rem; border-radius: 50%; background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%)); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.25rem; font-weight: 700; overflow: hidden;">
-                        <img src="https://picsum.photos/seed/vpadmin-tbd/120/120" alt="Mr. Daniel Gbande"
-                            style="width: 100%; height: 100%; object-fit: cover; border-radius: 50%;"
-                            onerror="this.style.display='none'; this.parentElement.textContent='DG'">
+                        style="width: 120px; height: 120px; margin: 0 auto 1.5rem; border-radius: 50%; background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%)); display: flex; align-items: center; justify-content: center; color: white; font-size: 2.25rem; font-weight: 700; overflow: hidden;">DG
                     </div>
                     <h3 class="card-title">Mr. Daniel Gbande</h3>
                     <p style="color: var(--color-green); font-weight: 600; margin-bottom: 0.25rem;">
@@ -330,7 +337,7 @@
                     Join Our Community
                 </h2>
                 <p style="font-size: 1.125rem; margin-bottom: 2rem; opacity: 0.95;">
-                    Become part of the TBD Academy family and give your child the
+                    Become part of the TBD International Academy family and give your child the
                     foundation for a successful future.
                 </p>
                 <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
@@ -353,7 +360,8 @@
         <div class="footer-container">
             <div class="footer-grid">
                 <div>
-                    <div class="footer-brand">TBD Academy</div>
+                    <div class="footer-brand">TBD International Academy</div>
+                    <p class="footer-motto">Planting Seeds of Knowledge</p>
                     <p class="footer-description">
                         Excellence in Education, Character in Action. Nurturing young minds
                         for a brighter future since 2011.
@@ -371,7 +379,7 @@
                         <a href="#" class="footer-social-link" aria-label="LinkedIn">
                             <i class="fab fa-linkedin-in"></i>
                         </a>
-                        <a href="https://wa.me/2348031234567" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
+                        <a href="https://wa.me/2348030614777" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
                             <i class="fab fa-whatsapp"></i>
                         </a>
                     </div>
@@ -401,25 +409,29 @@
                     <h4 class="footer-section-title">Contact</h4>
                     <ul class="footer-links">
                         <li class="footer-link">
-                            <i class="fas fa-map-marker-alt"></i> Makurdi, Benue State
+                            <i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi
                         </li>
                         <li class="footer-link">
-                            <i class="fas fa-phone"></i> +234 803 123 4567
+                            <i class="fas fa-phone"></i> 0803 061 4777
                         </li>
                         <li class="footer-link">
-                            <i class="fas fa-envelope"></i> info@tbdacademy.edu.ng
+                            <i class="fas fa-envelope"></i> tbdinternationalacademy.mkd@gmail.com
                         </li>
                     </ul>
                 </div>
             </div>
 
             <div class="footer-bottom">
-                <p>&copy; 2026 TBD Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
+                <p>&copy; <span data-year>2026</span> TBD International Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
             </div>
         </div>
     </footer>
 
+    <script src="js/html-escape.js"></script>
     <script src="js/blog-navigation.js"></script>
+    <button class="to-top" type="button" aria-label="Back to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
 </body>
 
 </html>

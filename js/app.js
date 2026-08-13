@@ -9,9 +9,41 @@ class SchoolPortalApp {
     }
 
     init() {
+        this.applyRolePermissions();
         this.setupNavigation();
         this.loadInitialModule();
         this.setupDataSyncListener();
+    }
+
+    /** Role of the signed-in user, or null when unknown. */
+    get currentRole() {
+        return window.authManager?.getSession?.()?.role || null;
+    }
+
+    /**
+     * index.html is shared by `admin` and `staff`, but its sidebar is static
+     * markup listing every admin module. Hide the links this role has no
+     * business seeing. This is presentation only — loadModule() enforces the
+     * same rule, and Supabase RLS is the actual security boundary.
+     */
+    applyRolePermissions() {
+        const role = this.currentRole;
+        if (!role || !window.permissionManager) return;
+
+        document.querySelectorAll('.nav-link[data-module]').forEach(link => {
+            if (!permissionManager.canAccessModule(role, link.dataset.module)) {
+                link.style.display = 'none';
+            }
+        });
+    }
+
+    /** True when the signed-in role may open this module. */
+    canOpen(moduleName) {
+        const role = this.currentRole;
+        // No role resolved yet (or no permission manager) — don't lock the user
+        // out of their own portal; the auth guard already gated the page.
+        if (!role || !window.permissionManager) return true;
+        return permissionManager.canAccessModule(role, moduleName);
     }
 
     // ── Live Sync: Re-render active module when another admin makes changes ──
@@ -85,7 +117,18 @@ class SchoolPortalApp {
 
     loadInitialModule() {
         // Load dashboard by default
-        const hash = window.location.hash.slice(1) || 'admin-dashboard';
+        let hash = window.location.hash.slice(1) || 'admin-dashboard';
+
+        // A stale/hand-typed hash for a module this role can't open shouldn't
+        // land them on an Access Denied screen at login — send them to the first
+        // section they are allowed to see instead.
+        if (!this.canOpen(hash)) {
+            const firstAllowed = Array.from(document.querySelectorAll('.nav-link[data-module]'))
+                .map(l => l.dataset.module)
+                .find(m => this.canOpen(m));
+            hash = firstAllowed || 'admin-dashboard';
+        }
+
         this.loadModule(hash);
 
         // Set active nav link
@@ -98,6 +141,25 @@ class SchoolPortalApp {
     async loadModule(moduleName) {
         const contentArea = document.getElementById('main-content');
         const breadcrumb = document.getElementById('breadcrumb-current');
+
+        // Gate on role before fetching the module script. Without this, any
+        // authenticated user could load e.g. #user-management straight from the
+        // URL hash regardless of role.
+        if (!this.canOpen(moduleName)) {
+            console.warn(`[App] Role "${this.currentRole}" is not permitted to open "${moduleName}"`);
+            this.currentModule = null;
+            if (breadcrumb) breadcrumb.textContent = 'Access Denied';
+            if (contentArea) {
+                contentArea.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🔒</div>
+            <h3 class="empty-state-title">Access Denied</h3>
+            <p class="empty-state-description">You do not have permission to view this section.</p>
+          </div>
+        `;
+            }
+            return;
+        }
 
         // Cleanup previous module if it has a cleanup method
         if (this.currentModule) {
@@ -169,12 +231,24 @@ class SchoolPortalApp {
         }
     }
 
+    /**
+     * Resolve a source path to its built filename.
+     *
+     * Production builds content-hash module filenames (js/modules/x.js →
+     * js/modules/x.4f2a1c9d.js) and inline a lookup table as window.__ASSET_MAP.
+     * In dev there is no map, so the path passes through unchanged.
+     */
+    resolveAssetPath(src) {
+        return window.__ASSET_MAP?.[src] || src;
+    }
+
     async loadScript(src) {
+        const resolved = this.resolveAssetPath(src);
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
-            script.src = src;
+            script.src = resolved;
             script.onload = resolve;
-            script.onerror = reject;
+            script.onerror = () => reject(new Error(`Failed to load script: ${resolved}`));
             document.head.appendChild(script);
         });
     }

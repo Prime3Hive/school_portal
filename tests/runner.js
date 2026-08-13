@@ -390,6 +390,61 @@ describe('Assignment Grading Logic', () => {
   it('NaN score is invalid', () => assert(!gradeSubmission(NaN, 100).valid));
 });
 
+describe('Legacy Brand Value Migration', () => {
+  // Loads the real js/config.js in a sandbox rather than restating the map, so
+  // this fails if the shipped migration table drifts.
+  const vm = require('vm');
+  const fs = require('fs');
+  const path = require('path');
+
+  const sandbox = {
+    window: {},
+    setInterval: () => 0,
+    clearInterval: () => {},
+    console: { log() {}, error() {}, warn() {} },
+    module: undefined
+  };
+  vm.createContext(sandbox);
+  // `const AppConfig` stays lexical inside the context, so hand it out explicitly.
+  const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'config.js'), 'utf8');
+  vm.runInContext(source + '\n;window.__AppConfig = AppConfig;', sandbox);
+  const upgrade = sandbox.window.upgradeLegacySchoolValue;
+  const brand = sandbox.window.__AppConfig.brand;
+
+  it('exposes the migration helper', () => assert(typeof upgrade === 'function'));
+
+  it('upgrades the superseded school name', () =>
+    assertEqual(upgrade('schoolName', 'TBD Academy'), 'TBD International Academy'));
+
+  it('upgrades the superseded address', () =>
+    assertEqual(upgrade('schoolAddress', 'Lagos, Nigeria'), 'Makurdi, Benue State'));
+
+  it('tolerates surrounding whitespace', () =>
+    assertEqual(upgrade('schoolName', '  TBD Academy  '), 'TBD International Academy'));
+
+  it('leaves an admin-customised name alone', () =>
+    assertEqual(upgrade('schoolName', 'Riverside College'), 'Riverside College'));
+
+  it('leaves an admin-customised address alone', () =>
+    assertEqual(upgrade('schoolAddress', '4 Gboko Road, Makurdi'), '4 Gboko Road, Makurdi'));
+
+  it('is idempotent on the current name', () =>
+    assertEqual(upgrade('schoolName', 'TBD International Academy'), 'TBD International Academy'));
+
+  it('ignores unknown fields', () =>
+    assertEqual(upgrade('bankAccountName', 'TBD Academy'), 'TBD Academy'));
+
+  it('passes through non-string values', () =>
+    assertEqual(upgrade('schoolName', undefined), undefined));
+
+  it('carries the brand identity constants', () => {
+    assertEqual(brand.name, 'TBD International Academy');
+    assertEqual(brand.motto, 'Planting Seeds of Knowledge');
+    assertEqual(brand.navy, '#1E2A5A');
+    assertEqual(brand.crest, 'assets/logo-mark.svg');
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Summary
 // ─────────────────────────────────────────────────────────────────────────────

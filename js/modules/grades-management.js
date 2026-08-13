@@ -1487,7 +1487,7 @@ const gradesManagementModule = {
       <body>
         <div class="header">
           <div>
-            <div class="school-name">TBD Academy</div>
+            <div class="school-name">TBD International Academy</div>
             <div class="school-sub">Excellence in Education</div>
           </div>
           <div>
@@ -1534,7 +1534,7 @@ const gradesManagementModule = {
         <div class="footer">
           <span>Student ID: ${studentId}</span>
           <span>Printed on ${today}</span>
-          <span>TBD Academy Portal</span>
+          <span>TBD International Academy Portal</span>
         </div>
 
         <div class="no-print" style="text-align:center; margin-top:24px;">

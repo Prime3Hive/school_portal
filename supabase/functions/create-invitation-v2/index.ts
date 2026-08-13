@@ -56,18 +56,18 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    // 3. Generate user ID and password (but don't create user yet)
-    const userId = generateUserId(role);
-    const password = role === 'student' && dateOfBirth 
-      ? formatDateOfBirthPassword(dateOfBirth)
-      : generateRandomPassword();
-
-    // 4. Create service role client (bypasses RLS)
+    // 3. Create service role client (bypasses RLS)
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
+
+    // 4. Allocate a school ID that is not already in use, plus a password
+    const userId = await generateUniqueUserId(adminClient, role);
+    const password = role === 'student' && dateOfBirth
+      ? formatDateOfBirthPassword(dateOfBirth)
+      : generateRandomPassword();
 
     // 5. Create invitation record ONLY (no user creation yet)
     const token = crypto.randomUUID();
@@ -82,15 +82,18 @@ Deno.serve(async (req: Request) => {
       full_name: fullName,
       status: 'pending',
       invited_by: caller.id,
-      metadata: { 
-        department: department || null, 
-        fullName, 
-        grade, 
-        section, 
+      metadata: {
+        department: department || null,
+        fullName,
+        grade,
+        section,
         dateOfBirth,
-        // Store these for later user creation
-        userId,
-        password
+        // Store these for later user creation.
+        // NOTE: the password is deliberately NOT mirrored here. It already lives
+        // in the dedicated `default_password` column, which is the single field
+        // clients strip and RLS policies must protect. A second copy inside a
+        // free-form JSONB blob defeats both.
+        userId
       },
       expires_at: expiresAt
     });
@@ -176,7 +179,20 @@ Deno.serve(async (req: Request) => {
 });
 
 // Helper functions
-function generateUserId(role: string): string {
+
+/** Cryptographically uniform integer in [0, max). Avoids modulo bias. */
+function secureRandomInt(max: number): number {
+  const limit = Math.floor(0xFFFFFFFF / max) * max;
+  const buf = new Uint32Array(1);
+  let value: number;
+  do {
+    crypto.getRandomValues(buf);
+    value = buf[0];
+  } while (value >= limit);
+  return value % max;
+}
+
+function buildUserId(role: string): string {
   const year = new Date().getFullYear();
   const prefixes: Record<string, string> = {
     admin: 'ADM',
@@ -185,15 +201,42 @@ function generateUserId(role: string): string {
     student: 'STU'
   };
   const prefix = prefixes[role] || 'USR';
-  const random = Math.floor(Math.random() * 900) + 100;
-  return `${prefix}-${year}-${String(random).padStart(3, '0')}`;
+  // 5 digits (100000-999999 range excluded leading zeros) instead of 3.
+  // The old 3-digit space held only 900 IDs per role per year, so by the
+  // birthday bound a collision was more likely than not at ~35 users — and
+  // nothing checked for one before inserting.
+  const random = 100000 + secureRandomInt(900000);
+  return `${prefix}-${year}-${random}`;
+}
+
+/**
+ * Generate a school ID that is not already taken.
+ * Requires a service-role client because `invitations`/`profiles` are RLS-protected.
+ */
+async function generateUniqueUserId(
+  adminClient: ReturnType<typeof createClient>,
+  role: string
+): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const candidate = buildUserId(role);
+
+    const [{ data: invite }, { data: profile }] = await Promise.all([
+      adminClient.from('invitations').select('school_id').eq('school_id', candidate).maybeSingle(),
+      adminClient.from('profiles').select('school_id').eq('school_id', candidate).maybeSingle(),
+    ]);
+
+    if (!invite && !profile) return candidate;
+    console.warn(`School ID collision on ${candidate} — retrying (attempt ${attempt + 1})`);
+  }
+  throw new Error('Could not allocate a unique school ID after 10 attempts');
 }
 
 function generateRandomPassword(): string {
+  // Math.random() is not a CSPRNG — generated credentials must not be predictable.
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let password = '';
-  for (let i = 0; i < 8; i++) {
-    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(secureRandomInt(chars.length));
   }
   return password;
 }

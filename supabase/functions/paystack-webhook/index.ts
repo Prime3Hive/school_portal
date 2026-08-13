@@ -138,13 +138,28 @@ serve(async (req: Request) => {
     if (event.event === "charge.failed") {
       console.log(`charge.failed received for ref: ${ref} — marking payment failed`);
 
+      // Scope to gateway payments: a bank deposit sits in 'pending' with a
+      // teller number in transaction_ref, and must not be touched by a
+      // gateway event that happens to carry a similar reference.
       const { error: failErr } = await supabase
         .from("fees_payments")
         .update({ status: "failed", updated_at: new Date().toISOString() })
         .eq("transaction_ref", ref)
-        .eq("status", "pending");
+        .eq("status", "pending")
+        .eq("payment_method", "paystack");
 
       if (failErr) console.error("Failed to mark payment as failed:", failErr);
+
+      // Application fees live in their own table.
+      await supabase
+        .from("payment_transactions")
+        .update({
+          status: "failed",
+          failed_at: new Date().toISOString(),
+          error_message: "Paystack reported charge.failed",
+        })
+        .eq("reference", ref)
+        .in("status", ["pending", "processing"]);
 
       // C3: Clear idempotency lock so student can retry with a new reference
       await supabase
@@ -179,25 +194,126 @@ serve(async (req: Request) => {
       });
     }
 
-    // Fetch the pending fee record
-    const { data: pendingFee, error: fetchError } = await supabase
+    // ── Application fees ──────────────────────────────────────────────────
+    // These live in payment_transactions, not fees_payments. Handling them here
+    // is what makes the browser's "payment succeeded" claim irrelevant: this
+    // signed webhook is the authority that marks the fee paid.
+    const { data: appTxn } = await supabase
+      .from("payment_transactions")
+      .select("id, amount, status, application_number")
+      .eq("reference", ref)
+      .eq("transaction_type", "application_fee")
+      .maybeSingle();
+
+    if (appTxn) {
+      const expectedAppKobo = Math.round(Number(appTxn.amount) * 100);
+      if (event.data.amount < expectedAppKobo) {
+        console.error(`Application fee underpaid on ${ref}: got ${event.data.amount}, expected ${expectedAppKobo}`);
+        await supabase.from("paystack_webhook_events").update({
+          processing_error: `Application fee underpaid: expected ${expectedAppKobo}, got ${event.data.amount}`,
+          processed: true,
+        }).eq("event_id", stableEventId);
+        return new Response(JSON.stringify({ error: "Amount mismatch" }), { status: 400, headers: CORS_HEADERS });
+      }
+
+      await supabase
+        .from("payment_transactions")
+        .update({
+          status: "success",
+          completed_at: new Date().toISOString(),
+          gateway_reference: ref,
+          callback_data: event.data as unknown as Record<string, unknown>,
+        })
+        .eq("id", appTxn.id);
+
+      // The application row may not exist yet (the applicant's browser posts it
+      // moments later) — that is fine, submit-application performs its own
+      // verify call. When it does exist, confirm the fee here as a safety net.
+      //
+      // Scoped deliberately:
+      //   - payment_method must be 'paystack'. A bank-transfer application
+      //     stores the applicant's own teller number in payment_reference, and
+      //     that value is attacker-chosen. Without this filter, someone could
+      //     file a bank-transfer application with reference "X", then push a ₦1
+      //     Paystack charge also referenced "X" and have their unpaid fee
+      //     marked settled.
+      //   - the charge must cover the fee recorded on the application itself,
+      //     not the amount quoted in the (browser-created) transaction row.
+      const { data: appRow } = await supabase
+        .from("applications")
+        .select("id, application_fee_amount")
+        .eq("payment_reference", ref)
+        .eq("payment_method", "paystack")
+        .eq("application_fee_paid", false)
+        .maybeSingle();
+
+      if (appRow) {
+        const requiredKobo = Math.round(Number(appRow.application_fee_amount) * 100);
+        if (event.data.amount < requiredKobo) {
+          console.error(`Refusing to confirm application ${appRow.id}: paid ${event.data.amount}, fee is ${requiredKobo}`);
+        } else {
+          const { error: appErr } = await supabase
+            .from("applications")
+            .update({
+              application_fee_paid: true,
+              payment_verified_at: new Date().toISOString(),
+            })
+            .eq("id", appRow.id)
+            .eq("application_fee_paid", false);
+          if (appErr) console.error("Failed to confirm application fee:", appErr);
+        }
+      }
+
+      console.log(`Application fee confirmed: ${ref}`);
+      return new Response(JSON.stringify({ success: true, type: "application_fee" }), {
+        status: 200,
+        headers: CORS_HEADERS,
+      });
+    }
+
+    // ── School fees ───────────────────────────────────────────────────────
+    // Prefer a pending row (payment recorded before the charge). Fall back to
+    // any row with this reference, because the student portal currently writes
+    // the record from its success callback — without this fallback every
+    // charge.success 404s and Paystack retries the endpoint indefinitely.
+    let pendingFee: { id: string; student_id: string; amount: number } | null = null;
+
+    const { data: pendingRow } = await supabase
       .from("fees_payments")
       .select("id, student_id, amount")
       .eq("transaction_ref", ref)
       .eq("status", "pending")
       .maybeSingle();
 
-    if (fetchError || !pendingFee) {
-      console.error(`No pending payment found for reference: ${ref}`);
-      return new Response(JSON.stringify({ error: "No pending payment found" }), {
-        status: 404,
+    if (pendingRow) {
+      pendingFee = pendingRow;
+    } else {
+      const { data: anyRow } = await supabase
+        .from("fees_payments")
+        .select("id, student_id, amount")
+        .eq("transaction_ref", ref)
+        .maybeSingle();
+      pendingFee = anyRow;
+    }
+
+    if (!pendingFee) {
+      // Record it for reconciliation and ACK, so Paystack stops retrying a
+      // reference we genuinely have no record of.
+      console.error(`No payment record found for reference: ${ref}`);
+      await supabase.from("paystack_webhook_events").update({
+        processing_error: "No matching payment record — needs manual reconciliation",
+        processed: true,
+      }).eq("event_id", stableEventId);
+      return new Response(JSON.stringify({ success: true, unreconciled: true }), {
+        status: 200,
         headers: CORS_HEADERS,
       });
     }
 
-    // Verify amount (convert Naira → kobo for comparison)
+    // Verify amount (convert Naira → kobo for comparison).
+    // Underpayment is rejected; overpayment is accepted and reconciled later.
     const expectedKobo = Math.round(pendingFee.amount * 100);
-    if (expectedKobo !== event.data.amount) {
+    if (event.data.amount < expectedKobo) {
       console.error(`Amount mismatch for ${ref}: expected ${expectedKobo} kobo, got ${event.data.amount}`);
       await supabase
         .from("paystack_webhook_events")

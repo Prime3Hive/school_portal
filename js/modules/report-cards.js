@@ -246,7 +246,7 @@ const reportCardsModule = {
   },
 
   _getSchoolConfig() {
-    return window.schoolConfig || { name: 'TBD Academy', location: 'Makurdi, Benue State' };
+    return window.schoolConfig || { name: 'TBD International Academy', location: 'Makurdi, Benue State' };
   },
 
   _getCurrentTermYear() {

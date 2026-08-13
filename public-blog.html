@@ -3,123 +3,168 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1E2A5A">
     <meta name="description"
-        content="TBD Academy - Excellence in Education. Located in Makurdi, Benue State. Offering quality education from Nursery to JSS 3.">
+        content="TBD International Academy - Excellence in Education. Located in Makurdi, Benue State. Offering quality education from Creche to JSS 3.">
     <meta name="keywords"
-        content="TBD Academy, Makurdi school, Benue State education, quality education, nursery, primary, secondary">
-    <title>TBD Academy - Excellence in Education</title>
+        content="TBD International Academy, Makurdi school, Benue State education, quality education, nursery, primary, secondary">
+    <title>TBD International Academy - Excellence in Education</title>
 
     <!-- Open Graph / Social Media -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://school-portal-tbd.vercel.app/public-blog.html">
-    <meta property="og:title" content="TBD Academy - Excellence in Education">
-    <meta property="og:description" content="TBD Academy is committed to nurturing young minds through quality education, moral values, and holistic development in Makurdi, Benue State.">
-    <meta property="og:image" content="https://picsum.photos/seed/tbdacademy/1200/630">
+    <meta property="og:title" content="TBD International Academy - Excellence in Education">
+    <meta property="og:description" content="TBD International Academy is committed to nurturing young minds through quality education, moral values, and holistic development in Makurdi, Benue State.">
+    <meta property="og:image" content="https://school-portal-tbd.vercel.app/assets/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="TBD Academy - Excellence in Education">
-    <meta name="twitter:description" content="TBD Academy is committed to nurturing young minds through quality education, moral values, and holistic development in Makurdi, Benue State.">
+    <meta name="twitter:title" content="TBD International Academy - Excellence in Education">
+    <meta name="twitter:description" content="TBD International Academy is committed to nurturing young minds through quality education, moral values, and holistic development in Makurdi, Benue State.">
 
     <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+    <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
 
     <!-- Stylesheets -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="css/public-blog.css">
 
     <!-- Font Awesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 
-<body>
+<body data-admission-popup-auto>
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="navbar-container">
             <a href="public-blog.html" class="navbar-logo">
-                <div class="navbar-logo-icon">T</div>
-                <span>TBD Academy</span>
+                <div class="navbar-logo-icon"><img src="assets/logo-mark.svg" alt="" width="40" height="40"></div>
+                <span>TBD International Academy</span>
             </a>
 
-            <ul class="navbar-menu" id="navbarMenu">
-                <li><a href="public-blog.html" class="navbar-link active">Home</a></li>
-                <li><a href="about.html" class="navbar-link">About</a></li>
-                <li><a href="academics.html" class="navbar-link">Academics</a></li>
-                <li><a href="admissions.html" class="navbar-link">Admissions</a></li>
-                <li><a href="contact.html" class="navbar-link">Contact</a></li>
-            </ul>
+            <div class="navbar-collapse" id="navbarMenu">
+                <ul class="navbar-menu">
+                    <li><a href="public-blog.html" class="navbar-link active">Home</a></li>
+                    <li><a href="about.html" class="navbar-link">About</a></li>
+                    <li><a href="academics.html" class="navbar-link">Academics</a></li>
+                    <li><a href="admissions.html" class="navbar-link">Admissions</a></li>
+                    <li><a href="contact.html" class="navbar-link">Contact</a></li>
+                </ul>
 
-            <a href="login.html" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.875rem; white-space: nowrap;">
+                <a href="login.html" class="btn btn-primary btn-block navbar-cta">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Portal Login</span>
+                </a>
+
+                <div class="navbar-drawer-meta">
+                    <a href="tel:+2348030614777"><i class="fas fa-phone"></i> 0803 061 4777</a>
+                    <a href="mailto:tbdinternationalacademy.mkd@gmail.com"><i class="fas fa-envelope"></i> tbdinternationalacademy.mkd@gmail.com</a>
+                    <a href="contact.html"><i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi</a>
+                </div>
+            </div>
+
+            <a href="login.html" class="btn btn-primary btn-sm">
                 <i class="fas fa-sign-in-alt"></i>
                 <span>Portal Login</span>
             </a>
 
-            <button class="navbar-toggle" id="navbarToggle">
+            <button class="navbar-toggle" id="navbarToggle" type="button" aria-label="Open menu">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
         </div>
+
+        <div class="navbar-progress" aria-hidden="true"><span></span></div>
     </nav>
 
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-container">
             <div class="hero-content">
-                <div class="hero-badge">
+                <button class="hero-badge" type="button" data-admission-popup>
                     <span class="hero-badge-dot"></span>
-                    <span>Now Accepting Applications for 2026/2027</span>
+                    <span>Admission in Progress &mdash; 2026/2027</span>
+                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                </button>
+
+                <div class="hero-brand">
+                    <img src="assets/logo-mark.svg" alt="TBD International Academy crest" width="64" height="64">
+                    <div>
+                        <div class="hero-brand-name">TBD International Academy</div>
+                        <div class="hero-brand-motto">Planting Seeds of Knowledge</div>
+                    </div>
                 </div>
 
-                <h1 class="hero-title">Excellence in Education, Character in Action</h1>
+                <h1 class="hero-title">Excellence in Education, <span class="text-marker">Character</span> in Action</h1>
 
                 <p class="hero-subtitle">
-                    TBD Academy is committed to nurturing young minds through quality education,
+                    TBD International Academy is committed to nurturing young minds through quality education,
                     moral values, and holistic development. Join us in shaping the leaders of tomorrow.
                 </p>
 
                 <div class="hero-buttons">
-                    <a href="admissions.html" class="btn btn-primary">
+                    <a href="admissions.html" class="btn btn-accent">
                         <span>Apply Now</span>
                         <i class="fas fa-arrow-right"></i>
                     </a>
                     <a href="about.html" class="btn btn-secondary">
-                        <span>Learn More</span>
+                        <span>Take a Look Around</span>
                         <i class="fas fa-info-circle"></i>
                     </a>
+                </div>
+
+                <div class="hero-trust">
+                    <span><i class="fas fa-check-circle"></i> Creche to JSS 3</span>
+                    <span><i class="fas fa-check-circle"></i> Kertyo, Makurdi</span>
+                    <span><i class="fas fa-check-circle"></i> Established 2011</span>
                 </div>
             </div>
 
             <div class="hero-image">
                 <div class="hero-image-wrapper">
-                    <img src="https://picsum.photos/seed/tbdacademy-campus/800/600"
-                        alt="TBD Academy Campus"
-                        onerror="this.src='https://placehold.co/800x600/1e40af/ffffff?text=TBD+Academy+Campus'">
+                    <!-- Branded stand-in. Swap the src for a real campus
+                         photograph when one is available. -->
+                    <img src="assets/campus-panel.svg" alt="TBD International Academy" width="800" height="600">
+                </div>
 
-                    <div class="hero-stats">
-                        <div class="hero-stat">
-                            <span class="hero-stat-value">500+</span>
-                            <span class="hero-stat-label">Students</span>
-                        </div>
-                        <div class="hero-stat">
-                            <span class="hero-stat-value">50+</span>
-                            <span class="hero-stat-label">Teachers</span>
-                        </div>
-                        <div class="hero-stat">
-                            <span class="hero-stat-value">15+</span>
-                            <span class="hero-stat-label">Years</span>
-                        </div>
+                <div class="hero-stats">
+                    <div class="hero-stat">
+                        <span class="hero-stat-value" data-count="500" data-suffix="+">500+</span>
+                        <span class="hero-stat-label">Students</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-value" data-count="50" data-suffix="+">50+</span>
+                        <span class="hero-stat-label">Teachers</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-value" data-count="15" data-suffix="+">15+</span>
+                        <span class="hero-stat-label">Years</span>
                     </div>
                 </div>
             </div>
         </div>
     </section>
 
+    <!-- Scrolling highlights -->
+    <div class="ticker">
+        <div class="ticker-track">
+            <span class="ticker-item"><i class="fas fa-star"></i> Admissions open for 2026/2027</span>
+            <span class="ticker-item"><i class="fas fa-flask"></i> Science &amp; ICT laboratories</span>
+            <span class="ticker-item"><i class="fas fa-futbol"></i> Sports, music &amp; arts clubs</span>
+            <span class="ticker-item"><i class="fas fa-bus"></i> Safe school transport</span>
+            <span class="ticker-item"><i class="fas fa-book-reader"></i> Well-stocked library</span>
+            <span class="ticker-item"><i class="fas fa-shield-alt"></i> Secure, supervised campus</span>
+            <span class="ticker-item"><i class="fas fa-hands-helping"></i> Small class sizes</span>
+        </div>
+    </div>
+
     <!-- Features Section -->
-    <section class="section">
+    <section class="section section-light" id="why-us">
         <div class="section-container">
             <div class="section-header">
-                <span class="section-badge">Why Choose Us</span>
-                <h2 class="section-title">What Makes TBD Academy Special</h2>
+                <span class="section-badge badge-red">Why Choose Us</span>
+                <h2 class="section-title">What Makes TBD International Academy Special</h2>
                 <p class="section-subtitle">
                     We provide a nurturing environment where students thrive academically,
                     socially, and morally.
@@ -221,92 +266,433 @@
     </section>
 
     <!-- Academic Levels Section -->
-    <section class="section" style="background: white;">
+    <section class="section section-tint" id="programs">
         <div class="section-container">
             <div class="section-header">
-                <span class="section-badge">Our Programs</span>
+                <span class="section-badge badge-sky">Our Programs</span>
                 <h2 class="section-title">Academic Levels</h2>
                 <p class="section-subtitle">
                     From early childhood to junior secondary, we offer comprehensive
-                    education at every stage.
+                    education at every stage. Tap a level to see what it covers.
                 </p>
             </div>
 
-            <div class="grid grid-3">
-                <div class="card">
-                    <div class="card-icon"
-                        style="background: linear-gradient(135deg, hsl(45, 100%, 50%), hsl(45, 100%, 40%));">
-                        <i class="fas fa-baby"></i>
-                    </div>
-                    <h3 class="card-title">Nursery</h3>
-                    <p class="card-text">
-                        A warm and nurturing environment where young learners begin their
-                        educational journey with play-based learning and foundational skills.
-                    </p>
-                    <a href="academics.html#nursery" class="card-link">
-                        <span>Learn More</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
+            <div data-tabs>
+                <div class="tabs" role="tablist" aria-label="Academic levels">
+                    <button class="tab" type="button" role="tab" id="tab-creche" aria-controls="panel-creche"
+                        aria-selected="true" tabindex="0" style="--accent-grad: var(--gradient-violet);">
+                        <i class="fas fa-shapes"></i> Creche
+                    </button>
+                    <button class="tab" type="button" role="tab" id="tab-nursery" aria-controls="panel-nursery"
+                        aria-selected="false" tabindex="-1" style="--accent-grad: var(--gradient-amber);">
+                        <i class="fas fa-baby"></i> Nursery
+                    </button>
+                    <button class="tab" type="button" role="tab" id="tab-primary" aria-controls="panel-primary"
+                        aria-selected="false" tabindex="-1" style="--accent-grad: var(--gradient-sky);">
+                        <i class="fas fa-child"></i> Primary 1&ndash;6
+                    </button>
+                    <button class="tab" type="button" role="tab" id="tab-jss" aria-controls="panel-jss"
+                        aria-selected="false" tabindex="-1" style="--accent-grad: var(--gradient-emerald);">
+                        <i class="fas fa-user-graduate"></i> JSS 1&ndash;3
+                    </button>
                 </div>
 
-                <div class="card">
-                    <div class="card-icon"
-                        style="background: linear-gradient(135deg, hsl(200, 90%, 55%), hsl(200, 90%, 45%));">
-                        <i class="fas fa-child"></i>
+                <div class="tab-panel active" id="panel-creche" role="tabpanel" aria-labelledby="tab-creche"
+                    style="--accent: var(--color-violet-deep); --accent-grad: var(--gradient-violet);">
+                    <div class="tab-panel-inner">
+                        <div class="tab-panel-visual">
+                            <i class="fas fa-shapes"></i>
+                            <div class="tab-panel-age">Ages 0 &ndash; 2</div>
+                        </div>
+                        <div class="tab-panel-body">
+                            <h3>Creche</h3>
+                            <p>
+                                Nurturing young minds with love and care, in a safe and cheerful space
+                                built around your child's daily routine.
+                            </p>
+                            <ul class="feature-list">
+                                <li><i class="fas fa-check"></i> Warm, attentive care from trained minders</li>
+                                <li><i class="fas fa-check"></i> Sensory play that builds early motor skills</li>
+                                <li><i class="fas fa-check"></i> Structured feeding, nap and activity routines</li>
+                            </ul>
+                            <a href="admissions.html" class="btn btn-secondary btn-sm">
+                                <span>Enquire About Creche</span>
+                                <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
                     </div>
-                    <h3 class="card-title">Primary (1-6)</h3>
-                    <p class="card-text">
-                        Building strong academic foundations in literacy, numeracy, and
-                        critical thinking while fostering creativity and curiosity.
-                    </p>
-                    <a href="academics.html#primary" class="card-link">
-                        <span>Learn More</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
                 </div>
 
-                <div class="card">
-                    <div class="card-icon"
-                        style="background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%));">
-                        <i class="fas fa-user-graduate"></i>
+                <div class="tab-panel" id="panel-nursery" role="tabpanel" aria-labelledby="tab-nursery" hidden
+                    style="--accent: var(--color-amber-deep); --accent-grad: var(--gradient-amber);">
+                    <div class="tab-panel-inner">
+                        <div class="tab-panel-visual">
+                            <i class="fas fa-baby"></i>
+                            <div class="tab-panel-age">Ages 2 &ndash; 5</div>
+                        </div>
+                        <div class="tab-panel-body">
+                            <h3>Nursery &amp; Early Years</h3>
+                            <p>
+                                A warm and nurturing environment where young learners begin their
+                                educational journey with play-based learning and foundational skills.
+                            </p>
+                            <ul class="feature-list">
+                                <li><i class="fas fa-check"></i> Play-based, activity-led classrooms</li>
+                                <li><i class="fas fa-check"></i> Early literacy, numeracy and phonics</li>
+                                <li><i class="fas fa-check"></i> Supervised care with low pupil-to-teacher ratios</li>
+                            </ul>
+                            <a href="academics.html#nursery" class="btn btn-secondary btn-sm">
+                                <span>Explore Nursery</span>
+                                <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
                     </div>
-                    <h3 class="card-title">Junior Secondary (JSS 1-3)</h3>
-                    <p class="card-text">
-                        Preparing students for senior secondary with comprehensive subject
-                        offerings and exam preparation.
-                    </p>
-                    <a href="academics.html#jss" class="card-link">
-                        <span>Learn More</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
+                </div>
+
+                <div class="tab-panel" id="panel-primary" role="tabpanel" aria-labelledby="tab-primary" hidden
+                    style="--accent: var(--color-sky-deep); --accent-grad: var(--gradient-sky);">
+                    <div class="tab-panel-inner">
+                        <div class="tab-panel-visual">
+                            <i class="fas fa-child"></i>
+                            <div class="tab-panel-age">Ages 6 &ndash; 11</div>
+                        </div>
+                        <div class="tab-panel-body">
+                            <h3>Primary 1 &ndash; 6</h3>
+                            <p>
+                                Building strong academic foundations in literacy, numeracy, and
+                                critical thinking while fostering creativity and curiosity.
+                            </p>
+                            <ul class="feature-list">
+                                <li><i class="fas fa-check"></i> Full Nigerian curriculum with international standards</li>
+                                <li><i class="fas fa-check"></i> Computer studies and hands-on science</li>
+                                <li><i class="fas fa-check"></i> Clubs, sports and creative arts every week</li>
+                            </ul>
+                            <a href="academics.html#primary" class="btn btn-secondary btn-sm">
+                                <span>Explore Primary</span>
+                                <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="tab-panel" id="panel-jss" role="tabpanel" aria-labelledby="tab-jss" hidden
+                    style="--accent: var(--color-emerald-deep); --accent-grad: var(--gradient-emerald);">
+                    <div class="tab-panel-inner">
+                        <div class="tab-panel-visual">
+                            <i class="fas fa-user-graduate"></i>
+                            <div class="tab-panel-age">Ages 12 &ndash; 14</div>
+                        </div>
+                        <div class="tab-panel-body">
+                            <h3>Junior Secondary (JSS 1 &ndash; 3)</h3>
+                            <p>
+                                Preparing students for senior secondary with comprehensive subject
+                                offerings and structured exam preparation.
+                            </p>
+                            <ul class="feature-list">
+                                <li><i class="fas fa-check"></i> BECE-focused revision and mock examinations</li>
+                                <li><i class="fas fa-check"></i> Dedicated science and ICT laboratories</li>
+                                <li><i class="fas fa-check"></i> Career guidance and leadership training</li>
+                            </ul>
+                            <a href="academics.html#jss" class="btn btn-secondary btn-sm">
+                                <span>Explore JSS</span>
+                                <i class="fas fa-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Numbers -->
+    <section class="section section-dark">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-badge">By the Numbers</span>
+                <h2 class="section-title">Fifteen Years of Growing Together</h2>
+                <p class="section-subtitle">
+                    Since 2011 we have grown into one of Makurdi's trusted learning communities.
+                </p>
+            </div>
+
+            <div class="stat-band">
+                <div class="stat-cell">
+                    <i class="fas fa-user-graduate"></i>
+                    <span class="stat-value" data-count="500" data-suffix="+">500+</span>
+                    <span class="stat-label">Students Enrolled</span>
+                </div>
+                <div class="stat-cell">
+                    <i class="fas fa-chalkboard-teacher"></i>
+                    <span class="stat-value" data-count="50" data-suffix="+">50+</span>
+                    <span class="stat-label">Qualified Staff</span>
+                </div>
+                <div class="stat-cell">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span class="stat-value" data-count="15" data-suffix="+">15+</span>
+                    <span class="stat-label">Years of Service</span>
+                </div>
+                <div class="stat-cell">
+                    <i class="fas fa-award"></i>
+                    <span class="stat-value" data-count="98" data-suffix="%">98%</span>
+                    <span class="stat-label">BECE Pass Rate</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Admission steps -->
+    <section class="section section-light" id="how-to-apply">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-badge badge-amber">Admissions</span>
+                <h2 class="section-title">Four Steps to Join Us</h2>
+                <p class="section-subtitle">
+                    Applying is straightforward &mdash; and you can do most of it from your phone.
+                </p>
+            </div>
+
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number"></div>
+                    <div>
+                        <h3>Download the Form</h3>
+                        <p>Grab the application form for your child's level from the admissions page.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number"></div>
+                    <div>
+                        <h3>Fill It In</h3>
+                        <p>Complete every section and gather the supporting documents listed on the form.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number"></div>
+                    <div>
+                        <h3>Submit Online</h3>
+                        <p>Upload the completed form &mdash; no need to travel to the campus to apply.</p>
+                    </div>
+                </div>
+                <div class="step">
+                    <div class="step-number"></div>
+                    <div>
+                        <h3>Meet Us</h3>
+                        <p>We will call you to arrange an assessment and a tour of the school.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 2rem;">
+                <a href="admissions.html" class="btn btn-primary">
+                    <span>Start Your Application</span>
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials -->
+    <section class="section section-tint" id="testimonials">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-badge badge-violet">Parent Voices</span>
+                <h2 class="section-title">What Our Families Say</h2>
+                <p class="section-subtitle">
+                    Parents and guardians describe what the TBD community means to them.
+                </p>
+            </div>
+
+            <div class="testimonial-rail" data-rail="testimonials">
+                <figure class="testimonial" style="--accent-soft: rgba(226, 60, 60, 0.10); --accent-grad: var(--gradient-accent);">
+                    <div class="testimonial-stars" aria-label="5 out of 5 stars">
+                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+                    </div>
+                    <blockquote class="testimonial-quote">
+                        My daughter joined in Primary 2 and her confidence has transformed. The teachers
+                        genuinely know each child &mdash; they call us before we have to call them.
+                    </blockquote>
+                    <figcaption class="testimonial-person">
+                        <div class="testimonial-avatar" aria-hidden="true">AO</div>
+                        <div>
+                            <div class="testimonial-name">Mrs. Aondona Ochigbo</div>
+                            <div class="testimonial-role">Parent, Primary 4</div>
+                        </div>
+                    </figcaption>
+                </figure>
+
+                <figure class="testimonial" style="--accent-soft: hsla(200, 90%, 52%, 0.12); --accent-grad: var(--gradient-sky);">
+                    <div class="testimonial-stars" aria-label="5 out of 5 stars">
+                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+                    </div>
+                    <blockquote class="testimonial-quote">
+                        The balance of academics and character is what kept us here. My son finished JSS 3
+                        well prepared, and just as importantly, well mannered.
+                    </blockquote>
+                    <figcaption class="testimonial-person">
+                        <div class="testimonial-avatar" aria-hidden="true">TI</div>
+                        <div>
+                            <div class="testimonial-name">Mr. Terhemba Iorpuu</div>
+                            <div class="testimonial-role">Parent, JSS 3 graduate</div>
+                        </div>
+                    </figcaption>
+                </figure>
+
+                <figure class="testimonial" style="--accent-soft: hsla(158, 68%, 40%, 0.12); --accent-grad: var(--gradient-emerald);">
+                    <div class="testimonial-stars" aria-label="5 out of 5 stars">
+                        <i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i>
+                    </div>
+                    <blockquote class="testimonial-quote">
+                        Being able to check results and fees from the parent portal saves me a trip every term.
+                        Small thing, but it makes a real difference for a working mum.
+                    </blockquote>
+                    <figcaption class="testimonial-person">
+                        <div class="testimonial-avatar" aria-hidden="true">NA</div>
+                        <div>
+                            <div class="testimonial-name">Mrs. Ngozi Adaje</div>
+                            <div class="testimonial-role">Parent, Nursery &amp; Primary</div>
+                        </div>
+                    </figcaption>
+                </figure>
+            </div>
+
+            <div class="rail-dots" data-rail-dots="testimonials" aria-hidden="true"></div>
+        </div>
+    </section>
+
+    <!-- FAQ -->
+    <section class="section section-light" id="faq">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-badge badge-emerald">Good to Know</span>
+                <h2 class="section-title">Frequently Asked Questions</h2>
+                <p class="section-subtitle">
+                    Still unsure about something? These are the questions we hear most often.
+                </p>
+            </div>
+
+            <div class="accordion">
+                <div class="accordion-item open">
+                    <button class="accordion-trigger" type="button">
+                        <span>When does the 2026/2027 session begin?</span>
+                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+                    </button>
+                    <div class="accordion-panel">
+                        <div>
+                            <p>
+                                The academic year runs in three terms starting in September. Applications are
+                                open now, and we recommend applying early because places in each class are limited.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <button class="accordion-trigger" type="button">
+                        <span>Which levels do you admit into?</span>
+                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+                    </button>
+                    <div class="accordion-panel">
+                        <div>
+                            <p>
+                                We admit from Nursery through Primary 1&ndash;6 and Junior Secondary (JSS 1&ndash;3).
+                                Transfer students are welcome subject to a placement assessment.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <button class="accordion-trigger" type="button">
+                        <span>How do I pay school fees?</span>
+                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+                    </button>
+                    <div class="accordion-panel">
+                        <div>
+                            <p>
+                                Fees can be paid securely online through the parent portal, or at the school
+                                bursary. The full fee structure for each level is published on the admissions page.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <button class="accordion-trigger" type="button">
+                        <span>Can I see my child's results online?</span>
+                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+                    </button>
+                    <div class="accordion-panel">
+                        <div>
+                            <p>
+                                Yes. Every enrolled family gets portal access for results, report cards,
+                                attendance and fee statements &mdash; available on any phone or computer.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="accordion-item">
+                    <button class="accordion-trigger" type="button">
+                        <span>Can we visit the campus before applying?</span>
+                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
+                    </button>
+                    <div class="accordion-panel">
+                        <div>
+                            <p>
+                                Absolutely &mdash; we encourage it. Call or message us to arrange a tour and meet
+                                the teachers who would be working with your child.
+                            </p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- CTA Section -->
-    <section class="section"
-        style="background: linear-gradient(135deg, hsl(220, 70%, 50%) 0%, hsl(200, 90%, 55%) 100%); color: white;">
+    <section class="section section-tint">
         <div class="section-container">
-            <div style="text-align: center; max-width: 800px; margin: 0 auto;">
-                <h2 class="section-title" style="color: white; margin-bottom: 1.5rem;">
-                    Ready to Join TBD Academy?
-                </h2>
-                <p style="font-size: 1.125rem; margin-bottom: 2rem; opacity: 0.95;">
+            <div class="cta-panel">
+                <h2>Ready to Join TBD International Academy?</h2>
+                <p>
                     Applications for the 2026/2027 academic year are now open.
                     Download our application form, fill it out, and submit it online.
                 </p>
-                <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-                    <a href="admissions.html" class="btn" style="background: white; color: var(--color-primary);">
+                <div class="cta-actions">
+                    <a href="admissions.html" class="btn btn-light">
                         <i class="fas fa-file-alt"></i>
                         <span>Apply Now</span>
                     </a>
-                    <a href="contact.html" class="btn"
-                        style="background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(10px); color: white; border: 2px solid white;">
+                    <a href="contact.html" class="btn btn-ghost-light">
                         <i class="fas fa-phone"></i>
                         <span>Contact Us</span>
                     </a>
                 </div>
+                <p class="cta-note">Questions? We usually reply the same working day.</p>
+            </div>
+
+            <div class="contact-strip" style="margin-top: 2rem;">
+                <a href="tel:+2348030614777" class="contact-chip">
+                    <i class="fas fa-phone"></i>
+                    <span>
+                        <span class="contact-chip-label">Call us</span>
+                        <span class="contact-chip-value">0803 061 4777</span>
+                    </span>
+                </a>
+                <a href="mailto:tbdinternationalacademy.mkd@gmail.com" class="contact-chip">
+                    <i class="fas fa-envelope"></i>
+                    <span>
+                        <span class="contact-chip-label">Email</span>
+                        <span class="contact-chip-value">tbdinternationalacademy.mkd@gmail.com</span>
+                    </span>
+                </a>
+                <a href="https://wa.me/2348030614777" target="_blank" rel="noopener" class="contact-chip">
+                    <i class="fab fa-whatsapp"></i>
+                    <span>
+                        <span class="contact-chip-label">WhatsApp</span>
+                        <span class="contact-chip-value">Chat with the office</span>
+                    </span>
+                </a>
             </div>
         </div>
     </section>
@@ -316,7 +702,8 @@
         <div class="footer-container">
             <div class="footer-grid">
                 <div>
-                    <div class="footer-brand">TBD Academy</div>
+                    <div class="footer-brand">TBD International Academy</div>
+                    <p class="footer-motto">Planting Seeds of Knowledge</p>
                     <p class="footer-description">
                         Excellence in Education, Character in Action. Nurturing young minds
                         for a brighter future since 2011.
@@ -334,7 +721,7 @@
                         <a href="#" class="footer-social-link" aria-label="LinkedIn">
                             <i class="fab fa-linkedin-in"></i>
                         </a>
-                        <a href="https://wa.me/2348031234567" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
+                        <a href="https://wa.me/2348030614777" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
                             <i class="fab fa-whatsapp"></i>
                         </a>
                     </div>
@@ -357,6 +744,9 @@
                         <li><a href="admissions.html#upload" class="footer-link">Application Form</a></li>
                         <li><a href="admissions.html#fees" class="footer-link">Fee Structure</a></li>
                         <li><a href="academics.html" class="footer-link">Academic Calendar</a></li>
+                        <li><a href="public-blog.html#faq" class="footer-link">FAQs</a></li>
+                        <li><a href="#" class="footer-link" data-admission-popup>Admission Notice</a></li>
+                        <li><a href="login.html" class="footer-link">Portal Login</a></li>
                     </ul>
                 </div>
 
@@ -364,26 +754,45 @@
                     <h4 class="footer-section-title">Contact</h4>
                     <ul class="footer-links">
                         <li class="footer-link">
-                            <i class="fas fa-map-marker-alt"></i> Makurdi, Benue State
+                            <i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi
                         </li>
-                        <li class="footer-link">
-                            <i class="fas fa-phone"></i> +234 803 123 4567
-                        </li>
-                        <li class="footer-link">
-                            <i class="fas fa-envelope"></i> info@tbdacademy.edu.ng
-                        </li>
+                        <li><a href="tel:+2348030614777" class="footer-link">
+                            <i class="fas fa-phone"></i> 0803 061 4777
+                        </a></li>
+                        <li><a href="mailto:tbdinternationalacademy.mkd@gmail.com" class="footer-link">
+                            <i class="fas fa-envelope"></i> tbdinternationalacademy.mkd@gmail.com
+                        </a></li>
                     </ul>
                 </div>
             </div>
 
             <div class="footer-bottom">
-                <p>&copy; 2026 TBD Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
+                <p>&copy; <span data-year>2026</span> TBD International Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
             </div>
         </div>
     </footer>
 
+    <!-- Floating UI -->
+    <button class="to-top" type="button" aria-label="Back to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <div class="mobile-bar">
+        <a href="tel:+2348030614777" class="btn btn-secondary">
+            <i class="fas fa-phone"></i>
+            <span>Call</span>
+        </a>
+        <a href="admissions.html" class="btn btn-accent">
+            <i class="fas fa-file-alt"></i>
+            <span>Apply Now</span>
+        </a>
+    </div>
+
     <!-- JavaScript -->
+    <script src="js/html-escape.js"></script>
+    <script src="js/public-site-config.js"></script>
     <script src="js/blog-navigation.js"></script>
+    <script src="js/admission-popup.js"></script>
 </body>
 
 </html>

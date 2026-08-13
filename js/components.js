@@ -438,7 +438,7 @@ function buildReceiptData(payment, student) {
     term:           p.term            || '—',
     academicYear:   p.academic_year   || p.academicYear   || window.CURRENT_ACADEMIC_YEAR || '—',
     status:         p.status          || 'paid',
-    schoolName:     (typeof schoolConfig !== 'undefined' && schoolConfig.getSchoolName?.()) || window.SCHOOL_NAME || 'TBD Academy',
+    schoolName:     (typeof schoolConfig !== 'undefined' && schoolConfig.getSchoolName?.()) || window.SCHOOL_NAME || 'TBD International Academy',
     schoolAddress:  (typeof schoolConfig !== 'undefined' && schoolConfig.getSchoolAddress?.()) || 'School Address, Nigeria',
   };
 }
@@ -550,7 +550,7 @@ function generateReceiptHTML(data) {
       <div class="rcpt-header">
         <div class="school-block">
           <div class="school-initials">${(d.schoolName || 'T').charAt(0)}</div>
-          <div class="school-name">${d.schoolName || 'TBD Academy'}</div>
+          <div class="school-name">${d.schoolName || 'TBD International Academy'}</div>
           <div class="school-address">${d.schoolAddress || ''}</div>
         </div>
         <div class="rcpt-title-block">
@@ -781,7 +781,7 @@ function generateTermReceiptHTML(data) {
       <div class="rcpt-header">
         <div class="school-block">
           <div class="school-initials">${(d.schoolName || 'T').charAt(0)}</div>
-          <div class="school-name">${d.schoolName || 'TBD Academy'}</div>
+          <div class="school-name">${d.schoolName || 'TBD International Academy'}</div>
           <div class="school-address">${d.schoolAddress || ''}</div>
         </div>
         <div class="rcpt-title-block">

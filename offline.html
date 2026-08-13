@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>You're offline - TBD International Academy</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
+    <meta name="theme-color" content="#1E2A5A">
+    <link rel="stylesheet" href="css/design-system.css">
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-6);
+            background: var(--gradient-brand);
+            font-family: var(--font-sans);
+            box-sizing: border-box;
+        }
+
+        .offline-card {
+            width: 100%;
+            max-width: 28rem;
+            padding: var(--space-8);
+            border-radius: var(--radius-2xl);
+            background: #fff;
+            box-shadow: var(--shadow-2xl);
+            text-align: center;
+        }
+
+        .offline-crest {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.6rem;
+            margin-bottom: var(--space-6);
+        }
+
+        .offline-crest img { width: 40px; height: 40px; }
+
+        .offline-crest .school-name {
+            font-family: var(--font-display);
+            font-weight: 700;
+            font-size: 0.95rem;
+            line-height: 1.15;
+            color: var(--brand-navy);
+            text-align: left;
+        }
+
+        .offline-crest .school-motto {
+            font-size: 0.7rem;
+            font-style: italic;
+            color: var(--brand-red);
+            text-align: left;
+        }
+
+        h1 {
+            font-family: var(--font-display);
+            font-size: var(--font-size-2xl);
+            color: var(--text-primary);
+            margin: 0 0 var(--space-2);
+        }
+
+        p {
+            color: var(--text-secondary);
+            font-size: var(--font-size-sm);
+            line-height: var(--line-height-relaxed);
+            margin: 0 0 var(--space-6);
+        }
+
+        .btn-retry {
+            width: 100%;
+            padding: var(--space-4);
+            border: none;
+            border-radius: var(--radius-lg);
+            background: var(--gradient-brand);
+            color: #fff;
+            font-family: var(--font-display);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-semibold);
+            cursor: pointer;
+        }
+
+        .links {
+            margin-top: var(--space-6);
+            padding-top: var(--space-6);
+            border-top: 1px solid var(--border-secondary);
+            font-size: var(--font-size-sm);
+        }
+
+        .links a {
+            color: var(--color-primary-600);
+            font-weight: var(--font-weight-semibold);
+            text-decoration: none;
+        }
+
+        .links a:hover { text-decoration: underline; }
+    </style>
+</head>
+
+<body>
+    <main class="offline-card">
+        <div class="offline-crest">
+            <img src="assets/logo-mark.svg" alt="TBD International Academy crest" width="40" height="40">
+            <div>
+                <div class="school-name">TBD International Academy</div>
+                <div class="school-motto">Planting Seeds of Knowledge</div>
+            </div>
+        </div>
+
+        <h1>You're offline</h1>
+        <p>
+            We couldn't reach the school portal. Check your internet connection
+            and try again — any page you've already visited will still open.
+        </p>
+
+        <button type="button" class="btn-retry" onclick="location.reload()">Try again</button>
+
+        <div class="links">
+            <a href="/public-blog.html">Go to the school website</a>
+        </div>
+    </main>
+</body>
+
+</html>

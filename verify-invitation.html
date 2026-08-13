@@ -3,14 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Invitation - TBD Academy Portal</title>
+    <title>Verify Invitation - TBD International Academy Portal</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
+    <meta name="theme-color" content="#1E2A5A">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="css/components.css">
     <style>
-        body { margin:0; padding:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%); font-family:var(--font-family-base); }
+        body { margin:0; padding:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--gradient-brand); font-family:var(--font-family-base); }
         .verify-container { width:100%; max-width:500px; padding:var(--space-6); }
         .verify-card { background:white; border-radius:var(--radius-2xl); padding:var(--space-8); box-shadow:var(--shadow-2xl); animation:slideUp .5s ease-out; }
         @keyframes slideUp { from { opacity:0; transform:translateY(30px); } to { opacity:1; transform:translateY(0); } }
+        .verify-crest { display:flex; align-items:center; justify-content:center; gap:.6rem; margin-bottom:var(--space-6); }
+        .verify-crest img { width:40px; height:40px; }
+        .verify-crest .school-name { font-family:var(--font-display); font-weight:700; font-size:.95rem; line-height:1.15; color:var(--brand-navy); }
+        .verify-crest .school-motto { font-size:.7rem; font-style:italic; color:var(--brand-red); }
         .verify-header { text-align:center; margin-bottom:var(--space-8); }
         .verify-logo { width:80px; height:80px; margin:0 auto var(--space-4); background:var(--gradient-primary); border-radius:var(--radius-full); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-3xl); color:white; }
         .verify-title { font-size:var(--font-size-2xl); font-weight:var(--font-weight-bold); color:var(--text-primary); margin-bottom:var(--space-2); }
@@ -44,6 +50,14 @@
 <body>
     <div class="verify-container">
         <div class="verify-card">
+            <div class="verify-crest">
+                <img src="assets/logo-mark.svg" alt="TBD International Academy crest" width="40" height="40">
+                <div>
+                    <div class="school-name">TBD International Academy</div>
+                    <div class="school-motto">Planting Seeds of Knowledge</div>
+                </div>
+            </div>
+
             <div class="verify-header">
                 <div class="verify-logo">&#x2709;</div>
                 <h1 class="verify-title">Verify Your Invitation</h1>
@@ -85,6 +99,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/html-escape.js"></script>
     <script src="js/supabase-client.js"></script>
     <script src="js/bcrypt.min.js"></script>
     <script src="js/auth-manager.js"></script>
@@ -97,6 +112,15 @@
             if (!type) type = 'danger';
             document.getElementById('alert-container').innerHTML =
                 '<div class="alert alert-' + type + ' show">' + message + '</div>';
+        }
+
+        function esc(value) {
+            return String(value == null ? '' : value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
         }
 
         function validatePassword(pwd) {
@@ -129,12 +153,14 @@
                 var role     = currentInvitation.role || '';
                 var schoolId = currentInvitation.school_id || '';
 
+                // All four values come from the database and are attacker-influenced
+                // at invite time, so they must be escaped before interpolation.
                 var infoDiv = document.getElementById('invitation-info');
                 infoDiv.innerHTML =
-                    '<p><strong>Name:</strong> ' + fullName + '</p>' +
-                    '<p><strong>Role:</strong> ' + role.charAt(0).toUpperCase() + role.slice(1) + '</p>' +
-                    '<p><strong>Your Login ID:</strong> ' + schoolId + '</p>' +
-                    (currentInvitation.email ? '<p><strong>Email:</strong> ' + currentInvitation.email + '</p>' : '');
+                    '<p><strong>Name:</strong> ' + esc(fullName) + '</p>' +
+                    '<p><strong>Role:</strong> ' + esc(role.charAt(0).toUpperCase() + role.slice(1)) + '</p>' +
+                    '<p><strong>Your Login ID:</strong> ' + esc(schoolId) + '</p>' +
+                    (currentInvitation.email ? '<p><strong>Email:</strong> ' + esc(currentInvitation.email) + '</p>' : '');
                 infoDiv.style.display = 'block';
 
                 document.getElementById('verify-form').style.display = 'block';
@@ -186,8 +212,8 @@
                 if (!loginResult.success) {
                     showAlert(
                         'Login failed. Please go to the login page and use:<br>' +
-                        'Login ID: <strong>' + schoolId + '</strong> | ' +
-                        'Temporary password: <strong>' + defaultPwd + '</strong>',
+                        'Login ID: <strong>' + esc(schoolId) + '</strong> | ' +
+                        'Temporary password: <strong>' + esc(defaultPwd) + '</strong>',
                         'warning'
                     );
                     verifyBtn.disabled = false;
@@ -201,7 +227,7 @@
                 var pwdResult = await authManager.changePassword(schoolId, defaultPwd, newPassword);
                 if (!pwdResult.success) {
                     showAlert(
-                        'Password change failed: ' + (pwdResult.error || 'Unknown error') +
+                        'Password change failed: ' + esc(pwdResult.error || 'Unknown error') +
                         '. You can change it after logging in.',
                         'warning'
                     );
@@ -218,14 +244,14 @@
 
                 showAlert(
                     '\u2713 Account activated successfully!<br>' +
-                    'Your Login ID is <strong>' + schoolId + '</strong>.<br>' +
+                    'Your Login ID is <strong>' + esc(schoolId) + '</strong>.<br>' +
                     'Redirecting to login in 3 seconds...',
                     'success'
                 );
                 setTimeout(function () { window.location.href = 'login.html'; }, 3000);
 
             } catch (err) {
-                showAlert(err.message || 'An unexpected error occurred. Please try again.', 'danger');
+                showAlert(esc(err.message) || 'An unexpected error occurred. Please try again.', 'danger');
                 verifyBtn.disabled = false;
                 verifyBtn.textContent = 'Set Password & Activate Account';
             }

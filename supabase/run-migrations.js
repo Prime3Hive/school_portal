@@ -109,7 +109,7 @@ function runSQL(sql) {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log('\n🚀 TBD Academy — Migration Runner');
+  console.log('\n🚀 TBD International Academy — Migration Runner');
   console.log(`📡 Supabase project: ${SUPABASE_URL}\n`);
 
   // Get migration files sorted by number

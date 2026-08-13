@@ -12,7 +12,7 @@ const AppConfig = {
 
   email: {
     get fromAddress() { return window.ENV?.EMAIL_FROM_ADDRESS || 'noreply@tbdacademy.edu.ng'; },
-    get fromName() { return window.ENV?.EMAIL_FROM_NAME || 'TBD Academy'; }
+    get fromName() { return window.ENV?.EMAIL_FROM_NAME || 'TBD International Academy'; }
   },
 
   app: {
@@ -22,10 +22,10 @@ const AppConfig = {
   },
 
   school: {
-    get name() { return window.ENV?.SCHOOL_NAME || 'TBD Academy'; },
-    get email() { return window.ENV?.SCHOOL_EMAIL || 'admin@tbdacademy.edu.ng'; },
+    get name() { return window.ENV?.SCHOOL_NAME || 'TBD International Academy'; },
+    get email() { return window.ENV?.SCHOOL_EMAIL || 'tbdinternationalacademy.mkd@gmail.com'; },
     get phone() { return window.ENV?.SCHOOL_PHONE || '+234-800-000-0000'; },
-    get address() { return window.ENV?.SCHOOL_ADDRESS || 'Makurdi, Benue State, Nigeria'; }
+    get address() { return window.ENV?.SCHOOL_ADDRESS || 'Behind Civil Service Commission, Kertyo, Makurdi, Nigeria'; }
   },
 
   storage: {
@@ -50,6 +50,44 @@ const AppConfig = {
     enableDarkMode: true,
     enableCalendar: true
   }
+};
+
+// ── Brand identity ───────────────────────────────────────────────────────────
+// Single source of truth for the crest, wordmark and motto. Loaded in <head>,
+// so inline bootstrap scripts can read it before the modules come up.
+AppConfig.brand = {
+  name: 'TBD International Academy',
+  shortName: 'TBD Academy',
+  motto: 'Planting Seeds of Knowledge',
+  crest: 'assets/logo-mark.svg',   // shield only
+  logo: 'assets/logo.svg',         // full lockup with motto ribbon
+  navy: '#1E2A5A',
+  red: '#E23C3C'
+};
+
+// ── Legacy brand-value migration ─────────────────────────────────────────────
+// School name and address are admin-editable: they live in localStorage and in
+// the school_settings row, and both are applied over the hardcoded defaults at
+// runtime. So a rebrand does NOT reach an existing install just by changing the
+// defaults — the stale saved value keeps winning.
+//
+// A stored value that still exactly equals a superseded default was never
+// actually customised by an admin, so it is safe to upgrade. Anything else is
+// a deliberate choice and is left untouched.
+const LEGACY_SCHOOL_VALUES = {
+  schoolName: {
+    'TBD Academy': 'TBD International Academy'
+  },
+  schoolAddress: {
+    'Lagos, Nigeria': 'Makurdi, Benue State',
+    'Lagos': 'Makurdi, Benue State'
+  }
+};
+
+window.upgradeLegacySchoolValue = function (field, value) {
+  const map = LEGACY_SCHOOL_VALUES[field];
+  if (!map || typeof value !== 'string') return value;
+  return map[value.trim()] || value;
 };
 
 if (typeof module !== 'undefined' && module.exports) {

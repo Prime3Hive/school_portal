@@ -12,17 +12,47 @@
    CSS VARIABLES - DESIGN TOKENS
    ============================================ */
 :root {
-  /* Color Palette - Primary (Navy Blue) */
-  --color-primary-50: hsl(220, 70%, 97%);
-  --color-primary-100: hsl(220, 70%, 92%);
-  --color-primary-200: hsl(220, 70%, 85%);
-  --color-primary-300: hsl(220, 70%, 75%);
-  --color-primary-400: hsl(220, 70%, 65%);
-  --color-primary-500: hsl(220, 70%, 50%);
-  --color-primary-600: hsl(220, 70%, 40%);
-  --color-primary-700: hsl(220, 70%, 30%);
-  --color-primary-800: hsl(220, 70%, 20%);
-  --color-primary-900: hsl(220, 70%, 15%);
+  /* --------------------------------------------
+     TBD INTERNATIONAL ACADEMY - BRAND
+     Crest navy + ribbon red, taken from the school
+     crest in assets/logo.svg. Motto: "Planting
+     Seeds of Knowledge".
+     -------------------------------------------- */
+  --brand-navy: #1E2A5A;
+  --brand-navy-deep: #141C3E;
+  --brand-navy-light: #2E3D7D;
+  --brand-red: #E23C3C;
+  --brand-red-deep: #B92E2E;
+  --brand-red-light: #F06767;
+  --brand-navy-rgb: 30, 42, 90;
+  --brand-red-rgb: 226, 60, 60;
+
+  --gradient-brand: linear-gradient(135deg, var(--brand-navy-light) 0%, var(--brand-navy) 55%, var(--brand-navy-deep) 100%);
+  --gradient-brand-red: linear-gradient(135deg, var(--brand-red-light) 0%, var(--brand-red) 55%, var(--brand-red-deep) 100%);
+
+  /* Color Palette - Primary (Crest Navy) */
+  --color-primary-50: hsl(227, 60%, 96%);
+  --color-primary-100: hsl(227, 55%, 91%);
+  --color-primary-200: hsl(227, 52%, 83%);
+  --color-primary-300: hsl(227, 50%, 70%);
+  --color-primary-400: hsl(227, 48%, 55%);
+  --color-primary-500: hsl(227, 50%, 42%);
+  --color-primary-600: hsl(227, 52%, 34%);
+  --color-primary-700: hsl(227, 54%, 27%);
+  --color-primary-800: hsl(227, 56%, 21%);
+  --color-primary-900: hsl(227, 58%, 15%);
+
+  /* Color Palette - Accent (Ribbon Red) */
+  --color-brand-red-50: hsl(0, 80%, 97%);
+  --color-brand-red-100: hsl(0, 80%, 94%);
+  --color-brand-red-200: hsl(0, 78%, 87%);
+  --color-brand-red-300: hsl(0, 76%, 78%);
+  --color-brand-red-400: hsl(0, 75%, 67%);
+  --color-brand-red-500: hsl(0, 74%, 56%);
+  --color-brand-red-600: hsl(0, 70%, 47%);
+  --color-brand-red-700: hsl(0, 72%, 39%);
+  --color-brand-red-800: hsl(0, 72%, 31%);
+  --color-brand-red-900: hsl(0, 70%, 24%);
 
   /* Color Palette - Secondary (Sky Blue) */
   --color-secondary-50: hsl(200, 90%, 97%);
@@ -127,9 +157,9 @@
   --bg-info-subtle: hsl(200, 90%, 95%);
 
   /* Text Colors - Optimized for Readability */
-  --text-primary: hsl(220, 70%, 15%);
-  --text-secondary: hsl(220, 40%, 35%);
-  --text-tertiary: hsl(220, 30%, 50%);
+  --text-primary: hsl(227, 58%, 15%);
+  --text-secondary: hsl(227, 32%, 35%);
+  --text-tertiary: hsl(227, 24%, 50%);
   --text-inverse: hsl(0, 0%, 100%);
   --text-on-primary: hsl(0, 0%, 100%);
   --text-on-secondary: hsl(0, 0%, 100%);
@@ -141,7 +171,7 @@
   --border-focus: hsl(200, 90%, 55%);
 
   /* Enhanced Gradients - Bright Theme */
-  --gradient-primary: linear-gradient(135deg, hsl(220, 70%, 50%) 0%, hsl(220, 70%, 40%) 50%, hsl(200, 90%, 45%) 100%);
+  --gradient-primary: linear-gradient(135deg, hsl(227, 48%, 45%) 0%, hsl(227, 52%, 34%) 50%, hsl(227, 58%, 22%) 100%);
   --gradient-secondary: linear-gradient(135deg, hsl(200, 90%, 55%) 0%, hsl(200, 90%, 45%) 50%, hsl(150, 70%, 45%) 100%);
   --gradient-success: linear-gradient(135deg, hsl(150, 70%, 45%) 0%, hsl(150, 70%, 40%) 100%);
   --gradient-danger: linear-gradient(135deg, hsl(0, 80%, 55%) 0%, hsl(20, 90%, 50%) 50%, hsl(45, 100%, 45%) 100%);
@@ -149,7 +179,8 @@
   --gradient-info: linear-gradient(135deg, hsl(200, 90%, 55%) 0%, hsl(200, 90%, 45%) 100%);
   --gradient-overlay: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.3) 100%);
   --gradient-shimmer: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.6) 50%, transparent 100%);
-  --gradient-hero: linear-gradient(135deg, hsl(220, 70%, 50%) 0%, hsl(200, 90%, 55%) 50%, hsl(150, 70%, 50%) 100%);
+  --gradient-hero: linear-gradient(135deg, hsl(227, 54%, 27%) 0%, hsl(227, 48%, 45%) 45%, hsl(200, 90%, 50%) 100%);
+  --gradient-accent: linear-gradient(135deg, hsl(0, 74%, 56%) 0%, hsl(0, 72%, 39%) 100%);
 
   /* Spacing Scale (4px base unit) */
   --space-1: 0.25rem;
@@ -230,7 +261,7 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.15), 0 4px 6px -2px rgba(0, 0, 0, 0.08);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.18), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
   --shadow-2xl: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  --shadow-glow-primary: 0 0 30px rgba(28, 100, 242, 0.3), 0 0 60px rgba(28, 100, 242, 0.1);
+  --shadow-glow-primary: 0 0 30px rgba(42, 61, 132, 0.35), 0 0 60px rgba(42, 61, 132, 0.12);
   --shadow-glow-secondary: 0 0 30px rgba(14, 165, 233, 0.3), 0 0 60px rgba(14, 165, 233, 0.1);
   --shadow-glow-success: 0 0 30px rgba(16, 185, 129, 0.3);
   --shadow-glow-yellow: 0 0 30px rgba(234, 179, 8, 0.4);
@@ -254,10 +285,53 @@
 
   /* Glassmorphism - Bright Theme */
   --glass-bg: rgba(255, 255, 255, 0.7);
-  --glass-border: rgba(28, 100, 242, 0.15);
+  --glass-border: rgba(30, 42, 90, 0.15);
   --glass-blur: blur(16px);
   --glass-strong-bg: rgba(255, 255, 255, 0.85);
-  --glass-strong-border: rgba(28, 100, 242, 0.25);
+  --glass-strong-border: rgba(30, 42, 90, 0.25);
+
+  /* --------------------------------------------
+     COMPATIBILITY ALIASES
+     Un-suffixed / legacy names referenced across
+     the HTML pages. Without these the rules that
+     use them silently fall back to nothing (this
+     is what left the login page with no gradient
+     background). Keep in sync with the scales.
+     -------------------------------------------- */
+  --color-primary: var(--color-primary-600);
+  --color-primary-dark: var(--color-primary-800);
+  --color-primary-light: var(--color-primary-400);
+  --primary: var(--color-primary-600);
+  --color-secondary: var(--color-secondary-500);
+  --color-secondary-light: var(--color-secondary-300);
+  --color-accent: var(--color-brand-red-500);
+
+  --color-primary-rgb: 42, 61, 132;
+  --color-secondary-rgb: 37, 175, 244;
+  --color-accent-rgb: 226, 60, 60;
+  --color-success-rgb: 31, 173, 102;
+  --color-warning-rgb: 230, 172, 0;
+  --color-danger-rgb: 232, 48, 48;
+  --color-info-rgb: 13, 166, 242;
+
+  --success: var(--color-success);
+  --success-bg: var(--color-success-bg);
+  --warning: var(--color-warning);
+  --warning-bg: var(--color-warning-bg);
+  --color-green: var(--color-accent-green-500);
+  --color-gray-50: var(--color-neutral-50);
+  --color-gray-900: var(--color-neutral-900);
+
+  --font-family-base: var(--font-sans);
+  --font-primary: var(--font-display);
+  --font-size-md: var(--font-size-base);
+
+  --space-7: 1.75rem;
+  --spacing-lg: var(--space-6);
+  --spacing-2xl: var(--space-12);
+  --spacing-3xl: var(--space-16);
+
+  --shadow-glow: var(--shadow-glow-primary);
 }
 
 /* ============================================

@@ -114,7 +114,7 @@ const feesPaymentsModule = {
     return {
       bankName:    s.bankName    || 'First Bank of Nigeria',
       accountNo:   s.bankAccountNo   || '0123456789',
-      accountName: s.bankAccountName || (window.schoolConfig?.name || 'TBD Academy'),
+      accountName: s.bankAccountName || (window.schoolConfig?.name || 'TBD International Academy'),
       sortCode:    s.bankSortCode    || '011151003'
     };
   },
@@ -185,7 +185,7 @@ const feesPaymentsModule = {
       const isImage = receiptUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
       return '<div style="display:flex;gap:12px;padding:12px;background:var(--bg-primary);border-radius:8px;border:1px solid var(--border-primary);align-items:center;flex-wrap:wrap;">'
         + '<div style="flex-shrink:0;width:56px;height:56px;border-radius:8px;overflow:hidden;background:var(--bg-tertiary);display:flex;align-items:center;justify-content:center;border:1px solid var(--border-primary);">'
-        + (isImage ? '<img src="' + receiptUrl + '" alt="Receipt" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:1.5rem;">📄</span>')
+        + (isImage ? '<img data-storage-src="' + this._esc(receiptUrl) + '" alt="Receipt" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:1.5rem;">📄</span>')
         + '</div>'
         + '<div style="flex:1;min-width:160px;">'
         + '<p style="font-weight:700;margin-bottom:2px;color:var(--text-primary);">' + (p.studentName || 'Unknown') + '</p>'
@@ -197,7 +197,7 @@ const feesPaymentsModule = {
         + '<p style="font-size:0.75rem;color:var(--text-tertiary);">Receipt #' + (p.receiptNo || '-') + '</p>'
         + '</div>'
         + '<div style="display:flex;gap:8px;flex-shrink:0;">'
-        + (receiptUrl ? '<a href="' + receiptUrl + '" target="_blank" class="btn btn-secondary btn-sm" style="padding:6px 10px;">📎 View</a>' : '')
+        + (receiptUrl ? '<a href="' + this._esc(receiptUrl) + '" data-storage-link target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding:6px 10px;">📎 View</a>' : '')
         + '<button class="btn btn-primary btn-sm" onclick="feesPaymentsModule.verifyPayment(\'' + p.id + '\')" style="padding:6px 12px;">✅ Approve</button>'
         + '<button class="btn btn-sm" onclick="feesPaymentsModule.rejectPayment(\'' + p.id + '\')" style="padding:6px 12px;background:var(--color-danger);color:white;border:none;border-radius:6px;cursor:pointer;">❌ Reject</button>'
         + '</div>'
@@ -2472,8 +2472,8 @@ const feesPaymentsModule = {
           </div>
           <div class="card-body" style="text-align: center;">
             ${payment.receiptUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)
-              ? `<img src="${this._esc(payment.receiptUrl)}" alt="Payment Receipt" style="max-width: 100%; max-height: 400px; border-radius: var(--radius-md); border: 1px solid var(--border-primary);">`
-              : `<a href="${this._esc(payment.receiptUrl)}" target="_blank" class="btn btn-secondary">📄 View Receipt Document</a>`
+              ? `<img data-storage-src="${this._esc(payment.receiptUrl)}" alt="Payment Receipt" style="max-width: 100%; max-height: 400px; border-radius: var(--radius-md); border: 1px solid var(--border-primary);">`
+              : `<a href="${this._esc(payment.receiptUrl)}" data-storage-link target="_blank" rel="noopener noreferrer" class="btn btn-secondary">📄 View Receipt Document</a>`
             }
           </div>
         </div>

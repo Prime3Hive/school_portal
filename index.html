@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TBD Academy - School Management Portal</title>
+  <title>TBD International Academy - School Management Portal</title>
 
   <!-- Resource hints: pre-establish connections before scripts are discovered -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
@@ -22,11 +22,13 @@
   <link rel="stylesheet" href="css/mobile-optimizations.css">
 
   <!-- Configuration -->
+  <script src="js/html-escape.js"></script>
+    <script src="js/storage-urls.js"></script>
   <script src="js/config.js"></script>
 
   <!-- Favicon -->
   <link rel="icon"
-    href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+    href="assets/logo-mark.svg">
 
   <style>
     /* Main Layout */
@@ -360,10 +362,10 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
   <!-- PWA manifest -->
   <link rel="manifest" href="manifest.json">
-  <meta name="theme-color" content="#137fec">
+  <meta name="theme-color" content="#1E2A5A">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="apple-mobile-web-app-title" content="TBD Academy">
+  <meta name="apple-mobile-web-app-title" content="TBD International Academy">
 </head>
 
 <body>
@@ -371,16 +373,29 @@
     <!-- Sidebar Navigation -->
     <nav class="nav-sidebar" id="sidebar">
       <div class="nav-logo">
-        <div class="nav-logo-icon">🎓</div>
+        <div class="nav-logo-icon"><img src="assets/logo-mark.svg" alt="TBD International Academy crest" width="32"
+            height="32"></div>
         <div class="nav-logo-text">
-          <div id="sidebar-school-name" style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD Academy</div>
-          <div id="sidebar-school-location" style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Lagos, Nigeria</div>
+          <div id="sidebar-school-name" style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD International Academy</div>
+          <div id="sidebar-school-location" style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Makurdi, Benue State</div>
         </div>
       </div>
       <script>
         (function() {
           try {
             var s = JSON.parse(localStorage.getItem('tbd_academy_settings') || '{}');
+
+            // Upgrade values left over from the pre-rebrand defaults, then write
+            // them back so the stale name does not reappear on the next load.
+            var up = window.upgradeLegacySchoolValue || function(f, v) { return v; };
+            var migrated = false;
+            ['schoolName', 'schoolAddress'].forEach(function(field) {
+              if (!s[field]) return;
+              var next = up(field, s[field]);
+              if (next !== s[field]) { s[field] = next; migrated = true; }
+            });
+            if (migrated) localStorage.setItem('tbd_academy_settings', JSON.stringify(s));
+
             if (s.schoolName)    document.getElementById('sidebar-school-name').textContent    = s.schoolName;
             if (s.schoolAddress) document.getElementById('sidebar-school-location').textContent = s.schoolAddress;
             if (s.theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');

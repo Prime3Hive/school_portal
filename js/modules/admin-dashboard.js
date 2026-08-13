@@ -59,7 +59,15 @@ const adminDashboardModule = {
               <span class="dash-hero-badge">🎓 Admin Portal</span>
               <span class="dash-hero-date">${dateStr}</span>
             </div>
-            <h1 class="dash-hero-title">${schoolConfig?.name || 'TBD Academy'}</h1>
+            <div class="dash-hero-brand">
+              <span class="dash-hero-crest">
+                <img src="assets/logo-mark.svg" alt="" width="42" height="42">
+              </span>
+              <div>
+                <h1 class="dash-hero-title">${schoolConfig?.name || 'TBD International Academy'}</h1>
+                <span class="dash-hero-motto">${schoolConfig?.motto || 'Planting Seeds of Knowledge'}</span>
+              </div>
+            </div>
             <div class="dash-hero-meta-row">
               <span class="dash-hero-location">📍 ${schoolConfig?.location || 'Makurdi, Benue State'}</span>
               <span class="dash-hero-divider"></span>
@@ -126,7 +134,7 @@ const adminDashboardModule = {
           </div>
           <div class="dash-actions-grid">
             <button class="dash-action-btn" onclick="window.app.loadModule('student-directory')">
-              <span class="dash-action-icon" style="background: linear-gradient(135deg,#667eea,#764ba2);">👤</span>
+              <span class="dash-action-icon" style="background: linear-gradient(135deg,#2E3D7D,#1E2A5A);">👤</span>
               <span>Add Student</span>
             </button>
             <button class="dash-action-btn" onclick="window.app.loadModule('staff-management')">
@@ -235,50 +243,70 @@ const adminDashboardModule = {
 
         /* ── Hero Banner ── */
         .dash-hero {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: var(--space-6);
-          margin-bottom: var(--space-8);
-          padding: var(--space-7) var(--space-8);
-          background: linear-gradient(135deg, #1a1c2e 0%, #16213e 50%, #0f3460 100%);
-          border-radius: var(--radius-xl, 16px);
-          color: #fff;
-          flex-wrap: wrap;
-          box-shadow: 0 8px 32px rgba(15, 52, 96, 0.35);
-          position: relative;
-          overflow: hidden;
-        }
-        .dash-hero::before {
-          content: '';
-          position: absolute;
-          top: -60px; right: -60px;
-          width: 280px; height: 280px;
-          background: radial-gradient(circle, rgba(255,255,255,0.06) 0%, transparent 70%);
-          pointer-events: none;
-        }
-        /* ── Hero Banner ── */
-        .dash-hero {
           display: grid;
           grid-template-columns: 1fr auto;
           grid-template-rows: auto auto;
           gap: 0;
           margin-bottom: var(--space-6);
           padding: var(--space-6) var(--space-7);
-          background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+          background: var(--gradient-brand);
           border-radius: var(--radius-xl, 16px);
           color: #fff;
-          box-shadow: 0 10px 40px rgba(15, 23, 42, 0.4);
+          box-shadow: 0 10px 40px rgba(var(--brand-navy-rgb), 0.35);
           position: relative;
           overflow: hidden;
         }
+        /* Crest watermark + a warm wash in the ribbon red. */
         .dash-hero::before {
           content: '';
           position: absolute;
-          top: 0; right: 0;
-          width: 400px; height: 100%;
-          background: linear-gradient(90deg, transparent 0%, rgba(99,102,241,0.08) 100%);
+          inset: 0;
+          background:
+            radial-gradient(circle at 96% 130%, rgba(var(--brand-red-rgb), 0.22) 0%, transparent 48%),
+            radial-gradient(circle at 8% -20%, rgba(255,255,255,0.10) 0%, transparent 50%);
           pointer-events: none;
+        }
+        /* Crest watermark, bled off the right edge so it never sits behind
+           the date filter or the refresh button. */
+        .dash-hero::after {
+          content: '';
+          position: absolute;
+          top: 50%; right: -46px;
+          width: 230px; height: 230px;
+          transform: translateY(-50%);
+          background: url('assets/logo-mark.svg') no-repeat center / contain;
+          opacity: 0.06;
+          pointer-events: none;
+        }
+
+        /* School crest + motto lockup inside the hero. */
+        .dash-hero-brand {
+          display: flex;
+          align-items: center;
+          gap: var(--space-4);
+        }
+        .dash-hero-crest {
+          flex: none;
+          width: 56px;
+          height: 56px;
+          display: grid;
+          place-items: center;
+          padding: 7px;
+          background: #fff;
+          border-radius: 14px;
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+        }
+        .dash-hero-crest img { display: block; width: 100%; height: 100%; object-fit: contain; }
+        .dash-hero-motto {
+          display: inline-block;
+          margin-top: 2px;
+          font-style: italic;
+          font-weight: 600;
+          font-size: 0.82rem;
+          color: var(--brand-red-light);
+        }
+        @media (max-width: 640px) {
+          .dash-hero::after { display: none; }
         }
         .dash-hero-content {
           grid-column: 1;
@@ -298,8 +326,8 @@ const adminDashboardModule = {
           display: inline-flex;
           align-items: center;
           gap: 6px;
-          background: linear-gradient(135deg, rgba(99,102,241,0.25), rgba(139,92,246,0.15));
-          border: 1px solid rgba(99,102,241,0.3);
+          background: linear-gradient(135deg, rgba(var(--brand-red-rgb),0.30), rgba(255,255,255,0.10));
+          border: 1px solid rgba(var(--brand-red-rgb),0.45);
           border-radius: 100px;
           padding: 6px 16px;
           font-size: 0.7rem;
@@ -370,7 +398,7 @@ const adminDashboardModule = {
         .date-filter-input::placeholder { color: #64748b; }
         .date-filter-input:focus {
           outline: none;
-          border-color: rgba(99,102,241,0.5);
+          border-color: rgba(var(--brand-red-rgb),0.55);
           background: rgba(255,255,255,0.1);
         }
         .dash-btn-refresh {
@@ -448,7 +476,7 @@ const adminDashboardModule = {
         .stat-card-modern {
           border-radius: var(--radius-xl, 16px);
           padding: var(--space-5);
-          background: var(--kpi-bg, linear-gradient(135deg,#4f46e5,#7c3aed));
+          background: var(--kpi-bg, linear-gradient(135deg,#2E3D7D,#1E2A5A));
           color: #fff;
           cursor: pointer;
           transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -738,7 +766,7 @@ const adminDashboardModule = {
 
   createModernStatCard(label, value, trend, type, icon, moduleLink) {
     const gradients = {
-      primary: { bg: 'linear-gradient(135deg,#6366f1 0%,#4f46e5 100%)', shadow: 'rgba(99,102,241,0.3)' },
+      primary: { bg: 'linear-gradient(135deg,#2E3D7D 0%,#1E2A5A 100%)', shadow: 'rgba(30,42,90,0.35)' },
       success: { bg: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', shadow: 'rgba(16,185,129,0.3)' },
       warning: { bg: 'linear-gradient(135deg,#f59e0b 0%,#ea580c 100%)', shadow: 'rgba(245,158,11,0.3)' },
       danger: { bg: 'linear-gradient(135deg,#ef4444 0%,#dc2626 100%)', shadow: 'rgba(239,68,68,0.3)' },

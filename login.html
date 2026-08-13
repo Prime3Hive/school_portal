@@ -4,139 +4,370 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - TBD Academy Portal</title>
+    <title>Sign In - TBD International Academy</title>
+    <meta name="description" content="Sign in to the TBD International Academy portal — Planting Seeds of Knowledge.">
+    <meta name="theme-color" content="#1E2A5A">
+    <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="css/components.css">
     <style>
+        /* ============================================
+           TBD INTERNATIONAL ACADEMY - SIGN IN
+           Split layout: crest/brand panel + form pane.
+           Collapses to a single column under 960px.
+           ============================================ */
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
-            padding: 0;
             min-height: 100vh;
+            min-height: 100dvh;
+            background: var(--bg-primary);
+            font-family: var(--font-sans);
+            color: var(--text-primary);
+        }
+
+        .auth-shell {
+            min-height: 100vh;
+            min-height: 100dvh;
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+
+        @media (min-width: 960px) {
+            .auth-shell {
+                grid-template-columns: 1.05fr 1fr;
+            }
+        }
+
+        /* ---------- Brand panel ---------- */
+        .auth-brand {
+            position: relative;
+            overflow: hidden;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            gap: var(--space-8);
+            padding: var(--space-16) var(--space-12);
+            background: var(--gradient-brand);
+            color: var(--text-inverse);
+            isolation: isolate;
+        }
+
+        @media (min-width: 960px) {
+            .auth-brand {
+                display: flex;
+            }
+        }
+
+        /* Tiled crest watermark, echoing the school's letterhead. */
+        .auth-brand::before {
+            content: '';
+            position: absolute;
+            inset: -10%;
+            z-index: -2;
+            background-image: url('assets/logo-mark.svg');
+            background-size: 104px;
+            background-repeat: space;
+            opacity: 0.05;
+            transform: rotate(-8deg);
+        }
+
+        .auth-brand::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background:
+                radial-gradient(circle at 15% 15%, rgba(255, 255, 255, 0.14), transparent 45%),
+                radial-gradient(circle at 85% 90%, rgba(var(--brand-red-rgb), 0.28), transparent 50%);
+        }
+
+        .brand-crest {
+            width: 132px;
+            height: 132px;
+            display: grid;
+            place-items: center;
+            background: #fff;
+            border-radius: var(--radius-full);
+            box-shadow: 0 18px 40px rgba(0, 0, 0, 0.32);
+        }
+
+        .brand-crest img {
+            width: 88px;
+            height: 88px;
+        }
+
+        /* components.css sets a dark colour on h1/p, so the inverse text
+           colour has to be restated rather than inherited. */
+        .brand-name {
+            font-family: var(--font-display);
+            font-size: clamp(2rem, 3.2vw, 2.75rem);
+            font-weight: var(--font-weight-extrabold);
+            line-height: 1.1;
+            letter-spacing: -0.02em;
+            color: var(--text-inverse);
+            margin: 0;
+        }
+
+        .brand-ribbon {
+            display: inline-flex;
+            align-items: center;
+            align-self: flex-start;
+            margin: var(--space-5) 0 0;
+            padding: var(--space-2) var(--space-6);
+            background: var(--brand-red);
+            border-radius: var(--radius-sm);
+            box-shadow: 0 8px 20px rgba(var(--brand-red-rgb), 0.35);
+            font-family: var(--font-display);
+            font-size: var(--font-size-lg);
+            font-weight: var(--font-weight-semibold);
+            font-style: italic;
+            color: var(--text-inverse);
+        }
+
+        .brand-features {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: grid;
+            gap: var(--space-4);
+            max-width: 34rem;
+        }
+
+        .brand-features li {
+            display: flex;
+            align-items: center;
+            gap: var(--space-4);
+            font-size: var(--font-size-base);
+            color: rgba(255, 255, 255, 0.88);
+        }
+
+        .brand-features .feature-icon {
+            flex: none;
+            width: 40px;
+            height: 40px;
+            display: grid;
+            place-items: center;
+            border-radius: var(--radius-md);
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            font-size: var(--font-size-lg);
+        }
+
+        .brand-footer {
+            font-size: var(--font-size-sm);
+            color: rgba(255, 255, 255, 0.65);
+        }
+
+        /* ---------- Form pane ---------- */
+        .auth-pane {
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
-            font-family: var(--font-family-base);
+            padding: var(--space-8) var(--space-6);
+            background: var(--bg-elevated);
         }
 
-        .login-container {
+        .auth-card {
             width: 100%;
-            max-width: 450px;
-            padding: var(--space-6);
+            max-width: 26rem;
+            animation: riseIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
-        .login-card {
-            background: white;
-            border-radius: var(--radius-2xl);
-            padding: var(--space-8);
-            box-shadow: var(--shadow-2xl);
-            animation: slideUp 0.5s ease-out;
-        }
-
-        @keyframes slideUp {
+        @keyframes riseIn {
             from {
                 opacity: 0;
-                transform: translateY(30px);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0);
+                transform: translateY(16px);
             }
         }
 
-        .login-header {
-            text-align: center;
+        /* Compact crest lockup — only shown when the brand panel is hidden. */
+        .auth-mobile-brand {
+            display: flex;
+            align-items: center;
+            gap: var(--space-3);
             margin-bottom: var(--space-8);
         }
 
-        .login-logo {
-            width: 80px;
-            height: 80px;
-            margin: 0 auto var(--space-4);
-            background: var(--gradient-primary);
-            border-radius: var(--radius-full);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: var(--font-size-3xl);
-            color: white;
+        @media (min-width: 960px) {
+            .auth-mobile-brand {
+                display: none;
+            }
         }
 
-        .login-title {
-            font-size: var(--font-size-2xl);
+        .auth-mobile-brand img {
+            width: 48px;
+            height: 48px;
+        }
+
+        .auth-mobile-brand .m-name {
+            font-family: var(--font-display);
+            font-size: var(--font-size-lg);
             font-weight: var(--font-weight-bold);
-            color: var(--text-primary);
-            margin-bottom: var(--space-2);
+            line-height: 1.15;
+            color: var(--brand-navy);
         }
 
-        .login-subtitle {
+        .auth-mobile-brand .m-motto {
+            font-size: var(--font-size-xs);
+            font-style: italic;
+            color: var(--brand-red);
+        }
+
+        .auth-title {
+            font-family: var(--font-display);
+            font-size: var(--font-size-3xl);
+            font-weight: var(--font-weight-bold);
+            letter-spacing: -0.02em;
+            margin: 0 0 var(--space-2);
+        }
+
+        .auth-title::after {
+            content: '';
+            display: block;
+            width: 46px;
+            height: 4px;
+            margin-top: var(--space-3);
+            border-radius: var(--radius-full);
+            background: var(--brand-red);
+        }
+
+        .auth-subtitle {
             font-size: var(--font-size-sm);
             color: var(--text-secondary);
+            margin: var(--space-4) 0 var(--space-8);
         }
 
         .form-group {
-            margin-bottom: var(--space-6);
+            margin-bottom: var(--space-5);
         }
 
         .form-label {
             display: block;
             font-size: var(--font-size-sm);
             font-weight: var(--font-weight-semibold);
-            color: var(--text-primary);
             margin-bottom: var(--space-2);
+        }
+
+        .input-wrap {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: var(--space-4);
+            font-size: var(--font-size-base);
+            line-height: 1;
+            pointer-events: none;
+            opacity: 0.55;
         }
 
         .form-input {
             width: 100%;
-            padding: var(--space-3) var(--space-4);
-            border: 2px solid var(--border-primary);
+            padding: var(--space-4) var(--space-4) var(--space-4) var(--space-10);
+            border: 1.5px solid var(--border-primary);
             border-radius: var(--radius-lg);
+            background: var(--bg-primary);
+            font-family: inherit;
             font-size: var(--font-size-base);
-            transition: all var(--transition-base);
-            box-sizing: border-box;
+            color: var(--text-primary);
+            transition: border-color var(--transition-base), box-shadow var(--transition-base), background var(--transition-base);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        .form-input:hover:not(:focus) {
+            border-color: var(--color-primary-300);
         }
 
         .form-input:focus {
             outline: none;
-            border-color: var(--color-primary);
-            box-shadow: 0 0 0 3px rgba(var(--color-primary-rgb), 0.1);
+            background: var(--bg-elevated);
+            border-color: var(--brand-navy);
+            box-shadow: 0 0 0 4px rgba(var(--brand-navy-rgb), 0.12);
         }
 
-        .form-input.error {
+        #password {
+            padding-right: var(--space-12);
+            letter-spacing: 0.02em;
+        }
+
+        .form-input[aria-invalid="true"] {
             border-color: var(--color-danger);
         }
 
+        .form-input[aria-invalid="true"]:focus {
+            box-shadow: 0 0 0 4px rgba(var(--color-danger-rgb), 0.15);
+        }
+
+        .form-hint {
+            font-size: var(--font-size-xs);
+            color: var(--text-tertiary);
+            margin: var(--space-2) 0 0;
+        }
+
         .error-message {
-            color: var(--color-danger);
-            font-size: var(--font-size-sm);
-            margin-top: var(--space-2);
             display: none;
+            font-size: var(--font-size-sm);
+            color: var(--color-danger);
+            margin: var(--space-2) 0 0;
         }
 
         .error-message.show {
             display: block;
         }
 
-        .password-toggle {
-            position: relative;
-        }
-
         .password-toggle-btn {
             position: absolute;
-            right: var(--space-3);
-            top: 50%;
-            transform: translateY(-50%);
-            background: none;
+            right: var(--space-2);
+            display: grid;
+            place-items: center;
+            width: 36px;
+            height: 36px;
             border: none;
+            border-radius: var(--radius-md);
+            background: none;
             cursor: pointer;
             font-size: var(--font-size-lg);
+            line-height: 1;
             color: var(--text-tertiary);
-            padding: var(--space-2);
+        }
+
+        .password-toggle-btn:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .caps-hint {
+            display: none;
+            align-items: center;
+            gap: var(--space-2);
+            font-size: var(--font-size-xs);
+            font-weight: var(--font-weight-medium);
+            color: var(--status-partial-text);
+            background: var(--status-partial-bg);
+            border: 1px solid var(--status-partial-border);
+            border-radius: var(--radius-md);
+            padding: var(--space-2) var(--space-3);
+            margin-top: var(--space-2);
+        }
+
+        .caps-hint.show {
+            display: flex;
         }
 
         .login-options {
             display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-3);
             justify-content: space-between;
             align-items: center;
             margin-bottom: var(--space-6);
@@ -144,100 +375,117 @@
         }
 
         .remember-me {
-            display: flex;
+            display: inline-flex;
             align-items: center;
             gap: var(--space-2);
+            cursor: pointer;
+            color: var(--text-secondary);
         }
 
-        .forgot-link {
-            color: var(--color-primary);
+        .remember-me input {
+            width: 1.05rem;
+            height: 1.05rem;
+            accent-color: var(--brand-navy);
+            cursor: pointer;
+        }
+
+        .forgot-link,
+        .verify-link {
+            color: var(--color-primary-600);
+            font-weight: var(--font-weight-semibold);
             text-decoration: none;
-            font-weight: var(--font-weight-medium);
+            border-radius: var(--radius-sm);
         }
 
-        .forgot-link:hover {
+        .forgot-link:hover,
+        .verify-link:hover {
+            color: var(--brand-red);
             text-decoration: underline;
         }
 
         .btn-login {
             width: 100%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-2);
             padding: var(--space-4);
-            background: var(--gradient-primary);
-            color: white;
             border: none;
             border-radius: var(--radius-lg);
+            background: var(--gradient-brand);
+            color: var(--text-inverse);
+            font-family: var(--font-display);
             font-size: var(--font-size-base);
             font-weight: var(--font-weight-semibold);
+            letter-spacing: 0.01em;
             cursor: pointer;
-            transition: all var(--transition-base);
-            box-shadow: var(--shadow-md);
+            box-shadow: 0 10px 24px rgba(var(--brand-navy-rgb), 0.28);
+            transition: transform var(--transition-base), box-shadow var(--transition-base), opacity var(--transition-base);
         }
 
-        .btn-login:hover {
+        .btn-login:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: var(--shadow-lg);
+            box-shadow: 0 16px 32px rgba(var(--brand-navy-rgb), 0.34);
         }
 
-        .btn-login:active {
+        .btn-login:active:not(:disabled) {
             transform: translateY(0);
         }
 
         .btn-login:disabled {
-            opacity: 0.6;
+            opacity: 0.65;
             cursor: not-allowed;
             transform: none;
         }
 
-        .login-footer {
-            text-align: center;
-            margin-top: var(--space-6);
+        .auth-footer {
+            margin-top: var(--space-8);
             padding-top: var(--space-6);
-            border-top: 1px solid var(--border-primary);
-        }
-
-        .verify-link {
-            color: var(--color-primary);
-            text-decoration: none;
-            font-weight: var(--font-weight-medium);
+            border-top: 1px solid var(--border-secondary);
+            text-align: center;
             font-size: var(--font-size-sm);
+            color: var(--text-secondary);
         }
 
-        .verify-link:hover {
-            text-decoration: underline;
+        .auth-footer p {
+            margin: 0 0 var(--space-2);
+        }
+
+        .auth-footer .fine-print {
+            font-size: var(--font-size-xs);
+            color: var(--text-tertiary);
+            margin: 0;
         }
 
         .alert {
+            display: flex;
+            gap: var(--space-3);
+            align-items: flex-start;
             padding: var(--space-4);
             border-radius: var(--radius-lg);
             margin-bottom: var(--space-6);
-            display: none;
-        }
-
-        .alert.show {
-            display: block;
+            font-size: var(--font-size-sm);
         }
 
         .alert-danger {
-            background: rgba(var(--color-danger-rgb), 0.1);
-            color: var(--color-danger);
-            border: 1px solid var(--color-danger);
+            background: var(--color-danger-bg);
+            color: var(--status-overdue-text);
+            border: 1px solid var(--status-overdue-border);
         }
 
         .alert-info {
-            background: rgba(var(--color-info-rgb), 0.1);
-            color: var(--color-info);
-            border: 1px solid var(--color-info);
+            background: var(--color-info-bg);
+            color: var(--color-secondary-800);
+            border: 1px solid var(--color-secondary-300);
         }
 
         .loading-spinner {
-            display: inline-block;
             width: 16px;
             height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: white;
-            border-radius: 50%;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: #fff;
+            border-radius: var(--radius-full);
             animation: spin 0.6s linear infinite;
-            margin-right: var(--space-2);
         }
 
         @keyframes spin {
@@ -245,220 +493,425 @@
                 transform: rotate(360deg);
             }
         }
+
+        :focus-visible {
+            outline: 3px solid var(--brand-red);
+            outline-offset: 2px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            *,
+            *::before,
+            *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+
+            .btn-login:hover:not(:disabled) {
+                transform: none;
+            }
+        }
+
+        /* ---------- Forgot-ID dialog ---------- */
+        .id-dialog {
+            width: min(28rem, calc(100% - 2rem));
+            margin: auto;
+            padding: 0;
+            border: none;
+            border-radius: var(--radius-2xl);
+            background: var(--bg-elevated);
+            color: var(--text-primary);
+            box-shadow: var(--shadow-2xl);
+        }
+
+        .id-dialog::backdrop {
+            background: rgba(var(--brand-navy-rgb), 0.65);
+            backdrop-filter: blur(4px);
+        }
+
+        .id-dialog-body {
+            padding: var(--space-8);
+        }
+
+        .id-dialog h2 {
+            font-family: var(--font-display);
+            font-size: var(--font-size-xl);
+            margin: 0 0 var(--space-2);
+        }
+
+        .id-dialog .lead {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            margin: 0 0 var(--space-6);
+        }
+
+        .id-panel {
+            border: 1px solid var(--border-secondary);
+            border-radius: var(--radius-lg);
+            padding: var(--space-4);
+            margin-bottom: var(--space-4);
+            background: var(--bg-primary);
+        }
+
+        .id-panel h3 {
+            font-size: var(--font-size-sm);
+            font-weight: var(--font-weight-semibold);
+            margin: 0 0 var(--space-3);
+        }
+
+        .id-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+            gap: var(--space-2);
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
+        .id-grid dt {
+            font-weight: var(--font-weight-semibold);
+            color: var(--text-primary);
+        }
+
+        .id-grid div {
+            display: flex;
+            align-items: center;
+            gap: var(--space-2);
+        }
+
+        .id-grid dd {
+            margin: 0;
+        }
+
+        .id-grid code {
+            font-size: var(--font-size-xs);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: 0 var(--space-2);
+        }
+
+        .id-dialog a {
+            color: var(--color-primary-600);
+        }
+
+        .btn-dialog-close {
+            width: 100%;
+            padding: var(--space-3);
+            margin-top: var(--space-2);
+            border: none;
+            border-radius: var(--radius-lg);
+            background: var(--gradient-brand);
+            color: var(--text-inverse);
+            font-family: var(--font-display);
+            font-size: var(--font-size-base);
+            font-weight: var(--font-weight-semibold);
+            cursor: pointer;
+        }
     </style>
 </head>
 
 <body>
-    <div class="login-container">
-        <div class="login-card">
-            <div class="login-header">
-                <div class="login-logo">🎓</div>
-                <h1 class="login-title">TBD Academy Portal</h1>
-                <p class="login-subtitle">Sign in to access your account</p>
+    <main class="auth-shell">
+        <!-- Brand panel (desktop) -->
+        <aside class="auth-brand">
+            <div class="brand-crest">
+                <img src="assets/logo-mark.svg" alt="" width="88" height="88">
             </div>
+            <div>
+                <h1 class="brand-name">TBD International<br>Academy</h1>
+                <p class="brand-ribbon">Planting Seeds of Knowledge</p>
+            </div>
+            <ul class="brand-features">
+                <li><span class="feature-icon" aria-hidden="true">📘</span> Results, report cards and academic records
+                </li>
+                <li><span class="feature-icon" aria-hidden="true">💳</span> Fees, invoices and payment history</li>
+                <li><span class="feature-icon" aria-hidden="true">🗓️</span> Attendance, timetable and announcements</li>
+            </ul>
+            <p class="brand-footer">Makurdi, Benue State &middot; Nigeria</p>
+        </aside>
 
-            <div id="alert-container"></div>
-
-            <form id="login-form">
-                <div class="form-group">
-                    <label class="form-label" for="userId">User ID</label>
-                    <input type="text" id="userId" name="userId" class="form-input"
-                        placeholder="e.g., ADMIN-0001, TCH-2024-001" required autocomplete="username">
-                    <p class="error-message" id="userId-error"></p>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="password">Password</label>
-                    <div class="password-toggle">
-                        <input type="password" id="password" name="password" class="form-input"
-                            placeholder="Enter your password" required autocomplete="current-password">
-                        <button type="button" class="password-toggle-btn" onclick="togglePassword()">
-                            👁️
-                        </button>
+        <!-- Sign-in form -->
+        <section class="auth-pane">
+            <div class="auth-card">
+                <div class="auth-mobile-brand">
+                    <img src="assets/logo-mark.svg" alt="TBD International Academy crest" width="48" height="48">
+                    <div>
+                        <div class="m-name">TBD International Academy</div>
+                        <div class="m-motto">Planting Seeds of Knowledge</div>
                     </div>
-                    <p class="error-message" id="password-error"></p>
                 </div>
 
-                <div class="login-options">
-                    <label class="remember-me">
-                        <input type="checkbox" id="rememberMe" name="rememberMe">
-                        <span>Remember me</span>
-                    </label>
-                    <a href="#" class="forgot-link" onclick="showForgotPassword(event)">Forgot ID?</a>
+                <h2 class="auth-title">Welcome back</h2>
+                <p class="auth-subtitle">Sign in with the User ID issued by the school administration.</p>
+
+                <div id="alert-container" role="alert" aria-live="assertive"></div>
+
+                <form id="login-form" novalidate>
+                    <div class="form-group">
+                        <label class="form-label" for="userId">User ID</label>
+                        <div class="input-wrap">
+                            <span class="input-icon" aria-hidden="true">👤</span>
+                            <input type="text" id="userId" name="userId" class="form-input" placeholder="STU-2024-001"
+                                required autocomplete="username" autocapitalize="characters" spellcheck="false"
+                                aria-describedby="userId-hint userId-error">
+                        </div>
+                        <p class="form-hint" id="userId-hint">Format: ROLE-YEAR-NUMBER, e.g. TCH-2024-015</p>
+                        <p class="error-message" id="userId-error"></p>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">Password</label>
+                        <div class="input-wrap">
+                            <span class="input-icon" aria-hidden="true">🔒</span>
+                            <input type="password" id="password" name="password" class="form-input"
+                                placeholder="Enter your password" required autocomplete="current-password"
+                                aria-describedby="password-error">
+                            <button type="button" class="password-toggle-btn" id="password-toggle"
+                                aria-label="Show password" aria-pressed="false" aria-controls="password">👁️</button>
+                        </div>
+                        <p class="caps-hint" id="caps-hint"><span aria-hidden="true">⚠️</span> Caps Lock is on</p>
+                        <p class="error-message" id="password-error"></p>
+                    </div>
+
+                    <div class="login-options">
+                        <label class="remember-me">
+                            <input type="checkbox" id="rememberMe" name="rememberMe">
+                            <span>Remember me</span>
+                        </label>
+                        <a href="#" class="forgot-link" id="forgot-link">Forgot your ID?</a>
+                    </div>
+
+                    <button type="submit" class="btn-login" id="login-btn">Sign In</button>
+                </form>
+
+                <div class="auth-footer">
+                    <p>Accounts are created by the school administrator.</p>
+                    <p class="fine-print">Have an invitation code? <a class="verify-link"
+                            href="verify-invitation.html">Verify it here</a>.</p>
                 </div>
+            </div>
+        </section>
+    </main>
 
-                <button type="submit" class="btn-login" id="login-btn">
-                    Sign In
-                </button>
-            </form>
+    <!-- Forgot-ID dialog -->
+    <dialog class="id-dialog" id="forgot-dialog" aria-labelledby="forgot-dialog-title">
+        <div class="id-dialog-body">
+            <h2 id="forgot-dialog-title">Forgot your User ID?</h2>
+            <p class="lead">Your User ID is assigned by the school administration — it cannot be reset from this page.
+            </p>
 
-            <div class="login-footer">
-                <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-2);">
-                    Accounts are created by the school administrator.
+            <div class="id-panel">
+                <h3>ID format guide</h3>
+                <dl class="id-grid">
+                    <div><dt>Admin</dt><dd><code>ADM-YYYY-NNN</code></dd></div>
+                    <div><dt>Teacher</dt><dd><code>TCH-YYYY-NNN</code></dd></div>
+                    <div><dt>Staff</dt><dd><code>STF-YYYY-NNN</code></dd></div>
+                    <div><dt>Student</dt><dd><code>STU-YYYY-NNN</code></dd></div>
+                    <div><dt>Guardian</dt><dd><code>GRD-YYYY-NNN</code></dd></div>
+                </dl>
+            </div>
+
+            <div class="id-panel">
+                <h3>Contact the school office</h3>
+                <p style="margin:0 0 var(--space-2); font-size: var(--font-size-sm);">
+                    <a href="mailto:admin@tbdacademy.edu.ng">admin@tbdacademy.edu.ng</a>
                 </p>
-                <p style="color: var(--text-tertiary); font-size: var(--font-size-xs);">
-                    Contact admin if you don't have login credentials.
+                <p style="margin:0; font-size: var(--font-size-sm); color: var(--text-secondary);">
+                    +234-800-000-0000 &middot; Mon–Fri, 8am–4pm
                 </p>
             </div>
+
+            <button type="button" class="btn-dialog-close" id="forgot-close" autofocus>Got it</button>
         </div>
-    </div>
+    </dialog>
 
     <!-- Supabase (must be first) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/html-escape.js"></script>
     <script src="js/supabase-client.js"></script>
     <script src="js/bcrypt.min.js"></script>
     <script src="js/auth-manager.js"></script>
     <script>
-        function togglePassword() {
+        (function () {
+            'use strict';
+
+            const form = document.getElementById('login-form');
+            const userIdInput = document.getElementById('userId');
             const passwordInput = document.getElementById('password');
-            const toggleBtn = event.target;
-
-            if (passwordInput.type === 'password') {
-                passwordInput.type = 'text';
-                toggleBtn.textContent = '🙈';
-            } else {
-                passwordInput.type = 'password';
-                toggleBtn.textContent = '👁️';
-            }
-        }
-
-        function showAlert(message, type = 'danger') {
-            const container = document.getElementById('alert-container');
-            container.innerHTML = `
-        <div class="alert alert-${type} show">
-          ${message}
-        </div>
-      `;
-
-            setTimeout(() => {
-                container.innerHTML = '';
-            }, 5000);
-        }
-
-        function showForgotPassword(event) {
-            event.preventDefault();
-
-            // Create modal overlay
-            const overlay = document.createElement('div');
-            overlay.id = 'forgot-overlay';
-            overlay.style.cssText = `
-                position: fixed; inset: 0; z-index: 9999;
-                background: rgba(0,0,0,0.6); display: flex;
-                align-items: center; justify-content: center; padding: 1rem;
-                backdrop-filter: blur(4px); animation: fadeIn 0.2s ease;
-            `;
-            overlay.innerHTML = `
-                <div style="background: white; border-radius: 1.25rem; max-width: 440px; width: 100%;
-                     padding: 2.5rem; box-shadow: 0 25px 60px rgba(0,0,0,0.3); animation: slideUp 0.3s ease;">
-                    <div style="text-align:center; margin-bottom:1.5rem;">
-                        <div style="font-size:3rem; margin-bottom:.75rem;">🔑</div>
-                        <h2 style="font-size:1.5rem; font-weight:700; color:#1e293b; margin:0 0 .5rem;">
-                            Forgot Your ID?
-                        </h2>
-                        <p style="color:#64748b; font-size:.9rem; margin:0;">
-                            Your User ID is assigned by the school administration.
-                        </p>
-                    </div>
-
-                    <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:.75rem;
-                         padding:1.25rem; margin-bottom:1.5rem;">
-                        <div style="font-weight:600; color:#0369a1; margin-bottom:.75rem;">📋 ID Format Guide</div>
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:.5rem; font-size:.85rem; color:#334155;">
-                            <div>🛡️ <strong>Admin:</strong> ADM-YYYY-XXX</div>
-                            <div>👩‍🏫 <strong>Teacher:</strong> TCH-YYYY-XXX</div>
-                            <div>👔 <strong>Staff:</strong> STF-YYYY-XXX</div>
-                            <div>🎓 <strong>Student:</strong> STU-YYYY-XXX</div>
-                            <div>👨‍👩‍👧 <strong>Guardian:</strong> GRD-YYYY-XXX</div>
-                        </div>
-                    </div>
-
-                    <div style="background:#fef9f0; border:1px solid #fed7aa; border-radius:.75rem;
-                         padding:1.25rem; margin-bottom:1.75rem;">
-                        <div style="font-weight:600; color:#92400e; margin-bottom:.5rem;">📞 Contact Administration</div>
-                        <p style="color:#78350f; font-size:.875rem; margin:0 0 .5rem;">
-                            📧 <a href="mailto:admin@tbdacademy.edu.ng" style="color:#b45309;">
-                               admin@tbdacademy.edu.ng</a>
-                        </p>
-                        <p style="color:#78350f; font-size:.875rem; margin:0;">
-                            📱 +234-800-000-0000 &nbsp;(Mon–Fri, 8am–4pm)
-                        </p>
-                    </div>
-
-                    <button onclick="document.getElementById('forgot-overlay').remove()"
-                        style="width:100%; padding:.875rem; border-radius:.625rem; border:none; cursor:pointer;
-                               background:linear-gradient(135deg,#6366f1,#8b5cf6); color:white;
-                               font-size:1rem; font-weight:600; transition:all .2s;"
-                        onmouseover="this.style.transform='translateY(-2px)'"
-                        onmouseout="this.style.transform='translateY(0)'">
-                        Got it, thanks! →
-                    </button>
-                </div>
-            `;
-            // Close on backdrop click
-            overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-            document.body.appendChild(overlay);
-        }
-
-        // Login form handler
-        document.getElementById('login-form').addEventListener('submit', async function (e) {
-            e.preventDefault();
-
-            const userId = document.getElementById('userId').value.trim().toUpperCase();
-            const password = document.getElementById('password').value;
             const loginBtn = document.getElementById('login-btn');
+            const alertContainer = document.getElementById('alert-container');
+            const capsHint = document.getElementById('caps-hint');
 
-            // Clear previous errors
-            document.querySelectorAll('.error-message').forEach(el => el.classList.remove('show'));
-            document.querySelectorAll('.form-input').forEach(el => el.classList.remove('error'));
+            // Accepted ID shapes, e.g. ADM-2024-001 / STU-2024 / ADMIN-2024-001
+            const ID_PATTERN = /^(ADMIN|ADM|TCH|STF|STAFF|STU|GRD)-\d{4}(-\d{3})?$/;
 
-            // Validate ID format
-            const idPattern = /^(ADMIN|ADM|TCH|STF|STAFF|STU|GRD)-\d{4}(-\d{3})?$/;
-            if (!idPattern.test(userId)) {
-                document.getElementById('userId').classList.add('error');
-                document.getElementById('userId-error').textContent = 'Invalid ID format';
-                document.getElementById('userId-error').classList.add('show');
-                return;
+            // ---------- Feedback helpers ----------
+            function showAlert(message, type = 'danger') {
+                // Built with textContent: login errors can echo server-supplied
+                // text, so it must never be parsed as HTML.
+                alertContainer.textContent = '';
+                const box = document.createElement('div');
+                box.className = `alert alert-${type}`;
+                const icon = document.createElement('span');
+                icon.setAttribute('aria-hidden', 'true');
+                icon.textContent = type === 'danger' ? '⚠️' : 'ℹ️';
+                const text = document.createElement('span');
+                text.textContent = message;
+                box.append(icon, text);
+                alertContainer.appendChild(box);
+                window.clearTimeout(showAlert._timer);
+                showAlert._timer = window.setTimeout(() => {
+                    alertContainer.textContent = '';
+                }, 8000);
             }
 
-            // Show loading state
-            loginBtn.disabled = true;
-            loginBtn.innerHTML = '<span class="loading-spinner"></span> Signing in...';
-
-            try {
-                const result = await authManager.login(userId, password);
-
-                if (result.success) {
-                    // If admin requires a password change, redirect there first
-                    if (result.mustChangePassword || (result.session && result.session.mustChangePassword)) {
-                        window.location.href = 'change-password.html?userId=' + encodeURIComponent(result.session.userId);
-                    } else {
-                        const redirectUrl = authManager.getRedirectUrl(result.session.role);
-                        window.location.href = redirectUrl;
-                    }
+            function setFieldError(input, message) {
+                const errorEl = document.getElementById(`${input.id}-error`);
+                if (message) {
+                    input.setAttribute('aria-invalid', 'true');
+                    errorEl.textContent = message;
+                    errorEl.classList.add('show');
                 } else {
-                    showAlert(result.error || result.message || 'Login failed. Please try again.');
-                    loginBtn.disabled = false;
+                    input.removeAttribute('aria-invalid');
+                    errorEl.textContent = '';
+                    errorEl.classList.remove('show');
+                }
+            }
+
+            function clearErrors() {
+                setFieldError(userIdInput, '');
+                setFieldError(passwordInput, '');
+                alertContainer.textContent = '';
+            }
+
+            function setBusy(busy) {
+                loginBtn.disabled = busy;
+                loginBtn.textContent = '';
+                if (busy) {
+                    const spinner = document.createElement('span');
+                    spinner.className = 'loading-spinner';
+                    loginBtn.append(spinner, 'Signing in…');
+                } else {
                     loginBtn.textContent = 'Sign In';
                 }
-            } catch (error) {
-                showAlert('An error occurred. Please try again.');
-                loginBtn.disabled = false;
-                loginBtn.textContent = 'Sign In';
             }
-        });
 
-        // Check if already logged in (use 'load' to let Supabase session hydrate first)
-        window.addEventListener('load', () => {
-            if (authManager.isAuthenticated()) {
+            // ---------- Field behaviour ----------
+            // IDs are stored uppercase; normalise as the user types so the
+            // hint and the submitted value always agree.
+            userIdInput.addEventListener('input', () => {
+                const start = userIdInput.selectionStart;
+                userIdInput.value = userIdInput.value.toUpperCase();
+                userIdInput.setSelectionRange(start, start);
+                if (userIdInput.getAttribute('aria-invalid')) setFieldError(userIdInput, '');
+            });
+
+            userIdInput.addEventListener('blur', () => {
+                const value = userIdInput.value.trim();
+                if (value && !ID_PATTERN.test(value)) {
+                    setFieldError(userIdInput, 'That does not look like a valid ID. Example: STU-2024-001');
+                }
+            });
+
+            passwordInput.addEventListener('input', () => {
+                if (passwordInput.getAttribute('aria-invalid')) setFieldError(passwordInput, '');
+            });
+
+            function updateCapsHint(event) {
+                const on = typeof event.getModifierState === 'function' && event.getModifierState('CapsLock');
+                capsHint.classList.toggle('show', Boolean(on));
+            }
+            passwordInput.addEventListener('keydown', updateCapsHint);
+            passwordInput.addEventListener('keyup', updateCapsHint);
+            passwordInput.addEventListener('blur', () => capsHint.classList.remove('show'));
+
+            const toggleBtn = document.getElementById('password-toggle');
+            toggleBtn.addEventListener('click', () => {
+                const revealed = passwordInput.type === 'text';
+                passwordInput.type = revealed ? 'password' : 'text';
+                toggleBtn.textContent = revealed ? '👁️' : '🙈';
+                toggleBtn.setAttribute('aria-pressed', String(!revealed));
+                toggleBtn.setAttribute('aria-label', revealed ? 'Show password' : 'Hide password');
+                passwordInput.focus();
+            });
+
+            // ---------- Forgot-ID dialog ----------
+            const forgotDialog = document.getElementById('forgot-dialog');
+            document.getElementById('forgot-link').addEventListener('click', (event) => {
+                event.preventDefault();
+                if (typeof forgotDialog.showModal === 'function') {
+                    forgotDialog.showModal();
+                } else {
+                    forgotDialog.setAttribute('open', '');
+                }
+            });
+            document.getElementById('forgot-close').addEventListener('click', () => forgotDialog.close());
+            forgotDialog.addEventListener('click', (event) => {
+                // Clicking the backdrop lands on the <dialog> element itself.
+                if (event.target === forgotDialog) forgotDialog.close();
+            });
+
+            // ---------- Submit ----------
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                clearErrors();
+
+                const userId = userIdInput.value.trim().toUpperCase();
+                const password = passwordInput.value;
+
+                if (!userId) {
+                    setFieldError(userIdInput, 'Enter your User ID.');
+                    userIdInput.focus();
+                    return;
+                }
+                if (!ID_PATTERN.test(userId)) {
+                    setFieldError(userIdInput, 'That does not look like a valid ID. Example: STU-2024-001');
+                    userIdInput.focus();
+                    return;
+                }
+                if (!password) {
+                    setFieldError(passwordInput, 'Enter your password.');
+                    passwordInput.focus();
+                    return;
+                }
+
+                setBusy(true);
+                try {
+                    const result = await authManager.login(userId, password);
+
+                    if (result.success) {
+                        // A forced password change takes precedence over the role landing page.
+                        if (result.mustChangePassword || (result.session && result.session.mustChangePassword)) {
+                            window.location.href = 'change-password.html?userId=' + encodeURIComponent(result.session.userId);
+                        } else {
+                            window.location.href = authManager.getRedirectUrl(result.session.role);
+                        }
+                        return;
+                    }
+
+                    showAlert(result.error || result.message || 'Login failed. Please try again.');
+                    setBusy(false);
+                    passwordInput.focus();
+                    passwordInput.select();
+                } catch (error) {
+                    showAlert('We could not reach the portal. Check your connection and try again.');
+                    setBusy(false);
+                }
+            });
+
+            // Redirect signed-in users. Uses 'load' so the Supabase session has hydrated.
+            window.addEventListener('load', () => {
+                if (!authManager.isAuthenticated()) return;
                 const session = authManager.getSession();
                 if (session.mustChangePassword) {
                     window.location.href = 'change-password.html?userId=' + encodeURIComponent(session.userId);
                 } else {
-                    const redirectUrl = authManager.getRedirectUrl(session.role);
-                    window.location.href = redirectUrl;
+                    window.location.href = authManager.getRedirectUrl(session.role);
                 }
-            }
-        });
+            });
+        })();
     </script>
 </body>
 

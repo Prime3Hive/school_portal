@@ -1,13 +1,19 @@
 {
   "name": "tbd-academy-portal",
   "version": "1.0.0",
-  "description": "School management portal for TBD Academy, Makurdi, Benue State",
+  "description": "School management portal for TBD International Academy, Makurdi, Benue State",
   "main": "index.html",
   "scripts": {
     "dev": "python -m http.server 8000",
+    "build": "node scripts/build.js",
+    "build:verbose": "node scripts/build.js --verbose",
+    "preview": "node scripts/build.js && python -m http.server 8000 --directory dist",
     "deploy": "vercel --prod",
-    "test": "node tests/runner.js",
+    "test": "node tests/runner.js && node tests/service-worker.test.js",
     "test:watch": "node --watch tests/runner.js",
+    "lint": "node scripts/check-syntax.js",
+    "verify": "npm run lint && npm test && npm run build",
+    "verify:rls": "node scripts/verify-rls.js",
     "migrate": "node supabase/run-migrations.js",
     "migrate:dry": "node supabase/run-migrations.js --dry-run"
   },
@@ -18,7 +24,7 @@
     "education",
     "tbd-academy"
   ],
-  "author": "TBD Academy",
+  "author": "TBD International Academy",
   "license": "UNLICENSED",
   "private": true
 }

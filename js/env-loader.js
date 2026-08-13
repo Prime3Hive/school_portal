@@ -108,7 +108,7 @@ class EnvLoader {
       SUPABASE_ANON_KEY: 'your-anon-key-here',
       PAYSTACK_PUBLIC_KEY: 'pk_test_xxxxxxxxxxxx',
       APP_ENV: 'development',
-      SCHOOL_NAME: 'TBD Academy'
+      SCHOOL_NAME: 'TBD International Academy'
     };
     window.ENV = this.variables;
     this.loaded = true;

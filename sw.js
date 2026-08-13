@@ -1,17 +1,52 @@
 // ============================================
-// SERVICE WORKER — TBD Academy School Portal
-// Strategy: Network-first for API/Supabase, Cache-first for static assets
+// SERVICE WORKER — TBD International Academy School Portal
+// Strategy: Network-first for API/Supabase, stale-while-revalidate for static assets
 // ============================================
+// CACHING CONTRACT
+// ----------------
+// `scripts/build.js` content-hashes JS/CSS filenames (js/app.4f2a1c9d.js) and
+// stamps CACHE_VERSION below with the build id. That gives us two classes of
+// same-origin asset, handled differently:
+//
+//   • Hashed (js/app.<hash>.js)  → cache-first. The URL changes whenever the
+//     bytes change, so a cache hit can never be stale. No revalidation at all.
+//   • Unhashed (manifest.json …) → stale-while-revalidate. Instant paint from
+//     cache, refreshed in the background, correct on the next navigation.
+//
+// Pure cache-first on an unhashed URL would pin a user to whatever build they
+// first loaded, forever — that is the trap this split avoids.
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'dev'; // replaced with the build id by scripts/build.js
+
+/** Matches a build-fingerprinted filename: name.<8 hex>.js|css */
+const HASHED_ASSET = /\.[0-9a-f]{8}\.(?:js|css)$/;
 const STATIC_CACHE  = `tbd-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `tbd-dynamic-${CACHE_VERSION}`;
 
-// Static assets to pre-cache on install
+/**
+ * Page served when an HTML navigation cannot be satisfied from network or cache.
+ * It must never be the portal shell: index.html runs an auth guard, so handing
+ * it to someone who asked for a public page bounces them to the login screen.
+ */
+const OFFLINE_PAGE = '/offline.html';
+
+// Static assets to pre-cache on install.
+// NOTE: no '/' entry — on Vercel it 3xx-redirects to /public-blog.html, and a
+// redirected response cannot be written to the cache.
 const PRECACHE_ASSETS = [
-  '/',
   '/index.html',
   '/login.html',
+  OFFLINE_PAGE,
+  // Public pages carry no auth guard and must stay reachable offline.
+  '/public-blog.html',
+  '/about.html',
+  '/academics.html',
+  '/admissions.html',
+  '/contact.html',
+  '/assets/logo-mark.svg',
+  '/assets/logo.svg',
+  '/assets/app-icon.svg',
+  '/assets/campus-panel.svg',
   '/css/design-system.css',
   '/css/components.css',
   '/css/accessibility.css',
@@ -52,10 +87,19 @@ const NETWORK_FIRST_HOSTS = [
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(STATIC_CACHE)
-      .then(cache => cache.addAll(PRECACHE_ASSETS).catch(err => {
-        // Don't fail install if some assets are missing locally
-        console.warn('[SW] Pre-cache partial failure:', err);
-      }))
+      .then(async cache => {
+        // Deliberately NOT cache.addAll(): that call is atomic, so a single
+        // missing or redirected entry rejects the whole batch and leaves the
+        // cache completely empty. Cache each asset on its own instead, so one
+        // bad URL costs one asset rather than the entire precache.
+        const results = await Promise.allSettled(
+          PRECACHE_ASSETS.map(asset => cache.add(asset))
+        );
+        const failed = results
+          .map((r, i) => (r.status === 'rejected' ? PRECACHE_ASSETS[i] : null))
+          .filter(Boolean);
+        if (failed.length) console.warn('[SW] Pre-cache skipped:', failed);
+      })
       .then(() => self.skipWaiting())
   );
 });
@@ -90,21 +134,36 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // 4. Same-origin HTML pages: network-first (keep content fresh)
+  // 4. Same-origin HTML pages: network-first (keep content fresh).
+  //    The timeout is deliberately generous — aborting early on a slow mobile
+  //    connection drops an online user into the offline path for no good reason.
   if (url.origin === self.location.origin && request.headers.get('accept')?.includes('text/html')) {
-    event.respondWith(networkFirst(request, STATIC_CACHE, 4000));
+    event.respondWith(networkFirst(request, STATIC_CACHE, 10000));
     return;
   }
 
-  // 5. Same-origin static assets (JS, CSS, fonts, images): cache-first
-  if (url.origin === self.location.origin) {
+  // 5. Never serve the runtime config from cache — it carries env values
+  //    that differ per deployment and must not go stale.
+  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) return;
+
+  // 6. Build-fingerprinted assets are immutable by construction — a cache hit
+  //    is always correct, so serve it without touching the network.
+  if (url.origin === self.location.origin && HASHED_ASSET.test(url.pathname)) {
     event.respondWith(cacheFirst(request, STATIC_CACHE));
+    return;
+  }
+
+  // 7. Remaining same-origin assets have stable names and could change in place,
+  //    so revalidate in the background rather than trusting the cache forever.
+  if (url.origin === self.location.origin) {
+    event.respondWith(staleWhileRevalidate(request, STATIC_CACHE));
     return;
   }
 });
 
 // ── Strategy helpers ──────────────────────────────────────────────────────────
 
+/** Cache hit wins outright. Only safe for content-addressed (hashed) URLs. */
 async function cacheFirst(request, cacheName) {
   const cached = await caches.match(request);
   if (cached) return cached;
@@ -112,7 +171,7 @@ async function cacheFirst(request, cacheName) {
     const response = await fetch(request);
     if (response.ok) {
       const cache = await caches.open(cacheName);
-      cache.put(request, response.clone());
+      await cache.put(request, response.clone());
     }
     return response;
   } catch {
@@ -121,6 +180,39 @@ async function cacheFirst(request, cacheName) {
       headers: { 'Content-Type': 'text/plain' }
     });
   }
+}
+
+/**
+ * Serve from cache immediately (if present) while refreshing the cache in the
+ * background. A user on a stale build gets the current file on their next
+ * navigation instead of being pinned to it forever.
+ */
+async function staleWhileRevalidate(request, cacheName) {
+  const cached = await caches.match(request);
+
+  const networkFetch = fetch(request)
+    .then(async response => {
+      if (response.ok) {
+        const cache = await caches.open(cacheName);
+        await cache.put(request, response.clone());
+      }
+      return response;
+    })
+    .catch(() => null);
+
+  if (cached) {
+    // Don't let the background refresh be killed when the response settles.
+    networkFetch.catch(() => {});
+    return cached;
+  }
+
+  const fresh = await networkFetch;
+  if (fresh) return fresh;
+
+  return new Response('Offline — resource unavailable', {
+    status: 503,
+    headers: { 'Content-Type': 'text/plain' }
+  });
 }
 
 async function networkFirst(request, cacheName, timeoutMs) {
@@ -138,11 +230,27 @@ async function networkFirst(request, cacheName, timeoutMs) {
     clearTimeout(timeout);
     const cached = await caches.match(request);
     if (cached) return cached;
-    // Offline fallback for HTML pages
+
+    // Offline fallback for HTML pages.
+    //
+    // This used to hand back the cached '/index.html'. That is an SPA-shell
+    // assumption and this app is multi-page: every route is a real file with
+    // its own guard. Serving the portal shell for, say, /public-blog.html ran
+    // index.html's auth check against a visitor with no session, which
+    // redirected them to login.html — while the address bar still read
+    // /public-blog.html, so reloading just repeated the bounce.
+    //
+    // Never substitute a different page: serve a neutral offline page instead.
     if (request.headers.get('accept')?.includes('text/html')) {
-      const offlinePage = await caches.match('/index.html');
+      const offlinePage = await caches.match(OFFLINE_PAGE);
       if (offlinePage) return offlinePage;
+      return new Response(
+        '<!doctype html><meta charset="utf-8"><title>Offline</title>' +
+        '<p>You are offline. Please check your connection and try again.</p>',
+        { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+      );
     }
+
     return new Response(JSON.stringify({ error: 'offline', message: 'You are offline. Please check your connection.' }), {
       status: 503,
       headers: { 'Content-Type': 'application/json' }
@@ -165,13 +273,17 @@ async function replayQueue() {
 }
 
 // ── Push notifications ────────────────────────────────────────────────────────
+// manifest.json is not an image — using it as an icon renders nothing.
+// Use the school crest, same asset the manifest declares.
+const NOTIFICATION_ICON = '/assets/app-icon.svg';
+
 self.addEventListener('push', event => {
   const data = event.data?.json() || {};
   event.waitUntil(
-    self.registration.showNotification(data.title || 'TBD Academy', {
+    self.registration.showNotification(data.title || 'TBD International Academy', {
       body: data.body || '',
-      icon: '/manifest.json',
-      badge: '/manifest.json',
+      icon: NOTIFICATION_ICON,
+      badge: NOTIFICATION_ICON,
       tag: data.tag || 'tbd-notification',
       data: { url: data.url || '/' },
     })

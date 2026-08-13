@@ -9,8 +9,11 @@ const applicationsModule = {
     searchQuery: '',
     sortBy: 'date',
     sortOrder: 'desc',
+    _approving: false,   // in-flight guard for confirmApproval
 
-    // XSS helper — delegates to global escapeHtml when available
+    // XSS helper — delegates to global escapeHtml when available.
+    // Every value rendered by this module originates from a public,
+    // unauthenticated submission, so nothing may reach innerHTML unescaped.
     _esc(str) {
         if (typeof window.escapeHtml === 'function') return window.escapeHtml(String(str ?? ''));
         return String(str ?? '')
@@ -19,6 +22,33 @@ const applicationsModule = {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
+    },
+
+    // Document URLs are attacker-supplied too. Only http(s) links are allowed
+    // through — a `javascript:` URL in an href runs with the admin's session.
+    _safeUrl(url) {
+        const raw = String(url ?? '').trim();
+        if (!raw) return '';
+        try {
+            const parsed = new URL(raw, window.location.origin);
+            return ['http:', 'https:'].includes(parsed.protocol) ? parsed.href : '';
+        } catch {
+            return '';
+        }
+    },
+
+    // Escaped, protocol-checked URL ready for an href/src attribute.
+    _escUrl(url) {
+        return this._esc(this._safeUrl(url));
+    },
+
+    // parent_address is jsonb ({street, city, state}); rendering it directly
+    // produced the literal text "[object Object]" in the details modal.
+    _formatAddress(addr) {
+        if (!addr) return '—';
+        if (typeof addr === 'string') return addr || '—';
+        const parts = [addr.street, addr.city, addr.state].filter(p => p && String(p).trim());
+        return parts.length ? parts.join(', ') : '—';
     },
 
     async init(container) {
@@ -393,7 +423,7 @@ const applicationsModule = {
             ${isLoading
               ? 'Fetching applications from the database, please wait.'
               : this.searchQuery
-                ? `No applications match "${this.searchQuery}". Try a different search term.`
+                ? `No applications match "${this._esc(this.searchQuery)}". Try a different search term.`
                 : this.currentFilter === 'all'
                   ? 'No applications have been submitted yet. Applications will appear here once submitted from the public admissions page.'
                   : `No ${this.currentFilter} applications at the moment.`
@@ -461,7 +491,7 @@ const applicationsModule = {
             <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
               <h3 style="margin: 0; color: var(--text-primary); font-size: 1.25rem;">${safeName}</h3>
               <span style="background: ${statusInfo.gradient}; color: white; padding: 0.375rem 0.875rem; border-radius: 20px; font-size: 0.8125rem; font-weight: 600; text-transform: capitalize; box-shadow: 0 2px 8px ${statusInfo.border}40;">
-                <i class="fas ${statusInfo.icon}"></i> ${app.status}
+                <i class="fas ${statusInfo.icon}"></i> ${this._esc(app.status)}
               </span>
               ${app.application_fee_paid ? `<span style="background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%)); color: white; padding: 0.375rem 0.875rem; border-radius: 20px; font-size: 0.8125rem; font-weight: 600; box-shadow: 0 2px 8px hsl(150, 70%, 45%)40;">
                 <i class="fas fa-check-circle"></i> Fee Paid
@@ -530,9 +560,9 @@ const applicationsModule = {
           <button class="btn-secondary" onclick="event.stopPropagation(); applicationsModule.viewApplication('${app.id}')" style="transition: all 0.3s ease;" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
             <i class="fas fa-eye"></i> View Full Details
           </button>
-          ${app.application_form_url ? `<button class="btn-secondary" onclick="event.stopPropagation(); window.open('${app.application_form_url}', '_blank')" style="transition: all 0.3s ease;" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
+          ${this._safeUrl(app.application_form_url) ? `<a class="btn-secondary" href="${this._escUrl(app.application_form_url)}" data-storage-link target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="transition: all 0.3s ease; text-decoration:none;" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
             <i class="fas fa-file-pdf"></i> View Form
-          </button>` : ''}
+          </a>` : ''}
           ${app.status === 'pending' ? `
             <button class="btn-success" onclick="event.stopPropagation(); applicationsModule.approveApplication('${app.id}')" style="transition: all 0.3s ease; margin-left: auto;" onmouseenter="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(34, 197, 94, 0.3)'" onmouseleave="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow=''">
               <i class="fas fa-check"></i> Approve Application
@@ -570,13 +600,15 @@ const applicationsModule = {
         const otherDocs     = app.otherDocuments        || app.other_documents         || [];
         const receiptUrl    = app.receiptUrl            || app.receipt_url             || '';
 
-        // helper: document link button
-        const docBtn = (url, label, icon = 'fa-file-alt') =>
-            url ? `<a href="${url}" target="_blank" rel="noopener noreferrer"
+        // helper: document link button (URL validated + escaped)
+        const docBtn = (url, label, icon = 'fa-file-alt') => {
+            const href = this._escUrl(url);
+            return href ? `<a href="${href}" data-storage-link target="_blank" rel="noopener noreferrer"
                       style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.45rem 0.9rem;background:var(--bg-primary);color:var(--text-primary);border:1.5px solid var(--border-primary);border-radius:6px;font-size:0.8rem;font-weight:600;text-decoration:none;transition:opacity 0.2s;"
                       onmouseenter="this.style.opacity='0.75'" onmouseleave="this.style.opacity='1'">
-                    <i class="fas ${icon}"></i> ${label}
+                    <i class="fas ${icon}"></i> ${this._esc(label)}
                   </a>` : `<span style="color:var(--text-tertiary);font-size:0.8rem;font-style:italic;">Not uploaded</span>`;
+        };
 
         // other documents array handling
         const otherDocsHtml = (() => {
@@ -595,10 +627,10 @@ const applicationsModule = {
         <div style="background:${statusInfo.bg};padding:1rem 1.25rem;border-radius:10px;border-left:4px solid ${statusInfo.border};margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
           <div>
             <div style="font-weight:700;font-size:1rem;color:${statusInfo.text};text-transform:capitalize;margin-bottom:0.2rem;">
-              <i class="fas fa-circle" style="font-size:0.6rem;margin-right:0.4rem;"></i> ${app.status}
+              <i class="fas fa-circle" style="font-size:0.6rem;margin-right:0.4rem;"></i> ${this._esc(app.status)}
             </div>
             <div style="font-size:0.8rem;color:var(--text-secondary);">
-              App No: <strong>${app.applicationNumber || app.application_number || app.id}</strong>
+              App No: <strong>${this._esc(app.applicationNumber || app.application_number || app.id)}</strong>
             </div>
           </div>
           ${submittedAt ? `<div style="font-size:0.8rem;color:var(--text-secondary);text-align:right;">
@@ -609,9 +641,9 @@ const applicationsModule = {
         <div style="display:grid;gap:1.5rem;">
 
           <!-- ── PASSPORT PHOTO ── -->
-          ${photoUrl ? `
+          ${this._safeUrl(photoUrl) ? `
           <div style="text-align:center;">
-            <img src="${photoUrl}" alt="Passport Photo"
+            <img data-storage-src="${this._escUrl(photoUrl)}" alt="Passport Photo"
               style="width:120px;height:140px;object-fit:cover;border-radius:10px;border:3px solid var(--border-primary);box-shadow:0 4px 12px rgba(0,0,0,0.1);"
               onerror="this.style.display='none'">
             <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:0.4rem;">Passport Photo</div>
@@ -623,11 +655,11 @@ const applicationsModule = {
               <i class="fas fa-user-graduate" style="color:var(--color-primary);"></i> Student Information
             </h4>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1.5rem;">
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Full Name</span><br><strong>${app.studentName || app.student_name || '—'}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Grade Applying For</span><br><strong>${app.grade || '—'}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Date of Birth</span><br><strong>${app.studentDob || app.student_dob ? new Date(app.studentDob || app.student_dob).toLocaleDateString() : '—'}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Gender</span><br><strong style="text-transform:capitalize;">${app.studentGender || app.student_gender || '—'}</strong></div>
-              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Previous School</span><br><strong>${app.previousSchool || app.previous_school || '—'}</strong></div>
+              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Full Name</span><br><strong>${this._esc(app.studentName || app.student_name || '—')}</strong></div>
+              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Grade Applying For</span><br><strong>${this._esc(app.grade || '—')}</strong></div>
+              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Date of Birth</span><br><strong>${app.studentDob || app.student_dob ? this._esc(new Date(app.studentDob || app.student_dob).toLocaleDateString()) : '—'}</strong></div>
+              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Gender</span><br><strong style="text-transform:capitalize;">${this._esc(app.studentGender || app.student_gender || '—')}</strong></div>
+              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Previous School</span><br><strong>${this._esc(app.previousSchool || app.previous_school || '—')}</strong></div>
             </div>
           </div>
 
@@ -637,10 +669,10 @@ const applicationsModule = {
               <i class="fas fa-user-friends" style="color:var(--color-primary);"></i> Parent / Guardian
             </h4>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1.5rem;">
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Name</span><br><strong>${app.parentName || app.parent_name || '—'}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Phone</span><br><strong>${app.parentPhone || app.parent_phone || '—'}</strong></div>
-              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Email</span><br><strong>${app.parentEmail || app.parent_email || '—'}</strong></div>
-              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Address</span><br><strong>${app.parentAddress || app.parent_address || '—'}</strong></div>
+              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Name</span><br><strong>${this._esc(app.parentName || app.parent_name || '—')}</strong></div>
+              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Phone</span><br><strong>${this._esc(app.parentPhone || app.parent_phone || '—')}</strong></div>
+              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Email</span><br><strong>${this._esc(app.parentEmail || app.parent_email || '—')}</strong></div>
+              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Address</span><br><strong>${this._esc(this._formatAddress(app.parentAddress || app.parent_address))}</strong></div>
             </div>
           </div>
 
@@ -684,11 +716,11 @@ const applicationsModule = {
                     ? '<strong style="color:hsl(0,80%,45%);"><i class="fas fa-times-circle"></i> Rejected</strong>'
                     : '<strong style="color:hsl(45,100%,35%);"><i class="fas fa-clock"></i> Pending Verification</strong>'}
               </div>
-              ${(app.paymentReference || app.payment_reference) ? `<div><span style="color:var(--text-secondary);font-size:0.8rem;">Reference</span><br><strong>${app.paymentReference || app.payment_reference}</strong></div>` : '<div></div>'}
+              ${(app.paymentReference || app.payment_reference) ? `<div><span style="color:var(--text-secondary);font-size:0.8rem;">Reference</span><br><strong>${this._esc(app.paymentReference || app.payment_reference)}</strong></div>` : '<div></div>'}
               ${receiptUrl ? `<div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Payment Receipt</span><br>${docBtn(receiptUrl, 'View Receipt', 'fa-receipt')}</div>` : ''}
               ${(app.paymentRejectionReason || app.payment_rejection_reason) ? `
               <div style="grid-column:span 2;padding:0.75rem;background:hsl(0,80%,97%);border-radius:8px;border-left:3px solid hsl(0,80%,55%);color:hsl(0,60%,30%);">
-                <strong>Rejection Reason:</strong> ${app.paymentRejectionReason || app.payment_rejection_reason}
+                <strong>Rejection Reason:</strong> ${this._esc(app.paymentRejectionReason || app.payment_rejection_reason)}
               </div>` : ''}
             </div>
           </div>
@@ -700,10 +732,10 @@ const applicationsModule = {
               <i class="fas fa-clipboard-check" style="color:var(--color-primary);"></i> Review Details
             </h4>
             <div style="display:grid;gap:0.6rem;">
-              ${reviewedAt ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text-secondary);">Reviewed:</span><strong>${new Date(reviewedAt).toLocaleString()}</strong></div>` : ''}
-              ${(app.reviewedBy || app.reviewed_by) ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text-secondary);">Reviewed By:</span><strong>${app.reviewedBy || app.reviewed_by}</strong></div>` : ''}
-              ${app.notes ? `<div><span style="color:var(--text-secondary);">Notes:</span><div style="margin-top:0.4rem;padding:0.75rem;background:var(--bg-secondary);border-radius:8px;">${app.notes}</div></div>` : ''}
-              ${(app.rejectionReason || app.rejection_reason) ? `<div style="padding:0.75rem;background:hsl(0,80%,97%);border-radius:8px;border-left:3px solid hsl(0,80%,55%);color:hsl(0,60%,30%);"><strong>Rejection Reason:</strong> ${app.rejectionReason || app.rejection_reason}</div>` : ''}
+              ${reviewedAt ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text-secondary);">Reviewed:</span><strong>${this._esc(new Date(reviewedAt).toLocaleString())}</strong></div>` : ''}
+              ${(app.reviewedBy || app.reviewed_by) ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text-secondary);">Reviewed By:</span><strong>${this._esc(app.reviewedBy || app.reviewed_by)}</strong></div>` : ''}
+              ${app.notes ? `<div><span style="color:var(--text-secondary);">Notes:</span><div style="margin-top:0.4rem;padding:0.75rem;background:var(--bg-secondary);border-radius:8px;">${this._esc(app.notes)}</div></div>` : ''}
+              ${(app.rejectionReason || app.rejection_reason) ? `<div style="padding:0.75rem;background:hsl(0,80%,97%);border-radius:8px;border-left:3px solid hsl(0,80%,55%);color:hsl(0,60%,30%);"><strong>Rejection Reason:</strong> ${this._esc(app.rejectionReason || app.rejection_reason)}</div>` : ''}
             </div>
           </div>` : ''}
 
@@ -711,7 +743,7 @@ const applicationsModule = {
 
         <!-- Action Buttons -->
         <div style="margin-top:1.75rem;display:flex;gap:0.75rem;flex-wrap:wrap;padding-top:1rem;border-top:1px solid var(--border-primary);">
-          ${formUrl ? `<button class="btn-secondary" onclick="window.open('${formUrl}','_blank')"><i class="fas fa-download"></i> Download Form</button>` : ''}
+          ${this._safeUrl(formUrl) ? `<a class="btn-secondary" href="${this._escUrl(formUrl)}" data-storage-link target="_blank" rel="noopener noreferrer" style="text-decoration:none;"><i class="fas fa-download"></i> Download Form</a>` : ''}
           ${app.status === 'pending' ? `
             <button class="btn-success" onclick="closeModal(); applicationsModule.approveApplication('${app.id}')">
               <i class="fas fa-check"></i> Approve
@@ -728,15 +760,16 @@ const applicationsModule = {
 
     downloadForm(id) {
         const app = this.applications.find(a => a.id === id);
-        const formUrl = app?.application_form_url || app?.applicationFormUrl || app?.fileData;
-        
+        const formUrl = this._safeUrl(app?.application_form_url || app?.applicationFormUrl || app?.fileData);
+
         if (!app || !formUrl) {
             showToast('Application form not found', 'error');
             return;
         }
 
-        // Open form in new tab (Supabase storage URLs)
-        window.open(formUrl, '_blank');
+        // Open form in new tab (Supabase storage URLs). _safeUrl rejects any
+        // non-http(s) scheme so a stored `javascript:` URL cannot be executed.
+        window.open(formUrl, '_blank', 'noopener,noreferrer');
         showToast('Opening application form...', 'success');
     },
 
@@ -747,14 +780,18 @@ const applicationsModule = {
             return;
         }
 
-        // Check if application fee has been paid
+        if (app.status !== 'pending') {
+            showToast(`This application has already been ${this._esc(app.status)}.`, 'warning');
+            return;
+        }
+
+        // Fail closed: approval requires a verified fee, whatever the payment
+        // method says. The previous check only blocked bank transfers, so a row
+        // claiming payment_method 'paystack' (or none at all) was approved
+        // without any payment ever having been confirmed.
         const applicationFeePaid = app.application_fee_paid || app.applicationFeePaid;
-        const paymentMethod = app.payment_method || app.paymentMethod;
-        
-        // Only block approval if payment method is bank-transfer and fee is not yet paid
-        // Accept both 'bank-transfer' (hyphen) and 'bank_transfer' (underscore) from DB
-        if ((paymentMethod === 'bank-transfer' || paymentMethod === 'bank_transfer') && !applicationFeePaid) {
-            showToast('Cannot approve application. Application fee payment must be verified first.', 'error');
+        if (!applicationFeePaid) {
+            showToast('Cannot approve: the application fee has not been verified yet.', 'error');
             return;
         }
 
@@ -765,7 +802,7 @@ const applicationsModule = {
         <textarea id="approvalNotes" rows="3" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-family: inherit;"></textarea>
       </div>
       <div style="display: flex; gap: 0.75rem;">
-        <button class="btn-success" onclick="event.preventDefault(); applicationsModule.confirmApproval('${id}')">
+        <button class="btn-success" id="confirmApprovalBtn" onclick="event.preventDefault(); applicationsModule.confirmApproval('${id}', this)">
           <i class="fas fa-check"></i> Confirm Approval
         </button>
         <button class="btn-secondary" onclick="closeModal()">Cancel</button>
@@ -773,22 +810,45 @@ const applicationsModule = {
     `);
     },
 
-    async confirmApproval(id) {
+    async confirmApproval(id, triggerBtn) {
         console.log('[Applications] confirmApproval called with id:', id);
-        
+
+        // Creating a student account is not reversible from here, so guard the
+        // whole operation rather than relying on the button's disabled state:
+        // a second click (or a retry after a failed status update) used to mint
+        // a second auth user, a second fee structure and a second enrollment.
+        if (this._approving) {
+            showToast('An approval is already in progress.', 'warning');
+            return;
+        }
+
         const notes = document.getElementById('approvalNotes')?.value || '';
         const app = this.applications.find(a => a.id === id);
-        
+
         if (!app) {
             console.error('[Applications] Application not found:', id);
             showToast('Application not found', 'error');
             return;
         }
+        if (app.status !== 'pending') {
+            showToast(`This application has already been ${this._esc(app.status)}.`, 'warning');
+            return;
+        }
+        if (!(app.application_fee_paid || app.applicationFeePaid)) {
+            showToast('Cannot approve: the application fee has not been verified yet.', 'error');
+            return;
+        }
+        if (app.student_id) {
+            showToast('A student account already exists for this application.', 'warning');
+            return;
+        }
 
-        console.log('[Applications] Found application:', app);
+        this._approving = true;
 
-        // Disable button to prevent double clicks
-        const confirmBtn = event?.target;
+        // Disable button to prevent double clicks. The element is passed in
+        // explicitly — the old code read the implicit global `event`, which is
+        // browser-dependent and null once an await has run.
+        const confirmBtn = triggerBtn || document.getElementById('confirmApprovalBtn');
         if (confirmBtn) {
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'Processing...';
@@ -821,7 +881,8 @@ const applicationsModule = {
             // Auto-enroll in grade subjects
             if (typeof subjectManager !== 'undefined') {
                 try {
-                    const enrollResult = await subjectManager.autoEnroll(result.studentId, app.student_name, app.grade, 'A');
+                    const studentName = app.student_name || app.studentName;
+                    const enrollResult = await subjectManager.autoEnroll(result.studentId, studentName, app.grade, 'A');
                     if (!enrollResult?.success && !enrollResult?.existing) {
                         console.warn('[Applications] Subject auto-enroll:', enrollResult?.error);
                         showToast('Subject enrollment could not be completed — please enroll manually.', 'warning');
@@ -832,20 +893,38 @@ const applicationsModule = {
                 }
             }
 
-            // Update application status
+            // Update application status.
+            // The account now exists, so link it to the application immediately.
+            // If this write fails the accounts are already created — the error
+            // message must tell the admin that, so nobody re-runs the approval
+            // and creates a duplicate student.
             console.log('[Applications] Updating application status...');
             const reviewedAt = new Date().toISOString();
-            const updateResult = await dataManager.update('applications', id, {
-                status: 'approved',
-                notes: notes,
-                reviewed_date: reviewedAt,
-                reviewed_by: authManager?.getSession()?.supabaseId || null,
-                student_id: result.studentId,
-                guardian_auth_id: result.guardianAuthId
-            });
+            const { data: updated, error: updateErr } = await supabaseClient
+                .from('applications')
+                .update({
+                    status: 'approved',
+                    notes: notes,
+                    reviewed_date: reviewedAt,
+                    reviewed_by: authManager?.getSession()?.supabaseId || null,
+                    student_id: result.studentId,
+                    guardian_auth_id: result.guardianAuthId
+                })
+                .eq('id', id)
+                .eq('status', 'pending')   // lose the race rather than double-approve
+                .select();
 
-            if (!updateResult) {
-                throw new Error('Failed to update application status in database');
+            if (updateErr) {
+                throw new Error(
+                    `Student account ${result.studentLoginId} was created, but the application could not be marked approved: ` +
+                    `${updateErr.message}. Do NOT approve again — link it manually instead.`
+                );
+            }
+            if (!updated || updated.length === 0) {
+                throw new Error(
+                    `Student account ${result.studentLoginId} was created, but the application was already reviewed by someone else ` +
+                    `(or you lack permission to update it). Do NOT approve again — check the students list.`
+                );
             }
 
             console.log('[Applications] Application updated successfully');
@@ -865,10 +944,10 @@ const applicationsModule = {
                     <p style="margin-bottom: 1.5rem;">Student account has been created.</p>
                     <div style="background: hsl(220, 70%, 97%); padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 1rem; text-align: left;">
                         <h4 style="margin: 0 0 1rem;">Student Account Details</h4>
-                        <p style="margin: 0.5rem 0;"><strong>Student Name:</strong> ${app.student_name}</p>
-                        <p style="margin: 0.5rem 0;"><strong>Login ID:</strong> ${result.studentLoginId}</p>
-                        <p style="margin: 0.5rem 0;"><strong>Password:</strong> ${result.studentPassword}</p>
-                        <p style="margin: 0.5rem 0;"><strong>Grade:</strong> ${app.grade}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Student Name:</strong> ${this._esc(app.student_name)}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Login ID:</strong> ${this._esc(result.studentLoginId)}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Password:</strong> ${this._esc(result.studentPassword)}</p>
+                        <p style="margin: 0.5rem 0;"><strong>Grade:</strong> ${this._esc(app.grade)}</p>
                     </div>
                     <div style="background: hsl(45, 100%, 95%); padding: 1rem; border-radius: 0.75rem; border-left: 4px solid hsl(45, 100%, 50%); text-align: left;">
                         <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
@@ -884,6 +963,8 @@ const applicationsModule = {
             console.error('Error approving application:', msg);
             showToast(msg || 'Error approving application', 'error');
             if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Approval'; }
+        } finally {
+            this._approving = false;
         }
     },
 
@@ -1024,23 +1105,31 @@ const applicationsModule = {
         }
 
         try {
-            const updateResult = await dataManager.update('applications', id, {
-                status: 'rejected',
-                rejection_reason: notes,
-                notes: notes,
-                reviewed_date: new Date().toISOString(),
-                reviewed_by: authManager?.getSession()?.supabaseId || null
-            });
+            // Guard on the current status so two admins reviewing at once cannot
+            // overwrite each other's decision, and verify a row actually changed
+            // (an RLS-blocked update returns success with zero rows).
+            const { data: updated, error: updateErr } = await supabaseClient
+                .from('applications')
+                .update({
+                    status: 'rejected',
+                    rejection_reason: notes,
+                    notes: notes,
+                    reviewed_date: new Date().toISOString(),
+                    reviewed_by: authManager?.getSession()?.supabaseId || null
+                })
+                .eq('id', id)
+                .in('status', ['pending', 'incomplete'])
+                .select();
 
-            if (!updateResult) {
-                throw new Error('Failed to update application status');
+            if (updateErr) throw new Error(updateErr.message);
+            if (!updated || updated.length === 0) {
+                throw new Error('No change made — the application may already be reviewed, or you lack permission.');
             }
 
             await this.loadApplications();
             closeModal();
             this.render();
-            const appRecord = dataManager.getById('applications', id);
-            if (typeof writeAuditLog === 'function') writeAuditLog('APPLICATION_REJECTED', appRecord?.student_name || id, notes);
+            if (typeof writeAuditLog === 'function') writeAuditLog('APPLICATION_REJECTED', updated[0]?.student_name || id, notes);
             showToast('Application rejected', 'info');
         } catch (error) {
             console.error('Error rejecting application:', error);
@@ -1049,18 +1138,33 @@ const applicationsModule = {
     },
 
     clearAllApplications() {
-        showModal('Clear All Applications', `
+        // Approved applications are the admission record of an enrolled student
+        // and are never deleted — the previous version wiped them too and only
+        // nulled student_id, silently severing every student from their
+        // admission history.
+        const deletable = this.applications.filter(a => a.status !== 'approved' && !a.student_id);
+
+        if (deletable.length === 0) {
+            showToast('There are no clearable applications (approved records are kept).', 'info');
+            return;
+        }
+
+        showModal('Clear Applications', `
             <div style="text-align:center;">
                 <div style="width:64px;height:64px;margin:0 auto 1.25rem;background:linear-gradient(135deg,hsl(0,80%,55%),hsl(0,80%,45%));border-radius:50%;display:flex;align-items:center;justify-content:center;">
                     <i class="fas fa-trash-alt" style="color:white;font-size:1.75rem;"></i>
                 </div>
-                <h3 style="margin:0 0 0.75rem;color:hsl(0,80%,35%);">Permanently Delete All Applications?</h3>
-                <p style="color:var(--text-secondary);margin-bottom:1.5rem;">
-                    This will remove <strong>every</strong> application record. The action cannot be undone.
+                <h3 style="margin:0 0 0.75rem;color:hsl(0,80%,35%);">Permanently Delete ${deletable.length} Application${deletable.length === 1 ? '' : 's'}?</h3>
+                <p style="color:var(--text-secondary);margin-bottom:1rem;">
+                    Pending, rejected and incomplete records will be removed. Approved applications
+                    (${this.applications.length - deletable.length}) are kept. This cannot be undone.
                 </p>
+                <p style="color:var(--text-secondary);margin-bottom:0.5rem;font-size:0.875rem;">Type <strong>DELETE</strong> to confirm:</p>
+                <input type="text" id="clearAllConfirmInput" autocomplete="off"
+                    style="width:100%;max-width:220px;padding:0.6rem 0.75rem;border:2px solid var(--border-primary);border-radius:var(--radius-md);text-align:center;font-weight:700;letter-spacing:0.1em;margin-bottom:1.5rem;">
                 <div style="display:flex;gap:0.75rem;justify-content:center;">
                     <button class="btn-danger" onclick="applicationsModule._confirmClearAll()">
-                        <i class="fas fa-trash-alt"></i> Yes, Delete Everything
+                        <i class="fas fa-trash-alt"></i> Delete
                     </button>
                     <button class="btn-secondary" onclick="closeModal()">Cancel</button>
                 </div>
@@ -1069,17 +1173,30 @@ const applicationsModule = {
     },
 
     async _confirmClearAll() {
+        const typed = document.getElementById('clearAllConfirmInput')?.value?.trim();
+        if (typed !== 'DELETE') {
+            showToast('Type DELETE to confirm.', 'warning');
+            return;
+        }
+
         closeModal();
         try {
-            showToast('Clearing all applications…', 'info');
-            // Nullify student_id FK first to avoid constraint errors
-            await supabaseClient.from('applications').update({ student_id: null }).not('student_id', 'is', null);
-            const { error } = await supabaseClient.from('applications').delete().not('id', 'is', null);
+            showToast('Clearing applications…', 'info');
+            const { data, error } = await supabaseClient
+                .from('applications')
+                .delete()
+                .neq('status', 'approved')
+                .is('student_id', null)
+                .select('id');
             if (error) throw error;
+
             await this.loadApplications();
             this.render();
-            showToast('All applications cleared successfully.', 'success');
-            if (typeof writeAuditLog === 'function') writeAuditLog('CLEAR_APPLICATIONS', 'Applications', 'All application records deleted');
+            const count = data?.length || 0;
+            showToast(`${count} application${count === 1 ? '' : 's'} cleared. Approved records were kept.`, 'success');
+            if (typeof writeAuditLog === 'function') {
+                writeAuditLog('CLEAR_APPLICATIONS', 'Applications', `${count} non-approved application records deleted`);
+            }
         } catch (err) {
             console.error('[Applications] clearAllApplications error:', err);
             showToast('Failed to clear applications: ' + err.message, 'error');
@@ -1092,11 +1209,7 @@ const applicationsModule = {
             pending: this.applications.filter(app => app.status === 'pending').length,
             approved: this.applications.filter(app => app.status === 'approved').length,
             rejected: this.applications.filter(app => app.status === 'rejected').length,
-            pendingPayments: this.applications.filter(app => {
-                const pm = app.payment_method || app.paymentMethod || '';
-                return (pm === 'bank-transfer' || pm === 'bank_transfer') &&
-                    !app.application_fee_paid && !app.applicationFeePaid;
-            }).length
+            pendingPayments: this.applications.filter(app => this._awaitsPaymentVerification(app)).length
         };
     },
 
@@ -1105,12 +1218,19 @@ const applicationsModule = {
         return pm === 'bank-transfer' || pm === 'bank_transfer';
     },
 
+    // A deposit still waiting on an admin decision. Rejected payments must be
+    // excluded: they used to match on `!application_fee_paid` alone, so once
+    // rejected they sat in the verification queue and the pending counter
+    // forever, with no way for anyone to clear them.
+    _awaitsPaymentVerification(app) {
+        return this._isBankTransfer(app)
+            && !(app.application_fee_paid || app.applicationFeePaid)
+            && !(app.payment_rejection_reason || app.paymentRejectionReason);
+    },
+
     // Render pending payment verification cards
     renderPendingPayments() {
-        const pending = this.applications.filter(app =>
-            this._isBankTransfer(app) &&
-            !app.application_fee_paid && !app.applicationFeePaid
-        );
+        const pending = this.applications.filter(app => this._awaitsPaymentVerification(app));
 
         if (pending.length === 0) return '<p style="color: var(--text-tertiary); text-align: center;">No pending payment verifications.</p>';
 
@@ -1139,10 +1259,10 @@ const applicationsModule = {
                   </div>
                 </div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end;">
-                  ${receiptUrl ? `
-                    <button class="btn-secondary" onclick="event.stopPropagation(); window.open('${receiptUrl}', '_blank')" style="font-size: 0.8rem; padding: 0.4rem 0.75rem;">
+                  ${this._safeUrl(receiptUrl) ? `
+                    <a class="btn-secondary" href="${this._escUrl(receiptUrl)}" data-storage-link target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; text-decoration:none;">
                       <i class="fas fa-eye"></i> View Receipt
-                    </button>
+                    </a>
                   ` : '<span style="color: var(--text-tertiary); font-size: 0.8rem;">No receipt uploaded</span>'}
                   <div style="display: flex; gap: 0.5rem;">
                     <button class="btn-success" onclick="event.stopPropagation(); applicationsModule.approvePayment('${app.id}')" style="font-size: 0.8rem; padding: 0.4rem 0.75rem;">
@@ -1189,11 +1309,15 @@ const applicationsModule = {
                 .from('applications')
                 .update({
                     application_fee_paid: true,
+                    // Clear any earlier rejection so a corrected receipt leaves
+                    // the application in a clean, approvable state.
+                    payment_rejection_reason: null,
                     payment_verified_by: (await supabaseClient.auth.getSession())?.data?.session?.user?.id || null,
                     payment_verified_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', id)
+                .eq('application_fee_paid', false)   // no-op if already approved
                 .select();
 
             if (error) {
@@ -1202,7 +1326,9 @@ const applicationsModule = {
                 return;
             }
             if (!data || data.length === 0) {
-                showToast('Update blocked — you may not have permission.', 'error');
+                showToast('No change made — the payment may already be approved, or you lack permission.', 'warning');
+                await this.loadApplications();
+                this.render();
                 return;
             }
 
@@ -1222,7 +1348,7 @@ const applicationsModule = {
         if (!app) { showToast('Application not found', 'error'); return; }
 
         showModal('Reject Payment', `
-            <p style="margin-bottom: 1rem;">Reject payment for <strong>${app.student_name || app.studentName}</strong>?</p>
+            <p style="margin-bottom: 1rem;">Reject payment for <strong>${this._esc(app.student_name || app.studentName)}</strong>?</p>
             <div style="margin-bottom: 1.5rem;">
                 <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Reason for Rejection:</label>
                 <textarea id="paymentRejectionReason" rows="3" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-family: inherit;" placeholder="Enter reason for rejecting this payment..." required></textarea>
@@ -1248,6 +1374,11 @@ const applicationsModule = {
                 .from('applications')
                 .update({
                     payment_rejection_reason: reason,
+                    application_fee_paid: false,
+                    // Move the application out of 'pending' so it leaves both the
+                    // review queue and the payment queue, and so the applicant's
+                    // status page tells them what went wrong and what to do next.
+                    status: 'incomplete',
                     payment_verified_by: (await supabaseClient.auth.getSession())?.data?.session?.user?.id || null,
                     payment_verified_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
@@ -1265,6 +1396,9 @@ const applicationsModule = {
                 return;
             }
 
+            if (typeof writeAuditLog === 'function') {
+                writeAuditLog('APPLICATION_PAYMENT_REJECTED', data[0]?.student_name || id, reason);
+            }
             showToast('Payment rejected', 'info');
             closeModal();
             await this.loadApplications();

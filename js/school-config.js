@@ -1,19 +1,25 @@
 // ============================================
-// SCHOOL CONFIGURATION - TBD ACADEMY
+// SCHOOL CONFIGURATION - TBD INTERNATIONAL ACADEMY
+// Motto: "Planting Seeds of Knowledge"
 // ============================================
 
 const schoolConfig = {
     // School Information
-    name: 'TBD Academy',
-    location: 'Makurdi, Benue State',
+    name: 'TBD International Academy',
+    shortName: 'TBD Academy',
+    motto: 'Planting Seeds of Knowledge',
+    crest: 'assets/logo-mark.svg',      // shield only — nav bars, favicons
+    logo: 'assets/logo.svg',            // full lockup with wordmark + motto ribbon
+    brandColors: { navy: '#1E2A5A', red: '#E23C3C' },
+    location: 'Behind Civil Service Commission, Kertyo, Makurdi',
     country: 'Nigeria',
     currency: 'NGN',
     currencySymbol: '₦',
 
     // Contact Information
-    email: 'info@tbdacademy.edu.ng',
-    phone: '+234 XXX XXX XXXX',
-    website: 'www.tbdacademy.edu.ng',
+    email: 'tbdinternationalacademy.mkd@gmail.com',
+    phone: '0803 061 4777',
+    website: 'www.tbdacademy.edu.ng',  // NOTE: not on the flyer — confirm before publishing
 
     // Academic Structure — TBD International Academy (synced with fee structure)
     // Grade names match feeStructure keys exactly — do NOT change without updating fee-structure.js
@@ -353,19 +359,25 @@ const schoolConfig = {
             if (error || !data?.settings_json) return;
             const parsed = typeof data.settings_json === 'string' ? JSON.parse(data.settings_json) : data.settings_json;
 
-            // Read school info saved by settingsModule (stored at top level of settings_json)
-            if (parsed.schoolName)    this.name     = parsed.schoolName;
-            if (parsed.schoolAddress) this.location = parsed.schoolAddress;
-            if (parsed.schoolEmail)   this.email    = parsed.schoolEmail;
-            if (parsed.schoolPhone)   this.phone    = parsed.schoolPhone;
-            if (parsed.currency)      this.currency = parsed.currency;
+            // Read school info saved by settingsModule (stored at top level of settings_json).
+            // A saved value still equal to a superseded default was never really
+            // customised, so upgrade it rather than let the old brand win.
+            const upgrade = window.upgradeLegacySchoolValue || ((f, v) => v);
+            const savedName    = parsed.schoolName    ? upgrade('schoolName', parsed.schoolName)       : null;
+            const savedAddress = parsed.schoolAddress ? upgrade('schoolAddress', parsed.schoolAddress) : null;
+
+            if (savedName)          this.name     = savedName;
+            if (savedAddress)       this.location = savedAddress;
+            if (parsed.schoolEmail) this.email    = parsed.schoolEmail;
+            if (parsed.schoolPhone) this.phone    = parsed.schoolPhone;
+            if (parsed.currency)    this.currency = parsed.currency;
 
             // Update sidebar DOM if already rendered
             const nameEl = document.getElementById('sidebar-school-name');
             const locEl  = document.getElementById('sidebar-school-location');
-            if (nameEl && parsed.schoolName)    nameEl.textContent = parsed.schoolName;
-            if (locEl  && parsed.schoolAddress) locEl.textContent  = parsed.schoolAddress;
-            if (parsed.schoolName) document.title = parsed.schoolName + ' - School Management Portal';
+            if (nameEl && savedName)    nameEl.textContent = savedName;
+            if (locEl  && savedAddress) locEl.textContent  = savedAddress;
+            if (savedName) document.title = savedName + ' - School Management Portal';
 
             // Read structural schoolConfig overrides (saved by class-schedule module)
             if (parsed.schoolConfig) {

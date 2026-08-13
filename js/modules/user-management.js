@@ -23,7 +23,7 @@ const UM_ACADEMIC_YEAR = window.CURRENT_ACADEMIC_YEAR || (window.schoolConfig?.g
  * @param {string} password       - Temporary password
  */
 function showEmailTemplate(recipientName, recipientEmail, role, loginId, password) {
-  const school = window.schoolConfig?.name || 'TBD Academy';
+  const school = window.schoolConfig?.name || 'TBD International Academy';
   const portal = `${window.location.origin}/login.html`;
   const subject = `Your ${school} Portal Access — ${role} Account`;
   // Pre-escape for safe use inside onclick single-quoted string
@@ -98,7 +98,7 @@ ${school} Administration`;
  * Includes: credential card, copy button, email template with copy, and mailto link.
  */
 function showCredentialModal(recipientName, recipientEmail, role, loginId, password, emailSent, emailMessage) {
-  const school = window.schoolConfig?.name || 'TBD Academy';
+  const school = window.schoolConfig?.name || 'TBD International Academy';
   const portal = `${window.location.origin}/login.html`;
 
   const emailStatus = emailSent

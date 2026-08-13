@@ -1,5 +1,12 @@
 const sessionManager = {
-  get timeoutMinutes() { return AppConfig.app.sessionTimeoutMinutes; },
+  // config.js is not loaded on every page that loads this file (teacher-portal.html
+  // for one), so read AppConfig defensively rather than throwing on init.
+  get timeoutMinutes() {
+    const configured = typeof AppConfig !== 'undefined'
+      ? AppConfig?.app?.sessionTimeoutMinutes
+      : parseInt(window.ENV?.SESSION_TIMEOUT_MINUTES, 10);
+    return Number.isFinite(configured) && configured > 0 ? configured : 30;
+  },
   warningMinutes: 5,
   lastActivityTime: Date.now(),
   timeoutTimer: null,
@@ -14,10 +21,21 @@ const sessionManager = {
 
   setupActivityListeners() {
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
-    
+
+    // mousemove and scroll fire dozens of times per second. Rebuilding both
+    // timers and touching the DOM on every one of them was a constant source of
+    // main-thread work for no benefit — a 1s throttle is far finer-grained than
+    // the 30-minute timeout it feeds.
     events.forEach(event => {
-      document.addEventListener(event, () => this.resetActivity(), { passive: true });
+      document.addEventListener(event, () => this.noteActivity(), { passive: true });
     });
+  },
+
+  /** Throttled entry point for raw input events. */
+  noteActivity() {
+    const now = Date.now();
+    if (now - this.lastActivityTime < 1000) return;
+    this.resetActivity();
   },
 
   resetActivity() {

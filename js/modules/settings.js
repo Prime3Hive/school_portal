@@ -48,10 +48,10 @@ const settingsModule = {
 
   getDefaults() {
     return {
-      schoolName: 'TBD Academy',
-      schoolAddress: 'Lagos, Nigeria',
-      schoolEmail: 'info@tbdacademy.edu.ng',
-      schoolPhone: '+234-800-000-0000',
+      schoolName: 'TBD International Academy',
+      schoolAddress: 'Behind Civil Service Commission, Kertyo, Makurdi',
+      schoolEmail: 'tbdinternationalacademy.mkd@gmail.com',
+      schoolPhone: '0803 061 4777',
       academicYear: '2025/2026',
       currentTerm: 'Second Term',
       theme: 'dark',
@@ -67,7 +67,22 @@ const settingsModule = {
   loadLocalSettings() {
     const defaults = this.getDefaults();
     const saved = JSON.parse(localStorage.getItem(this.SETTINGS_KEY) || '{}');
-    return { ...defaults, ...saved };
+    return this.upgradeLegacyBrand({ ...defaults, ...saved });
+  },
+
+  /**
+   * Replace saved values that still match a superseded default, so the settings
+   * form shows the current brand instead of the pre-rebrand one. Values an admin
+   * actually changed are left alone. See LEGACY_SCHOOL_VALUES in js/config.js.
+   */
+  upgradeLegacyBrand(settings) {
+    const upgrade = window.upgradeLegacySchoolValue;
+    if (!upgrade) return settings;
+    return {
+      ...settings,
+      schoolName: upgrade('schoolName', settings.schoolName),
+      schoolAddress: upgrade('schoolAddress', settings.schoolAddress)
+    };
   },
 
   async loadFromSupabase() {
@@ -82,7 +97,7 @@ const settingsModule = {
       const remote = typeof data.settings_json === 'string'
         ? JSON.parse(data.settings_json)
         : (data.settings_json || {});
-      const merged = { ...this.getDefaults(), ...remote };
+      const merged = this.upgradeLegacyBrand({ ...this.getDefaults(), ...remote });
       // Also save locally so offline access is fast
       localStorage.setItem(this.SETTINGS_KEY, JSON.stringify(merged));
       return merged;
@@ -485,7 +500,7 @@ const settingsModule = {
       folder.file('manifest.json', JSON.stringify({
         exportedAt: new Date().toISOString(),
         exportedBy: authManager?.getSession()?.fullName || 'Admin',
-        portal: window.schoolConfig?.name || 'TBD Academy',
+        portal: window.schoolConfig?.name || 'TBD International Academy',
         tables: tables.map(t => t.name)
       }, null, 2));
 

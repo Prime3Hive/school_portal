@@ -142,7 +142,7 @@ const loadingManager = {
           margin: 0 auto var(--space-4);
         "></div>
         <p style="color: var(--text-secondary); font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold);">
-          Loading TBD Academy Portal...
+          Loading TBD International Academy Portal...
         </p>
       </div>
     `;

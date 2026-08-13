@@ -41,7 +41,11 @@ class PermissionManager {
                 modules: [
                     'admin-dashboard',
                     'inventory',
-                    'fees-payments'
+                    'fees-payments',
+                    // Staff share index.html with admins; they still need their own
+                    // profile and the shared calendar for the portal to be usable.
+                    'admin-profile',
+                    'calendar'
                 ],
                 actions: [
                     'view_inventory',
@@ -148,7 +152,6 @@ class PermissionManager {
                 { icon: '🎓', label: 'Academic Hub', module: 'academics' },
                 { icon: '💰', label: 'Fees & Payments', module: 'fees-payments' },
                 { icon: '📦', label: 'Inventory', module: 'inventory' },
-                { icon: '�', label: 'Academics', module: 'academics' },
                 { icon: '📋', label: 'Applications', module: 'applications' },
                 { icon: '🔐', label: 'User Management', module: 'user-management' },
                 { icon: '📆', label: 'Calendar', module: 'calendar' },
@@ -157,7 +160,6 @@ class PermissionManager {
             teacher: [
                 { icon: '📊', label: 'Teacher Portal', module: 'teacher-portal' },
                 { icon: '👥', label: 'My Classes', module: 'my-classes' },
-                { icon: '�', label: 'Academics', module: 'academics' },
                 { icon: '🎓', label: 'Academic Hub', module: 'academics' },
             ],
             staff: [

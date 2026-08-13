@@ -1,12 +1,14 @@
-// Application Manager for TBD Academy
+// Application Manager for TBD International Academy
 // Handles application submissions, tracking, and status checking
 // Integrated with Supabase and Paystack
 
 (function () {
     'use strict';
 
-    // Application fee structure by grade
-    const APPLICATION_FEES = {
+    // Display-only fee table. The amount actually charged and recorded is read
+    // from `application_fee_schedule` server-side by the submit-application
+    // edge function — a price shown here is never trusted by the backend.
+    const APPLICATION_FEES_FALLBACK = {
         'Kindergarten': 5000,
         'Nursery': 5000,
         'Pre-Primary': 5000,
@@ -21,57 +23,78 @@
         'JSS 3': 7500
     };
 
+    // Accepted document uploads. Enforced again by Storage policy server-side.
+    const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+    const ALLOWED_DOC_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+
     // Application Manager Class
     class ApplicationManager {
         constructor() {
             this.supabase = window.supabaseClient;
             this.uploadManager = window.fileUploadManager;
+            this._feeSchedule = null;
         }
 
-        // Get application fee for grade
+        // Load the authoritative fee table once, for display purposes.
+        async loadFeeSchedule() {
+            if (this._feeSchedule) return this._feeSchedule;
+            try {
+                const { data, error } = await this.supabase
+                    .from('application_fee_schedule')
+                    .select('grade, amount');
+                if (error) throw error;
+                this._feeSchedule = Object.fromEntries(
+                    (data || []).map(r => [r.grade, Number(r.amount)])
+                );
+            } catch (err) {
+                console.warn('Fee schedule unavailable, using display fallback:', err.message);
+                this._feeSchedule = { ...APPLICATION_FEES_FALLBACK };
+            }
+            return this._feeSchedule;
+        }
+
+        // Get application fee for a grade (display only)
         getApplicationFee(grade) {
-            return APPLICATION_FEES[grade] || 5000;
+            const schedule = this._feeSchedule || APPLICATION_FEES_FALLBACK;
+            return schedule[grade] ?? APPLICATION_FEES_FALLBACK[grade] ?? 5000;
         }
 
-        // Generate unique application number (server-side)
-        async generateApplicationNumber() {
-            try {
-                const { data, error } = await this.supabase.rpc('generate_application_number');
-                if (error) throw error;
-                return data;
-            } catch (error) {
-                console.error('Error generating application number:', error);
-                // Fallback to client-side generation (random 7-char alphanumeric)
-                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-                const year = new Date().getFullYear();
-                let suffix = '';
-                for (let i = 0; i < 7; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
-                return `TBD-${year}-${suffix}`;
+        // Opaque, unguessable id used for the payment reference and the upload
+        // folder. The real application number is minted server-side once the
+        // payment has been verified, so it cannot be predicted or enumerated.
+        newSubmissionRef() {
+            const uuid = (crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`)
+                .replace(/-/g, '');
+            return `APP-${uuid.slice(0, 24).toUpperCase()}`;
+        }
+
+        // Upload document to Supabase Storage under the submission folder
+        async uploadDocument(file, submissionRef, documentType) {
+            if (file.size > MAX_UPLOAD_BYTES) {
+                throw new Error(`${documentType.replace(/_/g, ' ')} is larger than 5MB.`);
             }
-        }
+            if (!ALLOWED_DOC_TYPES.includes(file.type)) {
+                throw new Error(`${documentType.replace(/_/g, ' ')} must be a PDF, JPG or PNG file.`);
+            }
 
-        // Upload document to Supabase Storage
-        async uploadDocument(file, applicationNumber, documentType) {
-            try {
-                const fileName = `${applicationNumber}_${documentType}_${Date.now()}.${file.name.split('.').pop()}`;
-                const filePath = `applications/${applicationNumber}/${fileName}`;
+            // Only the extension is taken from the user-supplied filename.
+            const ext = (file.name.split('.').pop() || 'dat').replace(/[^a-z0-9]/gi, '').slice(0, 5);
+            const filePath = `applications/${submissionRef}/${documentType}_${Date.now()}.${ext}`;
 
-                const { data, error } = await this.supabase.storage
-                    .from('documents')
-                    .upload(filePath, file);
+            const { error } = await this.supabase.storage
+                .from('documents')
+                .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
-                if (error) throw error;
-
-                // Get public URL
-                const { data: urlData } = this.supabase.storage
-                    .from('documents')
-                    .getPublicUrl(filePath);
-
-                return urlData.publicUrl;
-            } catch (error) {
+            if (error) {
                 console.error('Error uploading document:', error);
-                throw error;
+                throw new Error(`Could not upload ${documentType.replace(/_/g, ' ')}: ${error.message}`);
             }
+
+            const { data: urlData } = this.supabase.storage
+                .from('documents')
+                .getPublicUrl(filePath);
+
+            return urlData.publicUrl;
         }
 
         // Lazy-load Paystack inline script
@@ -87,7 +110,7 @@
         }
 
         // Process Paystack payment with transaction state tracking
-        async processPayment(email, amount, applicationNumber) {
+        async processPayment(email, amount, submissionRef) {
             // Lazy-load Paystack on demand (not blocking page load)
             await this._loadPaystack();
 
@@ -109,9 +132,12 @@
                 throw new Error('Payment is not configured. Please contact the school to report this issue.');
             }
 
-            const reference = `APP_${applicationNumber}_${Date.now()}`;
-            
-            // Create transaction record before opening Paystack popup
+            const reference = submissionRef;
+
+            // Create transaction record before opening Paystack popup.
+            // NOTE: this row is advisory telemetry only. RLS forbids the browser
+            // from ever setting status='success' — the submit-application edge
+            // function promotes it after verifying the charge with Paystack.
             try {
                 const { error: txnError } = await this.supabase
                     .from('payment_transactions')
@@ -121,15 +147,13 @@
                         amount: amount,
                         currency: 'NGN',
                         payer_email: email,
-                        application_number: applicationNumber,
                         gateway: 'paystack',
                         status: 'pending',
                         metadata: {
-                            application_number: applicationNumber,
                             initiated_from: 'admissions_page'
                         }
                     });
-                
+
                 if (txnError) {
                     console.warn('Failed to create transaction record:', txnError);
                     // Continue anyway - transaction tracking is not critical for payment flow
@@ -140,8 +164,13 @@
 
             return new Promise((resolve, reject) => {
                 let popupOpened = false;
-                let popupOpenedAt = null; // track when popup opened to detect instant-close (API error)
-                
+                // Set as soon as Paystack reports a successful charge. Paystack
+                // fires onClose after the iframe closes — including after a
+                // successful payment — and without this guard that handler
+                // would overwrite a paid transaction with 'cancelled', which
+                // both corrupts reconciliation and makes the submission fail.
+                let settled = false;
+
                 const handler = PaystackPop.setup({
                     key: paystackKey,
                     email: email,
@@ -158,17 +187,20 @@
                         ]
                     },
                     callback: (response) => {
-                        // NOTE: Do NOT update payment_transactions here.
-                        // record_application RPC owns the status='success' transition atomically
-                        // with the application INSERT. Updating here first causes a false DUPLICATE
-                        // error when the RPC checks status and finds it already 'success'.
+                        // Do NOT write status='success' here — RLS forbids it, and
+                        // a browser callback is not proof of payment. The edge
+                        // function verifies the charge against the Paystack API.
+                        settled = true;
                         resolve({
-                            reference: response.reference,
+                            reference: response.reference || reference,
                             status: response.status,
                             message: response.message
                         });
                     },
                     onClose: () => {
+                        // Payment already succeeded — leave the record alone.
+                        if (settled) return;
+
                         if (!popupOpened) {
                             // openIframe() itself failed
                             this.supabase
@@ -182,36 +214,30 @@
                                 .then(() => {}).catch(() => {});
                             reject(new Error('Payment popup failed to open. Please try again.'));
                         } else {
-                            // Detect Paystack API error (400): popup closes within 4s of opening
-                            // meaning Paystack itself rejected the transaction before user interaction
-                            const openDuration = popupOpenedAt ? (Date.now() - popupOpenedAt) : 9999;
-                            const isPaystackError = openDuration < 4000;
-
+                            // The user closed the checkout window without paying.
+                            // (The old code guessed "Paystack API error" whenever
+                            // the popup was open for under 4s, which mislabelled
+                            // anyone who simply changed their mind quickly.)
                             this.supabase
                                 .from('payment_transactions')
                                 .update({
-                                    status: isPaystackError ? 'failed' : 'cancelled',
+                                    status: 'cancelled',
                                     failed_at: new Date().toISOString(),
-                                    error_message: isPaystackError ? 'Paystack API error (check public key)' : 'User cancelled payment'
+                                    error_message: 'User closed the payment window'
                                 })
                                 .eq('reference', reference)
                                 .then(() => {}).catch(() => {});
 
-                            if (isPaystackError) {
-                                reject(new Error('Payment could not be started. Please try again or use the bank transfer option.'));
-                            } else {
-                                reject(new Error('Payment cancelled. Your application was not submitted.'));
-                            }
+                            reject(new Error('Payment cancelled. Your application was not submitted.'));
                         }
                     }
                 });
-                
+
                 // Mark as processing when popup opens
                 try {
                     handler.openIframe();
                     popupOpened = true;
-                    popupOpenedAt = Date.now();
-                    
+
                     // Update transaction status to processing
                     this.supabase
                         .from('payment_transactions')
@@ -230,201 +256,175 @@
         }
 
         // Upload all application documents (shared by both flows)
-        async _uploadDocuments(formData, applicationNumber) {
+        async _uploadDocuments(formData, submissionRef) {
             const documentUrls = {};
             if (formData.applicationForm) {
-                documentUrls.application_form_url = await this.uploadDocument(
-                    formData.applicationForm, applicationNumber, 'application_form'
+                documentUrls.applicationFormUrl = await this.uploadDocument(
+                    formData.applicationForm, submissionRef, 'application_form'
                 );
             }
             if (formData.birthCertificate) {
-                documentUrls.birth_certificate_url = await this.uploadDocument(
-                    formData.birthCertificate, applicationNumber, 'birth_certificate'
+                documentUrls.birthCertificateUrl = await this.uploadDocument(
+                    formData.birthCertificate, submissionRef, 'birth_certificate'
                 );
             }
             if (formData.passportPhoto) {
-                documentUrls.passport_photo_url = await this.uploadDocument(
-                    formData.passportPhoto, applicationNumber, 'passport_photo'
+                documentUrls.passportPhotoUrl = await this.uploadDocument(
+                    formData.passportPhoto, submissionRef, 'passport_photo'
                 );
             }
             if (formData.previousReport) {
-                documentUrls.previous_report_url = await this.uploadDocument(
-                    formData.previousReport, applicationNumber, 'previous_report'
+                documentUrls.previousReportUrl = await this.uploadDocument(
+                    formData.previousReport, submissionRef, 'previous_report'
                 );
             }
             return documentUrls;
         }
 
-        // Submit new application via Paystack (online payment)
-        // Payment is processed FIRST. Documents are only uploaded after
-        // payment succeeds — this prevents orphaned files if the user cancels payment.
+        // POST the submission to the edge function, which is the only writer of
+        // the applications table. It re-derives the fee, verifies the Paystack
+        // charge with the secret key, and enforces duplicate/rate limits.
+        async _postSubmission(body) {
+            const baseUrl = window.SUPABASE_URL;
+            const anonKey = window.SUPABASE_ANON;
+            if (!baseUrl || !anonKey) {
+                throw new Error('The application service is unavailable. Please try again later.');
+            }
+
+            let res, result;
+            try {
+                res = await fetch(`${baseUrl}/functions/v1/submit-application`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'apikey': anonKey,
+                        'Authorization': `Bearer ${anonKey}`
+                    },
+                    body: JSON.stringify(body)
+                });
+                result = await res.json();
+            } catch (netErr) {
+                console.error('submit-application network error:', netErr);
+                throw new Error('NETWORK: Could not reach the application service.');
+            }
+
+            if (!res.ok || !result?.success) {
+                const msg = result?.error || `Submission failed (HTTP ${res.status}).`;
+                const err = new Error(msg);
+                err.status = res.status;
+                throw err;
+            }
+
+            return result.application;
+        }
+
+        // Submit new application via Paystack (online payment).
+        // Payment is processed FIRST, then documents, then the record is created
+        // by the edge function — which independently verifies the charge with
+        // Paystack before it will write application_fee_paid = true.
         async submitApplication(formData, applicationFee) {
-            const applicationNumber = await this.generateApplicationNumber();
-            // Use passed-in fee to ensure consistency with confirm dialog
+            const submissionRef = this.newSubmissionRef();
             const feeAmount = applicationFee || this.getApplicationFee(formData.grade);
 
             // STEP 1: Process payment first (throws if cancelled or CDN unavailable)
             const paymentResult = await this.processPayment(
-                formData.parentEmail, feeAmount, applicationNumber
+                formData.parentEmail, feeAmount, submissionRef
             );
 
-            // STEP 2: Payment succeeded — now upload documents
+            // STEP 2: Payment succeeded — now upload documents. A failure here
+            // must not lose the payment, so the reference is carried into the
+            // error message and stamped on the transaction row for recovery.
             let documentUrls = {};
-            let uploadFailed = false;
             try {
-                documentUrls = await this._uploadDocuments(formData, applicationNumber);
+                documentUrls = await this._uploadDocuments(formData, submissionRef);
             } catch (uploadErr) {
-                uploadFailed = true;
                 console.error('Document upload failed after payment:', uploadErr);
-                // Flag the transaction record so admin can investigate
                 this.supabase
                     .from('payment_transactions')
                     .update({ error_message: `Document upload failed after payment: ${uploadErr.message}` })
                     .eq('reference', paymentResult.reference)
                     .then(() => {}).catch(() => {});
-                showNotification(
-                    'Payment received (Ref: ' + paymentResult.reference + ') but document upload failed. Contact admin to attach documents manually.',
-                    'error'
+                throw new Error(
+                    'Payment received (Ref: ' + paymentResult.reference + ') but your documents could not be uploaded. ' +
+                    'Please contact the school with this reference — do not pay again.'
                 );
             }
 
-            // STEP 3: Atomically mark payment transaction as success + save application
-            // BEGIN / EXECUTE / CHECK / COMMIT → ROLLBACK handled server-side
-            const { data: rpc, error: rpcErr } = await this.supabase.rpc('record_application', {
-                p_app_data: {
-                    application_number:    applicationNumber,
-                    student_name:          formData.studentName,
-                    student_dob:           formData.studentDob || null,
-                    student_gender:        formData.studentGender || null,
-                    grade:                 formData.grade,
-                    previous_school:       formData.previousSchool || null,
-                    parent_name:           formData.parentName,
-                    parent_email:          formData.parentEmail,
-                    parent_phone:          formData.parentPhone,
-                    parent_address:        formData.parentAddress || {},
+            // STEP 3: Server verifies the charge and writes the record.
+            try {
+                return await this._postSubmission({
+                    ...this._applicantPayload(formData),
                     ...documentUrls,
-                    application_fee_amount: feeAmount,
-                    application_fee_paid:  true,
-                    payment_reference:     paymentResult.reference,
-                    payment_date:          new Date().toISOString(),
-                    payment_method:        'paystack',
-                    status:                'pending',
-                    submitted_date:        new Date().toISOString()
-                },
-                p_txn_reference: paymentResult.reference
-            });
-
-            if (rpcErr || !rpc?.success) {
-                const msg = rpc?.error || rpcErr?.message || 'Application could not be saved.';
-                console.error('Error saving application:', msg);
-                throw new Error('Payment received (Ref: ' + paymentResult.reference + ') but application could not be saved. Please contact the school with your payment reference.');
+                    paymentMethod: 'paystack',
+                    paymentReference: paymentResult.reference
+                });
+            } catch (err) {
+                console.error('Error saving application:', err.message);
+                throw new Error(
+                    'Payment received (Ref: ' + paymentResult.reference + ') but the application could not be saved: ' +
+                    err.message + ' Please contact the school with your payment reference — do not pay again.'
+                );
             }
-
-            return rpc.application;
         }
 
-        // Submit new application via Bank Transfer
-        // Documents + receipt uploaded first, then record saved with fee_paid = false
-        // Admin must verify payment before application proceeds
-        async submitBankTransferApplication(formData, applicationFee) {
-            const applicationNumber = await this.generateApplicationNumber();
-            // Use passed-in fee to ensure consistency
-            const feeAmount = applicationFee || this.getApplicationFee(formData.grade);
+        // Submit new application via Bank Transfer.
+        // Nothing is charged here; the record is created with fee_paid = false
+        // and an admin must verify the teller slip before it can be approved.
+        async submitBankTransferApplication(formData) {
+            const submissionRef = this.newSubmissionRef();
 
             // STEP 1: Upload receipt
             let receiptUrl = null;
             if (formData.bankReceipt) {
-                const ext = formData.bankReceipt.name.split('.').pop();
-                const path = `applications/${applicationNumber}/receipt_${Date.now()}.${ext}`;
-                const { data: upData, error: upErr } = await this.supabase.storage
-                    .from('documents')
-                    .upload(path, formData.bankReceipt, { cacheControl: '3600', upsert: false });
-                if (upErr) throw new Error('Receipt upload failed: ' + upErr.message);
-                const { data: urlData } = this.supabase.storage.from('documents').getPublicUrl(path);
-                receiptUrl = urlData?.publicUrl || path;
+                receiptUrl = await this.uploadDocument(formData.bankReceipt, submissionRef, 'receipt');
             }
 
-            // STEP 2: Upload application documents
-            let documentUrls = {};
-            try {
-                documentUrls = await this._uploadDocuments(formData, applicationNumber);
-            } catch (uploadErr) {
-                console.error('Document upload failed:', uploadErr);
-                showNotification(
-                    'Receipt uploaded but some documents failed. Admin will follow up.',
-                    'error'
-                );
-            }
+            // STEP 2: Upload application documents. Unlike the Paystack flow no
+            // money has moved yet, so a failure here is a hard stop rather than
+            // something to paper over.
+            const documentUrls = await this._uploadDocuments(formData, submissionRef);
 
-            // STEP 3: Save application record atomically — fee NOT yet confirmed
-            // BEGIN / EXECUTE / CHECK / COMMIT → ROLLBACK handled server-side
-            // p_txn_reference is NULL for bank-transfer (no Paystack transaction to link)
-            const { data: rpc, error: rpcErr } = await this.supabase.rpc('record_application', {
-                p_app_data: {
-                    application_number:    applicationNumber,
-                    student_name:          formData.studentName,
-                    student_dob:           formData.studentDob || null,
-                    student_gender:        formData.studentGender || null,
-                    grade:                 formData.grade,
-                    previous_school:       formData.previousSchool || null,
-                    parent_name:           formData.parentName,
-                    parent_email:          formData.parentEmail,
-                    parent_phone:          formData.parentPhone,
-                    parent_address:        formData.parentAddress || {},
-                    ...documentUrls,
-                    receipt_url:           receiptUrl,
-                    application_fee_amount: feeAmount,
-                    application_fee_paid:  false,
-                    payment_reference:     formData.bankTransactionRef || null,
-                    payment_date:          new Date().toISOString(),
-                    payment_method:        'bank-transfer',
-                    status:                'pending',
-                    submitted_date:        new Date().toISOString()
-                },
-                p_txn_reference: null
+            // STEP 3: Server writes the record with the fee unverified.
+            return this._postSubmission({
+                ...this._applicantPayload(formData),
+                ...documentUrls,
+                receiptUrl,
+                paymentMethod: 'bank-transfer',
+                bankTransactionRef: formData.bankTransactionRef || null
+            });
+        }
+
+        // Shape the applicant fields for the edge function. Note the absence of
+        // any fee, status or paid flag — those are server-owned.
+        _applicantPayload(formData) {
+            return {
+                studentName:    formData.studentName,
+                studentDob:     formData.studentDob || null,
+                studentGender:  formData.studentGender || null,
+                grade:          formData.grade,
+                previousSchool: formData.previousSchool || null,
+                parentName:     formData.parentName,
+                parentEmail:    formData.parentEmail,
+                parentPhone:    formData.parentPhone,
+                parentAddress:  formData.parentAddress || {}
+            };
+        }
+
+        // Look up one application's status. Requires the application number AND
+        // the email on file: the row itself is not readable by anonymous
+        // visitors, so this goes through a SECURITY DEFINER function that
+        // returns only the fields the status card renders.
+        async getApplicationStatus(applicationNumber, email) {
+            const { data, error } = await this.supabase.rpc('check_application_status', {
+                p_app_no: applicationNumber,
+                p_email:  email
             });
 
-            if (rpcErr || !rpc?.success) {
-                const msg = rpc?.error || rpcErr?.message || 'Application could not be saved.';
-                console.error('Error saving application:', msg);
-                throw new Error('Failed to save application. Please try again or contact the school.');
-            }
-
-            return rpc.application;
-        }
-
-        // Get application by application number
-        async getApplicationByNumber(applicationNumber) {
-            try {
-                const { data, error } = await this.supabase
-                    .from('applications')
-                    .select('*')
-                    .eq('application_number', applicationNumber)
-                    .single();
-
-                if (error) throw error;
-                return data;
-            } catch (error) {
+            if (error) {
                 console.error('Error fetching application:', error);
-                return null;
+                throw new Error('Could not check your application status. Please try again.');
             }
-        }
-
-        // Get application by email (for applicants to check their own)
-        async getApplicationsByEmail(email) {
-            try {
-                const { data, error } = await this.supabase
-                    .from('applications')
-                    .select('*')
-                    .eq('parent_email', email)
-                    .order('submitted_date', { ascending: false });
-
-                if (error) throw error;
-                return data || [];
-            } catch (error) {
-                console.error('Error fetching applications:', error);
-                return [];
-            }
+            return Array.isArray(data) ? (data[0] || null) : (data || null);
         }
 
         // Render a single application status card (HTML string)
@@ -445,6 +445,7 @@
             const safeGrade    = escapeHtml(application.grade || '');
             const safeStatus   = escapeHtml(application.status || 'pending');
             const safeReason   = escapeHtml(application.rejection_reason || '');
+            const safePayReject = escapeHtml(application.payment_rejection_reason || '');
             const safeEmail    = escapeHtml(schoolEmail);
 
             return `
@@ -460,13 +461,19 @@
                                 <div><strong>Submitted:</strong> ${submittedDate}</div>
                                 ${application.application_fee_paid
                                     ? `<div><strong>Fee:</strong> ₦${(application.application_fee_amount||0).toLocaleString()} ✓ Paid</div>`
-                                    : application.payment_method === 'bank-transfer'
-                                        ? `<div><strong>Fee:</strong> ₦${(application.application_fee_amount||0).toLocaleString()} — <span style="color:hsl(45,80%,35%); font-weight:600;">Pending Verification</span></div>`
-                                        : ''}
+                                    : safePayReject
+                                        ? `<div><strong>Fee:</strong> ₦${(application.application_fee_amount||0).toLocaleString()} — <span style="color:hsl(0,80%,45%); font-weight:600;">Payment Not Accepted</span>
+                                           <div style="margin-top:0.4rem; padding:0.6rem 0.75rem; background:hsl(0,80%,97%); border-left:3px solid hsl(0,80%,55%); border-radius:0.5rem; font-size:0.85rem; color:hsl(0,60%,30%);">
+                                             <strong>Reason:</strong> ${safePayReject}<br>
+                                             Please contact <a href="mailto:${safeEmail}" style="color:var(--color-primary);">${safeEmail}</a> to resolve this and re-submit your payment.
+                                           </div></div>`
+                                        : application.payment_method === 'bank-transfer'
+                                            ? `<div><strong>Fee:</strong> ₦${(application.application_fee_amount||0).toLocaleString()} — <span style="color:hsl(45,80%,35%); font-weight:600;">Pending Verification</span></div>`
+                                            : ''}
                                 ${application.status === 'approved' ? `
                                     <div style="margin-top:0.75rem; padding:1rem; background:hsl(150,70%,97%); border:1.5px solid hsl(150,70%,75%); border-radius:0.75rem;">
                                         <div style="font-weight:700; color:hsl(150,70%,25%); margin-bottom:0.5rem;"><i class="fas fa-graduation-cap" style="margin-right:0.4rem;"></i>Congratulations — Approved!</div>
-                                        <p style="margin:0 0 0.75rem; font-size:0.875rem; color:hsl(150,60%,20%);">Login credentials have been (or will be) sent to the email on file.</p>
+                                        <p style="margin:0 0 0.75rem; font-size:0.875rem; color:hsl(150,60%,20%);">The school will contact you with your student portal login details. Nothing is sent automatically — if you have not heard from us, please get in touch.</p>
                                         <a href="${window.location.origin}/login.html" target="_blank" style="display:inline-flex; align-items:center; gap:0.5rem; padding:0.6rem 1.1rem; background:hsl(150,65%,40%); color:white; border-radius:0.5rem; font-weight:600; font-size:0.875rem; text-decoration:none;">
                                             <i class="fas fa-sign-in-alt"></i> Student Portal Login
                                         </a>
@@ -588,44 +595,18 @@
         let _postPaymentFailure = false; // prevents re-enabling button if payment was charged
 
         try {
-            // Check for duplicate student application
-            if (window.appManager?.supabase && studentName && grade) {
-                try {
-                    const { data: existingApps } = await window.appManager.supabase
-                        .from('applications')
-                        .select('application_number, submitted_date')
-                        .ilike('student_name', studentName)
-                        .eq('grade', grade)
-                        .limit(1);
-                    if (existingApps && existingApps.length > 0) {
-                        showNotification(
-                            `An application for "${studentName}" applying for ${grade} already exists (Ref: ${existingApps[0].application_number}). Contact the school if this is a different student.`,
-                            'error'
-                        );
-                        submitBtn.innerHTML = originalText;
-                        submitBtn.disabled = false;
-                        return;
-                    }
-                } catch (_) { /* non-blocking — continue if check fails */ }
-            }
+            // Duplicate-applicant and payment-reference checks now run inside the
+            // submit-application edge function. They cannot run here: anonymous
+            // visitors cannot read the applications table (by design), so a
+            // client-side check would either fail open or require exposing every
+            // applicant's details to the public.
+            //
+            // The old uniqueness check against profiles/staff/students was also
+            // removed — it blocked any parent who already had a child enrolled
+            // from applying for a second child.
 
-            // Check email and phone uniqueness
-            if (typeof validationManager !== 'undefined') {
-                const validation = await validationManager.validateUserInput({
-                    parent_email: parentEmail,
-                    parent_phone: parentPhone
-                }, { checkUniqueness: true, excludeTable: 'applications' });
-
-                if (!validation.isValid) {
-                    validation.errors.forEach(err => {
-                        showNotification(err.message, 'error');
-                    });
-                    submitBtn.innerHTML = originalText;
-                    submitBtn.disabled = false;
-                    return;
-                }
-            }
-
+            // Refresh the authoritative price list before quoting a figure.
+            await window.appManager.loadFeeSchedule();
             const applicationFee = window.appManager.getApplicationFee(grade);
 
             const formData = {
@@ -670,7 +651,7 @@
                 if (!confirmed) return;
 
                 submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading documents...';
-                application = await window.appManager.submitBankTransferApplication(formData, applicationFee);
+                application = await window.appManager.submitBankTransferApplication(formData);
             } else {
                 // Paystack flow
                 const confirmed = await new Promise(resolve => {
@@ -737,17 +718,26 @@
         }
     };
 
-    // Check application status
+    // Check application status.
+    // Both the application number and the email on file are required — the
+    // number alone used to be enough, which combined with sequential numbering
+    // meant anyone could walk the whole table and harvest applicant details.
     window.checkApplicationStatus = async function () {
         const input = document.getElementById('applicationIdInput');
+        const emailInput = document.getElementById('applicationLookupEmail');
         const resultDiv = document.getElementById('statusResult');
 
         if (!input || !resultDiv) return;
 
-        const applicationNumber = input.value.trim().toUpperCase();
+        const applicationNumber = input.value.trim();
+        const email = (emailInput?.value || '').trim();
 
         if (!applicationNumber) {
             showNotification('Please enter an application number.', 'error');
+            return;
+        }
+        if (!email) {
+            showNotification('Please enter the email address used on the application.', 'error');
             return;
         }
 
@@ -755,7 +745,7 @@
         resultDiv.innerHTML = '<div style="text-align: center; padding: 2rem;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--color-primary);"></i></div>';
 
         try {
-            const application = await window.appManager.getApplicationByNumber(applicationNumber);
+            const application = await window.appManager.getApplicationStatus(applicationNumber, email);
 
             if (!application) {
                 resultDiv.innerHTML = `
@@ -764,7 +754,7 @@
                             <i class="fas fa-exclamation-circle" style="font-size:2rem; color:hsl(0,80%,55%);"></i>
                             <div>
                                 <h4 style="margin:0; color:hsl(0,80%,40%);">Application Not Found</h4>
-                                <p style="margin:0.5rem 0 0; color:hsl(0,60%,30%);">No application found with number: <strong>${escapeHtml(applicationNumber)}</strong></p>
+                                <p style="margin:0.5rem 0 0; color:hsl(0,60%,30%);">No application matches <strong>${escapeHtml(applicationNumber)}</strong> together with that email address. Check both entries — the email must be the one used on the application.</p>
                             </div>
                         </div>
                     </div>
@@ -828,7 +818,7 @@
           <div style="background: hsl(150, 60%, 97%); border: 1px solid hsl(150, 60%, 75%); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1.25rem; text-align: left;">
             <p style="margin: 0 0 0.5rem; font-size: 0.85rem; color: hsl(150, 50%, 25%); font-weight: 600;">🎓 Student Portal Access</p>
             <p style="margin: 0 0 0.75rem; font-size: 0.8rem; color: hsl(150, 40%, 30%); line-height: 1.5;">
-              Once your application is approved, you will receive your login credentials. Use the link below to access the student portal.
+              Once your application is approved, the school will contact you with your login details. Use the link below to reach the student portal.
             </p>
             <a href="student-portal.html" target="_blank" style="display:inline-block;background:linear-gradient(135deg,hsl(150,70%,40%),hsl(150,70%,30%));color:white;padding:0.5rem 1.25rem;border-radius:0.4rem;font-size:0.85rem;font-weight:600;text-decoration:none;">🔗 student-portal.html</a>
           </div>
@@ -890,7 +880,7 @@
           <div style="background: hsl(150, 60%, 97%); border: 1px solid hsl(150, 60%, 75%); border-radius: 0.75rem; padding: 1rem; margin-bottom: 1.25rem; text-align: left;">
             <p style="margin: 0 0 0.5rem; font-size: 0.85rem; color: hsl(150, 50%, 25%); font-weight: 600;">🎓 Student Portal Access</p>
             <p style="margin: 0 0 0.75rem; font-size: 0.8rem; color: hsl(150, 40%, 30%); line-height: 1.5;">
-              Once your application is approved and payment verified, you will receive login credentials to access the student portal.
+              Once your application is approved and payment verified, the school will contact you with your login details for the student portal.
             </p>
             <a href="student-portal.html" target="_blank" style="display:inline-block;background:linear-gradient(135deg,hsl(150,70%,40%),hsl(150,70%,30%));color:white;padding:0.5rem 1.25rem;border-radius:0.4rem;font-size:0.85rem;font-weight:600;text-decoration:none;">🔗 student-portal.html</a>
           </div>
@@ -908,16 +898,19 @@
         });
     }
 
-    // Escape HTML to prevent XSS when inserting user input into innerHTML
-    function escapeHtml(str) {
+    // Escape HTML to prevent XSS when inserting user input into innerHTML.
+    // The canonical implementation lives in js/html-escape.js, which loads on
+    // every page. The local fallback keeps this file working standalone.
+    const escapeHtml = window.escapeHtml || function (str) {
+        if (str === null || str === undefined) return '';
         return String(str)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
-    }
-    window.escapeHtml = escapeHtml;
+    };
+    if (!window.escapeHtml) window.escapeHtml = escapeHtml;
 
     // Helper function to show notifications
     // duration: milliseconds (default 5000). Pass 0 for persistent (click to dismiss).

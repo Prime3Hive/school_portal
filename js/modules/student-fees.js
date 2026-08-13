@@ -507,7 +507,7 @@ const studentFeesModule = {
                     ${p.status === 'paid'
                       ? `<button class="btn btn-sm btn-ghost" onclick="studentFeesModule._downloadPaymentReceipt('${p.id || p.receipt_no || p.receiptNo}')" style="font-size:0.72rem;padding:0.25rem 0.55rem;border:1px solid var(--border-primary);" title="Download Receipt">📄 Receipt</button>`
                       : receiptUrl
-                        ? `<a href="${receiptUrl}" target="_blank" rel="noopener" style="font-size:0.75rem;color:var(--color-primary);font-weight:600;">📎 View</a>`
+                        ? `<a href="${typeof window.escapeHtml === 'function' ? window.escapeHtml(receiptUrl) : receiptUrl}" data-storage-link target="_blank" rel="noopener noreferrer" style="font-size:0.75rem;color:var(--color-primary);font-weight:600;">📎 View</a>`
                         : `<span style="color:var(--text-tertiary);font-size:0.75rem;">${p.receipt_no || p.receiptNo || '—'}</span>`
                     }
                   </td>
@@ -1177,7 +1177,7 @@ const studentFeesModule = {
 
   _showReceipt(payment) {
     if (!payment) return;
-    const school   = window.schoolConfig?.name || 'TBD Academy';
+    const school   = window.schoolConfig?.name || 'TBD International Academy';
     const portal   = window.location.origin + '/login.html';
     const dateStr  = payment.paymentDate
       ? new Date(payment.paymentDate).toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -1244,7 +1244,7 @@ const studentFeesModule = {
 
   _showPayAllReceipt(payments, totalAmount, txnRef) {
     if (!payments || payments.length === 0) return;
-    const school   = window.schoolConfig?.name || 'TBD Academy';
+    const school   = window.schoolConfig?.name || 'TBD International Academy';
     const dateStr  = new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' });
     const { student } = this.studentData || {};
     const rows     = payments.map(p =>
@@ -1295,7 +1295,7 @@ const studentFeesModule = {
       const { jsPDF } = window.jspdf;
       if (!jsPDF) { showToast('PDF library not loaded.', 'error'); return; }
       const doc    = new jsPDF();
-      const school = window.schoolConfig?.name || 'TBD Academy';
+      const school = window.schoolConfig?.name || 'TBD International Academy';
       const p      = payment;
       const amount = parseFloat(p.amount || 0);
 

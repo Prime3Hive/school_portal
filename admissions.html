@@ -3,27 +3,29 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#1E2A5A">
     <meta name="description"
-        content="Apply to TBD Academy - Download application form, view admission requirements, fee structure, and submit your application online.">
-    <title>Admissions - TBD Academy</title>
+        content="Apply to TBD International Academy - Download application form, view admission requirements, fee structure, and submit your application online.">
+    <title>Admissions - TBD International Academy</title>
 
     <!-- Open Graph / Social Media -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://school-portal-tbd.vercel.app/admissions.html">
-    <meta property="og:title" content="Admissions - TBD Academy">
-    <meta property="og:description" content="Apply to TBD Academy for the 2026/2027 academic year. Download the application form, review fee structures, and submit online.">
-    <meta property="og:image" content="https://picsum.photos/seed/tbdacademy/1200/630">
+    <meta property="og:title" content="Admissions - TBD International Academy">
+    <meta property="og:description" content="Apply to TBD International Academy for the 2026/2027 academic year. Download the application form, review fee structures, and submit online.">
+    <meta property="og:image" content="https://school-portal-tbd.vercel.app/assets/og-image.png">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Admissions - TBD Academy">
-    <meta name="twitter:description" content="Apply to TBD Academy for the 2026/2027 academic year. Download the application form, review fee structures, and submit online.">
+    <meta name="twitter:title" content="Admissions - TBD International Academy">
+    <meta name="twitter:description" content="Apply to TBD International Academy for the 2026/2027 academic year. Download the application form, review fee structures, and submit online.">
 
     <link rel="icon" type="image/svg+xml"
-        href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎓</text></svg>">
+        href="assets/logo-mark.svg">
     <link rel="stylesheet" href="css/public-blog.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 
     <!-- Environment Variables Loader -->
+    <script src="js/html-escape.js"></script>
     <script src="js/env-loader.js"></script>
 
     <!-- Supabase -->
@@ -36,29 +38,44 @@
     <nav class="navbar" id="navbar">
         <div class="navbar-container">
             <a href="public-blog.html" class="navbar-logo">
-                <div class="navbar-logo-icon">T</div>
-                <span>TBD Academy</span>
+                <div class="navbar-logo-icon"><img src="assets/logo-mark.svg" alt="" width="40" height="40"></div>
+                <span>TBD International Academy</span>
             </a>
 
-            <ul class="navbar-menu" id="navbarMenu">
-                <li><a href="public-blog.html" class="navbar-link">Home</a></li>
-                <li><a href="about.html" class="navbar-link">About</a></li>
-                <li><a href="academics.html" class="navbar-link">Academics</a></li>
-                <li><a href="admissions.html" class="navbar-link active">Admissions</a></li>
-                <li><a href="contact.html" class="navbar-link">Contact</a></li>
-            </ul>
+            <div class="navbar-collapse" id="navbarMenu">
+                <ul class="navbar-menu">
+                    <li><a href="public-blog.html" class="navbar-link">Home</a></li>
+                    <li><a href="about.html" class="navbar-link">About</a></li>
+                    <li><a href="academics.html" class="navbar-link">Academics</a></li>
+                    <li><a href="admissions.html" class="navbar-link active">Admissions</a></li>
+                    <li><a href="contact.html" class="navbar-link">Contact</a></li>
+                </ul>
 
-            <a href="login.html" class="btn btn-primary" style="padding: 0.5rem 1.25rem; font-size: 0.875rem; white-space: nowrap;">
+                <a href="login.html" class="btn btn-primary btn-block navbar-cta">
+                    <i class="fas fa-sign-in-alt"></i>
+                    <span>Portal Login</span>
+                </a>
+
+                <div class="navbar-drawer-meta">
+                    <a href="tel:+2348030614777"><i class="fas fa-phone"></i> 0803 061 4777</a>
+                    <a href="mailto:tbdinternationalacademy.mkd@gmail.com"><i class="fas fa-envelope"></i> tbdinternationalacademy.mkd@gmail.com</a>
+                    <a href="contact.html"><i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi</a>
+                </div>
+            </div>
+
+            <a href="login.html" class="btn btn-primary btn-sm">
                 <i class="fas fa-sign-in-alt"></i>
                 <span>Portal Login</span>
             </a>
 
-            <button class="navbar-toggle" id="navbarToggle">
+            <button class="navbar-toggle" id="navbarToggle" type="button" aria-label="Open menu">
                 <span></span>
                 <span></span>
                 <span></span>
             </button>
         </div>
+
+        <div class="navbar-progress" aria-hidden="true"><span></span></div>
     </nav>
 
     <!-- Page Header -->
@@ -70,7 +87,7 @@
                     <span>Now Accepting Applications for 2026/2027</span>
                 </div>
 
-                <h1 class="hero-title">Join TBD Academy</h1>
+                <h1 class="hero-title">Join TBD International Academy</h1>
 
                 <p class="hero-subtitle" style="max-width: 700px; margin: 0 auto 2rem;">
                     Begin your child's journey to excellence. Download our application form,
@@ -499,32 +516,25 @@
                 <span class="section-badge">Track Application</span>
                 <h2 class="section-title">Check Application Status</h2>
                 <p class="section-subtitle">
-                    Enter your Application ID to check the status of your application
+                    Enter your Application ID and the email address you applied with
                 </p>
             </div>
 
             <div style="max-width: 600px; margin: 0 auto;">
                 <div class="card">
-                    <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem; border-bottom: 2px solid var(--border-primary); padding-bottom: 0.75rem;">
-                        <button id="lookupByIdTab" onclick="switchLookupTab('id')" style="flex:1; padding:0.5rem; border:none; border-radius:0.375rem; cursor:pointer; font-weight:600; background:var(--color-primary,#3b82f6); color:white; font-size:0.875rem;">By Application ID</button>
-                        <button id="lookupByEmailTab" onclick="switchLookupTab('email')" style="flex:1; padding:0.5rem; border:2px solid var(--border-primary); border-radius:0.375rem; cursor:pointer; font-weight:600; background:transparent; color:var(--text-secondary); font-size:0.875rem;">By Email Address</button>
-                    </div>
-                    <div id="lookupById" style="display:flex; gap: 1rem;">
+                    <!-- Both fields are required. The application number alone is not
+                         enough to view a record: that would let anyone read other
+                         applicants' details by trying different numbers. -->
+                    <div style="display:flex; flex-direction:column; gap:0.75rem;">
                         <input type="text" id="applicationIdInput"
-                            placeholder="Enter Application ID (e.g., TBD-2026-XXXXXXX)"
-                            style="flex: 1; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem;">
-                        <button onclick="checkApplicationStatus()" class="btn btn-primary">
-                            <i class="fas fa-search"></i>
-                            <span>Check</span>
-                        </button>
-                    </div>
-                    <div id="lookupByEmail" style="display:none; gap: 1rem; flex-direction:column;">
-                        <input type="email" id="applicationEmailInput"
-                            placeholder="Enter parent/guardian email address"
+                            placeholder="Application ID (e.g., TBD-2026-A1B2C3D4-00001)"
                             style="width:100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; box-sizing:border-box;">
-                        <button onclick="checkApplicationStatusByEmail()" class="btn btn-primary" style="align-self:flex-start;">
+                        <input type="email" id="applicationLookupEmail"
+                            placeholder="Parent/guardian email used on the application"
+                            style="width:100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem; box-sizing:border-box;">
+                        <button onclick="checkApplicationStatus()" class="btn btn-primary" style="align-self:flex-start;">
                             <i class="fas fa-search"></i>
-                            <span>Check by Email</span>
+                            <span>Check Status</span>
                         </button>
                     </div>
                 </div>
@@ -675,7 +685,8 @@
         <div class="footer-container">
             <div class="footer-grid">
                 <div>
-                    <div class="footer-brand">TBD Academy</div>
+                    <div class="footer-brand">TBD International Academy</div>
+                    <p class="footer-motto">Planting Seeds of Knowledge</p>
                     <p class="footer-description">
                         Excellence in Education, Character in Action. Nurturing young minds
                         for a brighter future since 2011.
@@ -693,7 +704,7 @@
                         <a href="#" class="footer-social-link" aria-label="LinkedIn">
                             <i class="fab fa-linkedin-in"></i>
                         </a>
-                        <a href="https://wa.me/2348031234567" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
+                        <a href="https://wa.me/2348030614777" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
                             <i class="fab fa-whatsapp"></i>
                         </a>
                     </div>
@@ -723,20 +734,20 @@
                     <h4 class="footer-section-title">Contact</h4>
                     <ul class="footer-links">
                         <li class="footer-link">
-                            <i class="fas fa-map-marker-alt"></i> Makurdi, Benue State
+                            <i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi
                         </li>
                         <li class="footer-link">
-                            <i class="fas fa-phone"></i> +234 803 123 4567
+                            <i class="fas fa-phone"></i> 0803 061 4777
                         </li>
                         <li class="footer-link">
-                            <i class="fas fa-envelope"></i> info@tbdacademy.edu.ng
+                            <i class="fas fa-envelope"></i> tbdinternationalacademy.mkd@gmail.com
                         </li>
                     </ul>
                 </div>
             </div>
 
             <div class="footer-bottom">
-                <p>&copy; 2026 TBD Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
+                <p>&copy; <span data-year>2026</span> TBD International Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
             </div>
         </div>
     </footer>
@@ -860,9 +871,18 @@
         function saveDraft() {
             const form = document.getElementById('applicationForm');
             if (!form) return;
+            // Identity details of a child are not left sitting in localStorage on
+            // what may be a shared or public computer. Only the low-sensitivity
+            // fields are kept so a half-finished form is not lost on refresh.
+            const DRAFT_EXCLUDE = new Set([
+                'studentName', 'studentDob', 'studentGender',
+                'parentName', 'parentEmail', 'confirmParentEmail', 'parentPhone',
+                'parentStreet', 'parentCity', 'parentState',
+                'bankTransactionRef'
+            ]);
             const data = {};
             form.querySelectorAll('input[type="text"], input[type="email"], input[type="tel"], input[type="date"], select, textarea').forEach(el => {
-                if (el.id) data[el.id] = el.value;
+                if (el.id && !DRAFT_EXCLUDE.has(el.id)) data[el.id] = el.value;
             });
             localStorage.setItem(DRAFT_KEY, JSON.stringify({ data, ts: Date.now() }));
         }
@@ -942,57 +962,10 @@
         }
         window.updateGradeFeeTag = updateGradeFeeTag;
 
-        // Lookup tab switcher
-        function switchLookupTab(tab) {
-            const byId = document.getElementById('lookupById');
-            const byEmail = document.getElementById('lookupByEmail');
-            const idTab = document.getElementById('lookupByIdTab');
-            const emailTab = document.getElementById('lookupByEmailTab');
-            if (tab === 'id') {
-                byId.style.display = 'flex';
-                byEmail.style.display = 'none';
-                idTab.style.background = 'var(--color-primary,#3b82f6)';
-                idTab.style.color = 'white';
-                idTab.style.border = 'none';
-                emailTab.style.background = 'transparent';
-                emailTab.style.color = 'var(--text-secondary)';
-                emailTab.style.border = '2px solid var(--border-primary)';
-            } else {
-                byId.style.display = 'none';
-                byEmail.style.display = 'flex';
-                idTab.style.background = 'transparent';
-                idTab.style.color = 'var(--text-secondary)';
-                idTab.style.border = '2px solid var(--border-primary)';
-                emailTab.style.background = 'var(--color-primary,#3b82f6)';
-                emailTab.style.color = 'white';
-                emailTab.style.border = 'none';
-            }
-        }
-        window.switchLookupTab = switchLookupTab;
+        // The email-only lookup and the tab switcher were removed: listing every
+        // application for an email address requires reading rows the visitor is
+        // not authorised to see. Status lookup now needs ID + email together.
 
-        // Check application status by email
-        async function checkApplicationStatusByEmail() {
-            const email = document.getElementById('applicationEmailInput')?.value.trim();
-            const statusResult = document.getElementById('statusResult');
-            if (!email || !statusResult) return;
-            if (!window.appManager) {
-                statusResult.innerHTML = '<p style="color:var(--text-secondary);">Status checker is loading. Please try again in a moment.</p>';
-                return;
-            }
-            statusResult.innerHTML = '<p style="color:var(--text-secondary);">Searching...</p>';
-            try {
-                const applications = await window.appManager.getApplicationsByEmail(email);
-                if (!applications || applications.length === 0) {
-                    const safeEmail = typeof window.escapeHtml === 'function' ? window.escapeHtml(email) : email.replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                statusResult.innerHTML = `<div class="card" style="text-align:center; padding:2rem; color:var(--text-secondary);">No applications found for <strong>${safeEmail}</strong>.</div>`;
-                    return;
-                }
-                statusResult.innerHTML = applications.map(app => window.appManager.renderStatusCard(app)).join('');
-            } catch (err) {
-                statusResult.innerHTML = `<div class="card" style="color:hsl(0,70%,50%);">Error: ${err.message}</div>`;
-            }
-        }
-        window.checkApplicationStatusByEmail = checkApplicationStatusByEmail;
 
         // Wire up auto-save & draft restore
         document.addEventListener('DOMContentLoaded', function() {
@@ -1008,7 +981,7 @@
                 setTimeout(() => {
                     const notice = document.createElement('div');
                     notice.style.cssText = 'margin-bottom:1rem; padding:0.875rem 1rem; background:hsl(45,100%,95%); border:1.5px solid hsl(45,100%,50%); border-radius:0.5rem; font-size:0.875rem; color:hsl(45,80%,25%); display:flex; align-items:flex-start; gap:0.75rem;';
-                    notice.innerHTML = '<i class="fas fa-exclamation-triangle" style="margin-top:0.1rem;flex-shrink:0;"></i><span><strong>Draft restored.</strong> Your previously entered details have been filled in. You must <strong>re-attach all uploaded documents</strong> before submitting — files cannot be saved in drafts.</span>';
+                    notice.innerHTML = '<i class="fas fa-exclamation-triangle" style="margin-top:0.1rem;flex-shrink:0;"></i><span><strong>Draft restored.</strong> Your grade selection and notes were filled in. For privacy, personal details and documents are never saved to this device — please <strong>re-enter names and contact details and re-attach all documents</strong> before submitting.</span>';
                     const form = document.getElementById('applicationForm');
                     if (form) form.prepend(notice);
                 }, 400);
@@ -1029,8 +1002,20 @@
             if (window.envReady) {
                 window.envReady.then(populateBankDetails).catch(() => {});
             }
+
+            // Pull the authoritative fee list so the price shown matches the
+            // amount the server will charge and record.
+            if (window.appManager?.loadFeeSchedule) {
+                window.appManager.loadFeeSchedule().then(() => {
+                    const grade = document.getElementById('grade')?.value;
+                    if (grade) updateGradeFeeTag(grade);
+                }).catch(() => {});
+            }
         });
     </script>
+    <button class="to-top" type="button" aria-label="Back to top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
 </body>
 
 </html>

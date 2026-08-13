@@ -1,154 +1,350 @@
-// Blog Navigation JavaScript
-// Handles responsive navigation, scroll effects, and active link highlighting
+// Public site behaviour: navigation drawer, scroll effects and the
+// interactive widgets used across the public pages.
+//
+// Every block guards for missing elements so the same file can be shared
+// by public-blog / about / academics / admissions / contact.
 
 (function () {
     'use strict';
 
-    // DOM Elements
-    const navbar = document.getElementById('navbar');
-    const navbarToggle = document.getElementById('navbarToggle');
-    const navbarMenu = document.getElementById('navbarMenu');
-    const navbarLinks = document.querySelectorAll('.navbar-link');
+    var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var DESKTOP = '(min-width: 992px)';
 
-    // Mobile Menu Toggle
-    if (navbarToggle && navbarMenu) {
-        navbarToggle.addEventListener('click', function () {
-            navbarMenu.classList.toggle('active');
+    /* ============================================================
+       Mobile navigation drawer
+       ============================================================ */
+    (function navDrawer() {
+        var navbar = document.getElementById('navbar');
+        var toggle = document.getElementById('navbarToggle');
+        var drawer = document.getElementById('navbarMenu');
+        if (!navbar || !toggle || !drawer) return;
 
-            // Animate toggle button
-            const spans = navbarToggle.querySelectorAll('span');
-            if (navbarMenu.classList.contains('active')) {
-                spans[0].style.transform = 'rotate(45deg) translateY(10px)';
-                spans[1].style.opacity = '0';
-                spans[2].style.transform = 'rotate(-45deg) translateY(-10px)';
-            } else {
-                spans[0].style.transform = 'none';
-                spans[1].style.opacity = '1';
-                spans[2].style.transform = 'none';
-            }
-        });
-
-        // Close menu when clicking on a link
-        navbarLinks.forEach(link => {
-            link.addEventListener('click', function () {
-                if (window.innerWidth <= 768) {
-                    navbarMenu.classList.remove('active');
-                    const spans = navbarToggle.querySelectorAll('span');
-                    spans[0].style.transform = 'none';
-                    spans[1].style.opacity = '1';
-                    spans[2].style.transform = 'none';
-                }
-            });
-        });
-
-        // Close menu when clicking outside
-        document.addEventListener('click', function (event) {
-            if (!navbar.contains(event.target) && navbarMenu.classList.contains('active')) {
-                navbarMenu.classList.remove('active');
-                const spans = navbarToggle.querySelectorAll('span');
-                spans[0].style.transform = 'none';
-                spans[1].style.opacity = '1';
-                spans[2].style.transform = 'none';
-            }
-        });
-    }
-
-    // Navbar Scroll Effect
-    let lastScroll = 0;
-    window.addEventListener('scroll', function () {
-        const currentScroll = window.pageYOffset;
-
-        if (currentScroll > 100) {
-            navbar.classList.add('scrolled');
-        } else {
-            navbar.classList.remove('scrolled');
+        // The backdrop is injected so the markup stays identical on
+        // every page.
+        var backdrop = document.querySelector('.navbar-backdrop');
+        if (!backdrop) {
+            backdrop = document.createElement('div');
+            backdrop.className = 'navbar-backdrop';
+            document.body.appendChild(backdrop);
         }
 
-        lastScroll = currentScroll;
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-controls', 'navbarMenu');
+        if (!toggle.getAttribute('aria-label')) {
+            toggle.setAttribute('aria-label', 'Open menu');
+        }
+
+        function setOpen(open) {
+            drawer.classList.toggle('active', open);
+            toggle.classList.toggle('active', open);
+            backdrop.classList.toggle('active', open);
+            document.body.classList.toggle('nav-open', open);
+            toggle.setAttribute('aria-expanded', String(open));
+            toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+        }
+
+        function close() {
+            if (drawer.classList.contains('active')) setOpen(false);
+        }
+
+        toggle.addEventListener('click', function () {
+            setOpen(!drawer.classList.contains('active'));
+        });
+
+        backdrop.addEventListener('click', close);
+
+        drawer.addEventListener('click', function (event) {
+            if (event.target.closest('a')) close();
+        });
+
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                close();
+                if (document.activeElement !== toggle) toggle.focus();
+            }
+        });
+
+        // Leaving mobile widths must not strand the drawer open.
+        var desktop = window.matchMedia(DESKTOP);
+        var onBreakpoint = function (event) {
+            if (event.matches) setOpen(false);
+        };
+        if (desktop.addEventListener) {
+            desktop.addEventListener('change', onBreakpoint);
+        } else if (desktop.addListener) {
+            desktop.addListener(onBreakpoint);
+        }
+    })();
+
+    /* ============================================================
+       Scroll: navbar state, reading progress, floating UI
+       ============================================================ */
+    (function scrollEffects() {
+        var navbar = document.getElementById('navbar');
+        var progress = document.querySelector('.navbar-progress span');
+        var toTop = document.querySelector('.to-top');
+        var mobileBar = document.querySelector('.mobile-bar');
+        var ticking = false;
+
+        function update() {
+            ticking = false;
+            var y = window.pageYOffset || document.documentElement.scrollTop;
+
+            if (navbar) navbar.classList.toggle('scrolled', y > 24);
+
+            if (progress) {
+                var scrollable = document.documentElement.scrollHeight - window.innerHeight;
+                var ratio = scrollable > 0 ? Math.min(y / scrollable, 1) : 0;
+                progress.style.setProperty('--scroll-progress', ratio.toFixed(4));
+            }
+
+            if (toTop) toTop.classList.toggle('show', y > 600);
+            if (mobileBar) mobileBar.classList.toggle('show', y > 400);
+        }
+
+        function onScroll() {
+            if (ticking) return;
+            ticking = true;
+            window.requestAnimationFrame(update);
+        }
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        window.addEventListener('resize', onScroll, { passive: true });
+        update();
+
+        if (toTop) {
+            toTop.addEventListener('click', function () {
+                window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+            });
+        }
+    })();
+
+    /* ============================================================
+       Smooth scroll for in-page anchors
+       ============================================================ */
+    document.querySelectorAll('a[href^="#"]').forEach(function (anchor) {
+        anchor.addEventListener('click', function (event) {
+            var href = anchor.getAttribute('href');
+            if (!href || href === '#') return;
+
+            var target = document.querySelector(href);
+            if (!target) return;
+
+            event.preventDefault();
+            target.scrollIntoView({
+                behavior: reduceMotion ? 'auto' : 'smooth',
+                block: 'start'
+            });
+            // Keep keyboard focus in step with the visual jump.
+            target.setAttribute('tabindex', '-1');
+            target.focus({ preventScroll: true });
+        });
     });
 
-    // Smooth Scroll for Anchor Links
-    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-        anchor.addEventListener('click', function (e) {
-            const href = this.getAttribute('href');
+    /* ============================================================
+       Scroll reveal with a staggered delay per group
+       ============================================================ */
+    (function reveal() {
+        var items = document.querySelectorAll('.reveal, .card, .section-header');
+        if (!items.length) return;
 
-            // Only prevent default if it's not just "#"
-            if (href !== '#') {
-                e.preventDefault();
-                const target = document.querySelector(href);
+        if (reduceMotion || !('IntersectionObserver' in window)) {
+            items.forEach(function (el) { el.classList.add('reveal', 'is-visible'); });
+            return;
+        }
 
-                if (target) {
-                    const offsetTop = target.offsetTop - 80; // Account for fixed navbar
-                    window.scrollTo({
-                        top: offsetTop,
-                        behavior: 'smooth'
-                    });
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                entry.target.classList.add('is-visible');
+                observer.unobserve(entry.target);
+            });
+        }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+
+        items.forEach(function (el) {
+            el.classList.add('reveal');
+
+            // Siblings inside the same grid fade in one after another.
+            var siblings = el.parentElement ? Array.prototype.indexOf.call(el.parentElement.children, el) : 0;
+            el.style.setProperty('--reveal-delay', Math.min(siblings, 5) * 80 + 'ms');
+
+            observer.observe(el);
+        });
+    })();
+
+    /* ============================================================
+       Count-up numbers — <span data-count="500" data-suffix="+">
+       ============================================================ */
+    (function counters() {
+        var nodes = document.querySelectorAll('[data-count]');
+        if (!nodes.length) return;
+
+        function render(el, value) {
+            el.textContent = value.toLocaleString() + (el.dataset.suffix || '');
+        }
+
+        function run(el) {
+            var target = parseFloat(el.dataset.count) || 0;
+            if (reduceMotion) {
+                render(el, target);
+                return;
+            }
+
+            var duration = 1400;
+            var start = null;
+
+            function frame(now) {
+                if (start === null) start = now;
+                var progress = Math.min((now - start) / duration, 1);
+                // easeOutExpo
+                var eased = progress === 1 ? 1 : 1 - Math.pow(2, -10 * progress);
+                render(el, Math.round(target * eased));
+                if (progress < 1) window.requestAnimationFrame(frame);
+            }
+
+            window.requestAnimationFrame(frame);
+        }
+
+        if (!('IntersectionObserver' in window)) {
+            nodes.forEach(function (el) { render(el, parseFloat(el.dataset.count) || 0); });
+            return;
+        }
+
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                run(entry.target);
+                observer.unobserve(entry.target);
+            });
+        }, { threshold: 0.5 });
+
+        nodes.forEach(function (el) {
+            render(el, 0);
+            observer.observe(el);
+        });
+    })();
+
+    /* ============================================================
+       Tabs — [data-tabs] wrapper with .tab buttons + .tab-panel
+       ============================================================ */
+    document.querySelectorAll('[data-tabs]').forEach(function (group) {
+        var tabs = group.querySelectorAll('.tab');
+        if (!tabs.length) return;
+
+        function select(tab) {
+            tabs.forEach(function (other) {
+                var selected = other === tab;
+                other.setAttribute('aria-selected', String(selected));
+                other.setAttribute('tabindex', selected ? '0' : '-1');
+
+                var panel = document.getElementById(other.getAttribute('aria-controls'));
+                if (panel) {
+                    panel.classList.toggle('active', selected);
+                    panel.hidden = !selected;
                 }
-            }
+            });
+        }
+
+        tabs.forEach(function (tab, index) {
+            tab.addEventListener('click', function () { select(tab); });
+
+            tab.addEventListener('keydown', function (event) {
+                var offset = event.key === 'ArrowRight' ? 1 : event.key === 'ArrowLeft' ? -1 : 0;
+                if (!offset) return;
+                event.preventDefault();
+                var next = tabs[(index + offset + tabs.length) % tabs.length];
+                next.focus();
+                select(next);
+            });
         });
     });
 
-    // Highlight Active Section on Scroll
-    const sections = document.querySelectorAll('section[id]');
+    /* ============================================================
+       Accordion — .accordion-item with a .accordion-trigger button
+       ============================================================ */
+    document.querySelectorAll('.accordion').forEach(function (accordion) {
+        var items = accordion.querySelectorAll('.accordion-item');
 
-    function highlightNavigation() {
-        const scrollY = window.pageYOffset;
+        items.forEach(function (item) {
+            var trigger = item.querySelector('.accordion-trigger');
+            var panel = item.querySelector('.accordion-panel');
+            if (!trigger || !panel) return;
 
-        sections.forEach(section => {
-            const sectionHeight = section.offsetHeight;
-            const sectionTop = section.offsetTop - 100;
-            const sectionId = section.getAttribute('id');
+            trigger.setAttribute('aria-expanded', String(item.classList.contains('open')));
 
-            if (scrollY > sectionTop && scrollY <= sectionTop + sectionHeight) {
-                navbarLinks.forEach(link => {
-                    link.classList.remove('active');
-                    if (link.getAttribute('href') === `#${sectionId}`) {
-                        link.classList.add('active');
-                    }
+            trigger.addEventListener('click', function () {
+                var willOpen = !item.classList.contains('open');
+
+                // One panel open at a time keeps the list short on phones.
+                items.forEach(function (other) {
+                    other.classList.remove('open');
+                    var otherTrigger = other.querySelector('.accordion-trigger');
+                    if (otherTrigger) otherTrigger.setAttribute('aria-expanded', 'false');
                 });
-            }
+
+                item.classList.toggle('open', willOpen);
+                trigger.setAttribute('aria-expanded', String(willOpen));
+            });
         });
-    }
-
-    window.addEventListener('scroll', highlightNavigation);
-
-    // Intersection Observer for Fade-in Animations
-    const observerOptions = {
-        threshold: 0.1,
-        rootMargin: '0px 0px -50px 0px'
-    };
-
-    const observer = new IntersectionObserver(function (entries) {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
-            }
-        });
-    }, observerOptions);
-
-    // Observe cards and sections for animation
-    document.querySelectorAll('.card, .section-header').forEach(el => {
-        el.style.opacity = '0';
-        el.style.transform = 'translateY(30px)';
-        el.style.transition = 'opacity 0.6s ease, transform 0.6s ease';
-        observer.observe(el);
     });
 
-    // Current Year in Footer
-    const footerYear = document.querySelector('.footer-bottom p');
-    if (footerYear) {
-        const currentYear = new Date().getFullYear();
-        footerYear.innerHTML = footerYear.innerHTML.replace('2026', currentYear);
-    }
+    /* ============================================================
+       Scroll-snap rails — dots track the visible card
+       ============================================================ */
+    document.querySelectorAll('[data-rail]').forEach(function (rail) {
+        var dotsHost = document.querySelector('[data-rail-dots="' + rail.dataset.rail + '"]');
+        var cards = rail.children;
+        if (!dotsHost || !cards.length) return;
 
-    // Loading Animation
-    window.addEventListener('load', function () {
-        document.body.style.opacity = '0';
-        setTimeout(() => {
-            document.body.style.transition = 'opacity 0.5s ease';
-            document.body.style.opacity = '1';
-        }, 100);
+        Array.prototype.forEach.call(cards, function (card, index) {
+            var dot = document.createElement('button');
+            dot.type = 'button';
+            dot.className = 'rail-dot' + (index === 0 ? ' active' : '');
+            dot.setAttribute('aria-label', 'Go to testimonial ' + (index + 1));
+            dot.addEventListener('click', function () {
+                rail.scrollTo({
+                    left: card.offsetLeft - rail.offsetLeft,
+                    behavior: reduceMotion ? 'auto' : 'smooth'
+                });
+            });
+            dotsHost.appendChild(dot);
+        });
+
+        var ticking = false;
+        rail.addEventListener('scroll', function () {
+            if (ticking) return;
+            ticking = true;
+            window.requestAnimationFrame(function () {
+                ticking = false;
+                var index = Math.round(rail.scrollLeft / (rail.scrollWidth / cards.length));
+                Array.prototype.forEach.call(dotsHost.children, function (dot, i) {
+                    dot.classList.toggle('active', i === index);
+                });
+            });
+        }, { passive: true });
     });
 
+    /* ============================================================
+       Ticker — duplicate the track so the marquee loops seamlessly
+       ============================================================ */
+    document.querySelectorAll('.ticker-track').forEach(function (track) {
+        if (track.dataset.cloned === 'true') return;
+
+        var clone = document.createDocumentFragment();
+        Array.prototype.forEach.call(track.children, function (item) {
+            var copy = item.cloneNode(true);
+            copy.setAttribute('aria-hidden', 'true'); // the loop is decorative
+            clone.appendChild(copy);
+        });
+
+        track.appendChild(clone);
+        track.dataset.cloned = 'true';
+    });
+
+    /* ============================================================
+       Footer year
+       ============================================================ */
+    document.querySelectorAll('[data-year]').forEach(function (el) {
+        el.textContent = new Date().getFullYear();
+    });
 })();

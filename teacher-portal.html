@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teacher Portal - TBD Academy</title>
+    <title>Teacher Portal - TBD International Academy</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
+    <meta name="theme-color" content="#1E2A5A">
 
     <!-- Stylesheets -->
     <link rel="stylesheet" href="css/design-system.css">
@@ -110,7 +112,7 @@
             <div class="nav-logo">
                 <div class="nav-logo-icon">🎓</div>
                 <div class="nav-logo-text">
-                    <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD Academy</div>
+                    <div style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD International Academy</div>
                     <div style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Teacher Portal</div>
                 </div>
             </div>
@@ -160,7 +162,11 @@
     </div>
 
     <!-- Scripts -->
-    <!-- Supabase (must be first) -->
+    <!-- Environment + config must load before anything reads window.ENV / AppConfig -->
+    <script src="js/html-escape.js"></script>
+    <script src="js/env-loader.js"></script>
+    <script src="js/config.js"></script>
+    <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/supabase-client.js"></script>
     <script src="js/audit-logger.js"></script>

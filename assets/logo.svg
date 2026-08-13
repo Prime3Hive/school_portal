@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 330" role="img" aria-labelledby="tbd-logo-title">
+  <title id="tbd-logo-title">TBD International Academy — Planting Seeds of Knowledge</title>
+  <defs>
+    <linearGradient id="tbdLogoShield" x1="0" y1="0" x2="0.35" y2="1">
+      <stop offset="0" stop-color="#2E3D7D" />
+      <stop offset="1" stop-color="#1A2450" />
+    </linearGradient>
+  </defs>
+
+  <!-- Wordmark -->
+  <g fill="#E23C3C" font-family="Outfit, Inter, 'Segoe UI', sans-serif" font-weight="800"
+     font-size="30" text-anchor="middle" letter-spacing="0.5">
+    <text x="180" y="28">TBD INTERNATIONAL</text>
+    <text x="180" y="60">ACADEMY</text>
+  </g>
+
+  <!-- Crest -->
+  <g transform="translate(80 76)">
+    <path d="M100 4 192 34v82c0 54-42 88-92 100C50 204 8 170 8 116V34Z" fill="url(#tbdLogoShield)" />
+
+    <!-- Graduation cap -->
+    <g fill="#FFFFFF">
+      <path d="M100 42 164 70l-64 28-64-28Z" />
+      <path d="M72 84v16c0 10 56 10 56 0V84l-28 12Z" />
+    </g>
+    <path d="M164 70v24" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" fill="none" />
+    <path d="M164 94c6 6 6 14 0 18-6-4-6-12 0-18Z" fill="#FFFFFF" />
+
+    <!-- Open book -->
+    <path d="M100 124c-13-11-36-15-58-13v54c22-2 45 2 58 13Z" fill="#FFFFFF" />
+    <path d="M100 124c13-11 36-15 58-13v54c-22-2-45 2-58 13Z" fill="#FFFFFF" />
+    <path d="M100 124v54" stroke="#1A2450" stroke-width="3" stroke-linecap="round" />
+    <g stroke="#1A2450" stroke-width="3" stroke-linecap="round" opacity="0.55">
+      <path d="M54 128h32M54 140h32M54 152h32M54 164h32" />
+      <path d="M114 128h32M114 140h32M114 152h32M114 164h32" />
+    </g>
+  </g>
+
+  <!-- Motto ribbon -->
+  <path d="M8 216 48 226v42l-40 10 13-31Z" fill="#B92E2E" />
+  <path d="M352 216 312 226v42l40 10-13-31Z" fill="#B92E2E" />
+  <path d="M48 224h264v46H48Z" fill="#E23C3C" />
+  <text x="180" y="253" fill="#FFFFFF" font-family="Outfit, Inter, 'Segoe UI', sans-serif"
+        font-weight="700" font-size="18" text-anchor="middle" letter-spacing="0.4">
+    Planting Seeds of Knowledge
+  </text>
+</svg>
