@@ -147,7 +147,8 @@
         <div class="main-wrapper">
             <header class="top-header">
                 <div class="header-left">
-                    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open menu"
+                        aria-controls="sidebar" aria-expanded="false">☰</button>
                     <div class="breadcrumb">
                         <span>Student Portal</span>
                         <span class="breadcrumb-separator">›</span>
@@ -408,12 +409,28 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebar-overlay');
+            const menuBtn = document.querySelector('.mobile-menu-btn');
             const isOpen  = sidebar.classList.toggle('open');
             if (overlay) {
                 overlay.classList.toggle('open', isOpen);
             }
+            if (menuBtn) menuBtn.setAttribute('aria-expanded', String(isOpen));
             document.body.style.overflow = isOpen ? 'hidden' : '';
         }
+
+        function closeSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar?.classList.contains('open')) toggleSidebar();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeSidebar();
+        });
+
+        // Rotating to landscape/tablet width must not leave the scroll lock on.
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 1024) closeSidebar();
+        });
 
         // ── Guardian Portal Inline Module ─────────────────────────────────
         window.guardianPortalModule = {

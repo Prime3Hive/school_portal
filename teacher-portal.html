@@ -106,9 +106,17 @@
 </head>
 
 <body>
+    <!-- Sidebar backdrop (mobile) -->
+    <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
     <div class="app-container">
         <!-- Sidebar -->
         <nav class="nav-sidebar" id="sidebar">
+            <!-- Close button (mobile only) -->
+            <div class="nav-mobile-close">
+                <button onclick="closeSidebar()" title="Close menu" aria-label="Close menu">✕</button>
+            </div>
+
             <div class="nav-logo">
                 <div class="nav-logo-icon">🎓</div>
                 <div class="nav-logo-text">
@@ -127,7 +135,8 @@
         <div class="main-wrapper">
             <header class="top-header">
                 <div class="header-left">
-                    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+                    <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open menu"
+                        aria-controls="sidebar" aria-expanded="false">☰</button>
                     <div class="breadcrumb">
                         <span>Teacher Portal</span>
                         <span class="breadcrumb-separator">›</span>
@@ -246,6 +255,10 @@
 
                         navLinks.forEach(l => l.classList.remove('active'));
                         link.classList.add('active');
+
+                        // Close the drawer — otherwise it covers the page the
+                        // user just asked for.
+                        if (window.innerWidth <= 1024) closeSidebar();
                     });
                 });
             }
@@ -325,11 +338,37 @@
             }
         });
 
-        // Toggle mobile sidebar
+        // ── Mobile sidebar drawer ──
+        function setSidebarOpen(open) {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const menuBtn = document.querySelector('.mobile-menu-btn');
+
+            sidebar.classList.toggle('open', open);
+            if (overlay) overlay.classList.toggle('open', open);
+            if (menuBtn) menuBtn.setAttribute('aria-expanded', String(open));
+            // Stop the page behind the drawer scrolling under the user's finger.
+            document.body.style.overflow = open ? 'hidden' : '';
+        }
+
+        function closeSidebar() {
+            setSidebarOpen(false);
+        }
+
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('open');
+            setSidebarOpen(!sidebar.classList.contains('open'));
         }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.getElementById('sidebar')?.classList.contains('open')) {
+                closeSidebar();
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            if (window.innerWidth > 1024) closeSidebar();
+        });
 
         // Logout function — exposed on window so onclick="logout()" always finds it
         window.logout = async function logout() {

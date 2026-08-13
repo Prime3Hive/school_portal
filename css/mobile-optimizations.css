@@ -1,88 +1,547 @@
 /* ============================================
    MOBILE OPTIMIZATIONS
+   ============================================
+
+   Loaded last, after design-system.css and components.css, so these rules
+   win on equal specificity.
+
+   A note on the `[style*="..."]` selectors below: almost every module builds
+   its markup as a template string with inline styles, so class-based
+   overrides can't reach them. Attribute selectors + !important are the only
+   way to re-flow those layouts on a phone without rewriting 25 modules.
    ============================================ */
 
-/* Responsive Tables */
+/* ============================================
+   0. GLOBAL GUARDS
+   ============================================ */
+@media (max-width: 1024px) {
+  html,
+  body {
+    /* Nothing should push the viewport sideways — a single wide table used to
+       make the whole page scroll horizontally. Wide content now scrolls
+       inside its own container (see section 4). */
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  /* Flex/grid children default to min-width:auto, which lets long words and
+     wide tables blow out the layout instead of shrinking. */
+  .main-wrapper,
+  .main-content,
+  #main-content {
+    min-width: 0;
+  }
+
+  #main-content img,
+  #main-content video,
+  #main-content canvas,
+  #main-content iframe {
+    max-width: 100%;
+  }
+
+  /* Long unbroken strings (emails, refs, URLs) must not widen the page. */
+  #main-content {
+    overflow-wrap: break-word;
+  }
+}
+
+/* ============================================
+   1. LAYOUT SHELL — SIDEBAR, OVERLAY, HEADER
+   ============================================ */
+@media (max-width: 1024px) {
+  .main-wrapper {
+    margin-left: 0 !important;
+  }
+
+  /* The sticky top header is z-1100; the drawer has to sit above it. */
+  .nav-sidebar {
+    z-index: 1200 !important;
+  }
+
+  .sidebar-overlay {
+    z-index: 1199;
+  }
+
+  /* Bigger tap targets in the drawer. */
+  .nav-link {
+    padding: 12px 12px 12px 14px;
+    min-height: 46px;
+  }
+
+  .nav-link-text {
+    font-size: 0.9rem;
+  }
+
+  .nav-section-label {
+    padding: 16px 8px 6px;
+  }
+}
+
+/* Header: on a phone the breadcrumb prefix, the full user card and a labelled
+   sign-out button cannot all fit. Keep the identity, drop the chrome. */
 @media (max-width: 768px) {
-  .table-responsive {
+  .top-header {
+    height: 58px !important;
+    padding: 0 var(--space-3) !important;
+    gap: var(--space-2);
+  }
+
+  .header-left,
+  .header-right {
+    gap: var(--space-2) !important;
+    min-width: 0;
+  }
+
+  .header-left {
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* "Admin Portal ›" prefix — the sidebar already says where you are. */
+  .breadcrumbs > span:not(#breadcrumb-current),
+  .breadcrumb > span:not(#breadcrumb-current) {
+    display: none;
+  }
+
+  .breadcrumbs,
+  .breadcrumb {
+    min-width: 0;
+    font-size: var(--font-size-sm);
+  }
+
+  #breadcrumb-current {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.95rem !important;
+    font-weight: 700;
+  }
+
+  /* Name + role text drops; the avatar stays as the tap target. */
+  .user-info,
+  .user-details {
+    display: none;
+  }
+
+  .user-profile .user-info {
+    display: none;
+  }
+
+  .user-profile {
+    padding: 4px !important;
+    border-radius: 50% !important;
+  }
+
+  .user-avatar {
+    width: 34px !important;
+    height: 34px !important;
+    font-size: 0.85rem !important;
+  }
+
+  .notification-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+}
+
+/* Sign-out collapses to its door icon. */
+@media (max-width: 640px) {
+  #signout-btn,
+  .header-right > button[onclick*="logout"] {
+    padding: 8px 10px !important;
+    gap: 0 !important;
+  }
+
+  #signout-btn > span:not(:first-child),
+  .header-right > button[onclick*="logout"] > span:not(:first-child) {
+    display: none;
+  }
+
+  #signout-confirm {
+    right: 0;
+    min-width: 200px !important;
+  }
+}
+
+/* ============================================
+   2. CONTENT PADDING & TYPOGRAPHY
+   ============================================ */
+@media (max-width: 768px) {
+  .main-content {
+    padding: var(--space-4) var(--space-3) var(--space-8) !important;
+  }
+
+  .page-title,
+  .module-title {
+    font-size: 1.375rem !important;
+    line-height: 1.25;
+    margin-bottom: var(--space-1) !important;
+  }
+
+  .page-description,
+  .module-subtitle {
+    font-size: 0.875rem !important;
+  }
+
+  .page-header {
+    margin-bottom: var(--space-5);
+  }
+
+  .card-title {
+    font-size: var(--font-size-lg);
+  }
+
+  h1 { font-size: 1.5rem; }
+  h2 { font-size: 1.3rem; }
+  h3 { font-size: 1.125rem; }
+}
+
+@media (max-width: 480px) {
+  .main-content {
+    padding: var(--space-3) var(--space-2) var(--space-8) !important;
+  }
+}
+
+/* ============================================
+   3. LAYOUT RE-FLOW — GRIDS & TOOLBARS
+   ============================================ */
+/* Multi-column grids declared inline collapse on a phone. auto-fit/minmax
+   grids are deliberately left alone — they already reflow. */
+@media (max-width: 768px) {
+  #main-content [style*="grid-template-columns: 1fr 1fr"],
+  #main-content [style*="grid-template-columns:1fr 1fr"],
+  #main-content [style*="repeat(2, 1fr)"],
+  #main-content [style*="repeat(2,1fr)"],
+  #main-content [style*="repeat(3, 1fr)"],
+  #main-content [style*="repeat(3,1fr)"],
+  #main-content [style*="repeat(4, 1fr)"],
+  #main-content [style*="repeat(4,1fr)"],
+  #main-content [style*="repeat(5, 1fr)"],
+  #main-content [style*="repeat(5,1fr)"],
+  #main-content [style*="grid-template-columns: auto 1fr"],
+  #main-content [style*="grid-template-columns:auto 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Modal bodies get the same treatment — most add/edit forms are 2-up. */
+  .modal-body [style*="grid-template-columns: 1fr 1fr"],
+  .modal-body [style*="grid-template-columns:1fr 1fr"],
+  .modal-body [style*="repeat(2, 1fr)"],
+  .modal-body [style*="repeat(2,1fr)"],
+  .modal-body [style*="repeat(3, 1fr)"],
+  .modal-body [style*="repeat(3,1fr)"],
+  .modal-body [style*="repeat(4, 1fr)"],
+  .modal-body [style*="repeat(4,1fr)"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  .grid-2,
+  .grid-3,
+  .grid-4,
+  .grid-cols-2,
+  .grid-cols-3,
+  .grid-cols-4 {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  /* `.sm:` / `.lg:` helpers are min-width rules — they already don't apply at
+     phone widths, so they are deliberately left alone here. */
+
+  .gap-6 {
+    gap: var(--space-4) !important;
+  }
+}
+
+/* Two-up is a better use of a phone screen than one-up for compact tiles. */
+@media (min-width: 420px) and (max-width: 768px) {
+  #main-content [style*="minmax(130px"],
+  #main-content [style*="minmax(140px"],
+  #main-content [style*="minmax(150px"],
+  #main-content [style*="minmax(160px"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Module toolbars: `justify-content: space-between` rows hold a title block
+   and an action group side by side. Without wrapping they squash each other. */
+@media (max-width: 768px) {
+  #main-content [style*="justify-content: space-between"],
+  #main-content [style*="justify-content:space-between"] {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  /* Filter/search rows go full width rather than fighting for inches. */
+  #main-content input[type="text"],
+  #main-content input[type="search"],
+  #main-content input[type="date"],
+  #main-content input[type="number"],
+  #main-content select,
+  #main-content .form-input,
+  #main-content .form-select {
+    max-width: none !important;
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .search-bar {
+    max-width: none;
+    width: 100%;
+  }
+
+  .filter-bar {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .filter-bar > * {
+    width: 100%;
+  }
+}
+
+/* Tab strips scroll sideways instead of wrapping into three ragged rows. */
+@media (max-width: 768px) {
+  #main-content div:has(> .profile-tab),
+  #main-content div:has(> .tab-button) {
+    flex-wrap: nowrap !important;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  #main-content div:has(> .profile-tab)::-webkit-scrollbar,
+  #main-content div:has(> .tab-button)::-webkit-scrollbar {
+    display: none;
+  }
+
+  .profile-tab,
+  .tab-button {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: var(--space-3) var(--space-3) !important;
+    font-size: 0.85rem;
+  }
+}
+
+/* ============================================
+   4. TABLES
+   ============================================ */
+/* Wide tables scroll inside their own container and keep their column widths,
+   which reads far better on a phone than columns crushed to two characters. */
+.table-responsive,
+.table-container {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Scroll shadows: the two inner gradients are painted in the scroll layer and
+   the two covering ones in the element layer, so a shadow only shows on a side
+   that still has content off-screen. That's the cue that the table scrolls. */
+@media (max-width: 900px) {
+  .table-responsive,
+  .table-container,
+  #main-content div[style*="overflow-x"] {
+    background-image:
+      linear-gradient(to right, var(--bg-secondary) 30%, rgba(255, 255, 255, 0)),
+      linear-gradient(to left, var(--bg-secondary) 30%, rgba(255, 255, 255, 0)),
+      linear-gradient(to right, rgba(15, 23, 42, 0.16), rgba(255, 255, 255, 0)),
+      linear-gradient(to left, rgba(15, 23, 42, 0.16), rgba(255, 255, 255, 0));
+    background-position: 0 0, 100% 0, 0 0, 100% 0;
+    background-repeat: no-repeat;
+    background-size: 32px 100%, 32px 100%, 14px 100%, 14px 100%;
+    background-attachment: local, local, scroll, scroll;
+  }
+}
+
+@media (max-width: 900px) {
+  /* Whatever element directly wraps a table becomes the scroll container. */
+  #main-content *:has(> table),
+  .modal-body:has(> table),
+  .modal-body *:has(> table) {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
 
-  /* Card-based table view for mobile */
+  #main-content table,
+  .modal-body table {
+    min-width: 560px;
+  }
+
+  /* Tables already laid out as stacked cards must not get a min-width. */
+  #main-content table.mobile-cards,
   .data-table.mobile-cards {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .table th,
+  .table td,
+  .data-table th,
+  .data-table td {
+    padding: var(--space-3) var(--space-3) !important;
+    font-size: 0.82rem;
+  }
+
+  .table th,
+  .data-table th {
+    white-space: nowrap;
+  }
+
+  /* Action buttons stay on one line inside their cell. */
+  .table-actions,
+  .table td [style*="display: flex"],
+  .data-table td [style*="display: flex"] {
+    flex-wrap: nowrap;
+  }
+
+  /* Card-based table view — opt in with .mobile-cards on the table. */
+  .data-table.mobile-cards,
+  .table.mobile-cards {
     display: block;
   }
 
-  .data-table.mobile-cards thead {
+  .data-table.mobile-cards thead,
+  .table.mobile-cards thead {
     display: none;
   }
 
-  .data-table.mobile-cards tbody {
+  .data-table.mobile-cards tbody,
+  .table.mobile-cards tbody {
     display: block;
   }
 
-  .data-table.mobile-cards tr {
+  .data-table.mobile-cards tr,
+  .table.mobile-cards tr {
     display: block;
     margin-bottom: var(--space-4);
     padding: var(--space-4);
     background: var(--bg-secondary);
+    border: 1px solid var(--border-primary);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-sm);
   }
 
-  .data-table.mobile-cards td {
+  .data-table.mobile-cards td,
+  .table.mobile-cards td {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: var(--space-2) 0;
+    gap: var(--space-3);
+    padding: var(--space-2) 0 !important;
     border: none;
+    text-align: right;
   }
 
-  .data-table.mobile-cards td::before {
+  .data-table.mobile-cards td::before,
+  .table.mobile-cards td::before {
     content: attr(data-label);
     font-weight: var(--font-weight-semibold);
     color: var(--text-secondary);
-    margin-right: var(--space-3);
+    text-align: left;
+    flex-shrink: 0;
   }
 
-  .data-table.mobile-cards td:not(:last-child) {
+  .data-table.mobile-cards td:not(:last-child),
+  .table.mobile-cards td:not(:last-child) {
     border-bottom: 1px solid var(--border-primary);
   }
 }
 
-/* Mobile Modal Optimizations */
+/* ============================================
+   5. MODALS — BOTTOM SHEET ON MOBILE
+   ============================================ */
 @media (max-width: 768px) {
+  .modal-backdrop {
+    padding: 0 !important;
+    align-items: flex-end;
+  }
+
   .modal {
-    padding: var(--space-3);
+    max-width: 100% !important;
+    width: 100%;
+    max-height: 94vh;
+    max-height: 94dvh;
+    border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
   }
 
-  .modal-content {
-    max-width: 100%;
-    max-height: 90vh;
-    margin: auto;
-    border-radius: var(--radius-lg);
+  .modal-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-secondary);
+    padding: var(--space-4) var(--space-4) var(--space-3) !important;
+    flex-shrink: 0;
   }
 
-  .modal-header,
-  .modal-body,
-  .modal-footer {
-    padding: var(--space-4);
+  .modal-title {
+    font-size: var(--font-size-lg) !important;
+  }
+
+  .modal-close {
+    font-size: 1.5rem;
+    min-width: 40px;
+    min-height: 40px;
   }
 
   .modal-body {
-    max-height: calc(90vh - 140px);
+    padding: var(--space-4) !important;
+    flex: 1;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-footer {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-secondary);
+    flex-direction: column-reverse;
+    padding: var(--space-4) !important;
+    padding-bottom: max(var(--space-4), env(safe-area-inset-bottom)) !important;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
   }
 }
 
-/* Mobile Form Optimizations */
+@media (max-height: 500px) and (orientation: landscape) {
+  .modal {
+    max-height: 92vh;
+  }
+}
+
+/* ============================================
+   6. FORMS
+   ============================================ */
 @media (max-width: 768px) {
   .form-input,
   .form-select,
-  .form-textarea {
-    font-size: 16px; /* Prevents zoom on iOS */
+  .form-textarea,
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="date"],
+  input[type="tel"],
+  select,
+  textarea {
+    /* 16px is the threshold below which iOS Safari zooms on focus. */
+    font-size: 16px !important;
     min-height: 44px;
+  }
+
+  textarea,
+  .form-textarea {
+    min-height: 96px;
   }
 
   .form-group {
@@ -98,69 +557,26 @@
   }
 }
 
-/* Mobile Grid Adjustments */
-@media (max-width: 768px) {
-  .grid-2,
-  .grid-3,
-  .grid-4 {
-    grid-template-columns: 1fr;
-    gap: var(--space-4);
-  }
-
-  .grid-cols-1,
-  .grid-cols-2,
-  .grid-cols-3,
-  .grid-cols-4 {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (min-width: 480px) and (max-width: 768px) {
-  .grid-2,
-  .grid-cols-2 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-/* Mobile Navigation */
-@media (max-width: 1024px) {
-  .nav-sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: 280px;
-    transform: translateX(-100%);
-    transition: transform 0.3s ease;
-    z-index: 1001;
-    box-shadow: var(--shadow-2xl);
-  }
-
-  .nav-sidebar.open {
-    transform: translateX(0);
-  }
-
-  .sidebar-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-  }
-
-  .sidebar-overlay.active {
-    display: block;
-  }
-}
-
-/* Mobile Button Optimizations */
+/* ============================================
+   7. BUTTONS & TOUCH TARGETS
+   ============================================ */
 @media (max-width: 768px) {
   .btn {
+    padding: var(--space-3) var(--space-4);
+    font-size: 0.875rem;
+    min-height: 42px;
+  }
+
+  .btn-sm {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.8rem;
+    min-height: 36px;
+  }
+
+  /* Opt-in full width, rather than forcing it on every button on the page. */
+  .btn-block,
+  .btn-full {
     width: 100%;
-    justify-content: center;
   }
 
   .btn-group {
@@ -177,60 +593,16 @@
   .btn-group .btn:last-child {
     margin-bottom: 0;
   }
-}
 
-/* Mobile Card Optimizations */
-@media (max-width: 768px) {
-  .card {
-    padding: var(--space-4);
-  }
-
-  .stat-card {
-    padding: var(--space-4);
-  }
-
-  .stat-card .stat-icon {
-    font-size: 2rem;
-  }
-
-  .stat-card .stat-value {
-    font-size: var(--font-size-2xl);
+  /* Icon-only row actions stay square and tappable. */
+  .btn-icon,
+  .table-action-btn {
+    min-width: 36px;
+    min-height: 36px;
+    padding: var(--space-2);
   }
 }
 
-/* Mobile Header Adjustments */
-@media (max-width: 768px) {
-  .top-header {
-    padding: 0 var(--space-4);
-    height: 60px;
-  }
-
-  .page-title {
-    font-size: var(--font-size-2xl);
-  }
-
-  .page-description {
-    font-size: var(--font-size-base);
-  }
-
-  .breadcrumb {
-    font-size: var(--font-size-sm);
-  }
-}
-
-/* Mobile Stat Cards */
-@media (max-width: 480px) {
-  .stat-card {
-    flex-direction: column;
-    text-align: center;
-  }
-
-  .stat-card .stat-icon {
-    margin-bottom: var(--space-2);
-  }
-}
-
-/* Touch-friendly Spacing */
 @media (pointer: coarse) {
   .nav-link,
   .sidebar-link {
@@ -245,84 +617,70 @@
 
   .tab-button,
   .profile-tab {
-    padding: var(--space-3) var(--space-5);
     min-height: 44px;
   }
 }
 
-/* Mobile Search */
+/* ============================================
+   8. CARDS, STATS & CHARTS
+   ============================================ */
 @media (max-width: 768px) {
-  .search-bar {
-    width: 100%;
-    margin-bottom: var(--space-4);
+  .card,
+  .card-glass {
+    padding: var(--space-4);
+    border-radius: var(--radius-lg);
   }
 
-  .search-input {
-    width: 100%;
+  .card-header {
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    padding-bottom: var(--space-3);
+  }
+
+  .stat-card {
+    padding: var(--space-4);
+  }
+
+  .stat-card .stat-icon {
+    font-size: 2rem;
+  }
+
+  .stat-value {
+    font-size: 1.5rem !important;
+  }
+
+  .stat-label {
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+  }
+
+  .chart-container {
+    height: 240px !important;
+  }
+
+  /* Width only — capping a canvas's height would scale (and blur) whatever
+     Chart.js already rendered into it. */
+  #main-content canvas {
+    max-width: 100% !important;
   }
 }
 
-/* Mobile Filters */
-@media (max-width: 768px) {
-  .filter-bar {
-    flex-direction: column;
-    gap: var(--space-3);
-  }
-
-  .filter-bar > * {
-    width: 100%;
-  }
-}
-
-/* Mobile Pagination */
+/* ============================================
+   9. PAGINATION, EMPTY STATES, PANELS
+   ============================================ */
 @media (max-width: 768px) {
   .pagination {
     flex-wrap: wrap;
     justify-content: center;
+    gap: var(--space-2);
   }
 
   .pagination-item {
     min-width: 40px;
     height: 40px;
   }
-}
 
-/* Horizontal Scroll Indicator */
-.scroll-indicator {
-  position: relative;
-}
-
-.scroll-indicator::after {
-  content: '→';
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  background: linear-gradient(to right, transparent, var(--bg-primary));
-  padding: var(--space-2) var(--space-4);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.scroll-indicator.has-scroll::after {
-  opacity: 1;
-}
-
-/* Mobile Chart Adjustments */
-@media (max-width: 768px) {
-  .chart-container {
-    height: 250px !important;
-  }
-
-  canvas {
-    max-width: 100%;
-    height: auto !important;
-  }
-}
-
-/* Mobile Empty States */
-@media (max-width: 768px) {
   .empty-state {
     padding: var(--space-8) var(--space-4);
   }
@@ -332,60 +690,51 @@
   }
 
   .empty-state-title {
-    font-size: var(--font-size-xl);
+    font-size: var(--font-size-lg);
   }
-}
 
-/* Mobile Notification Panel */
-@media (max-width: 768px) {
   #notification-panel {
-    top: 60px;
-    right: var(--space-3);
-    left: var(--space-3);
+    top: 58px;
+    right: var(--space-2);
+    left: var(--space-2);
     width: auto;
     max-width: none;
   }
-}
 
-/* Mobile Profile Dropdown */
-@media (max-width: 768px) {
   .profile-dropdown {
-    right: var(--space-3);
-    left: var(--space-3);
-    width: auto;
+    position: fixed !important;
+    top: 62px !important;
+    right: var(--space-2) !important;
+    left: var(--space-2) !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .profile-dropdown::before {
+    display: none;
+  }
+
+  /* Toasts span the width instead of hugging one corner. */
+  .toast,
+  #toast-container {
+    left: var(--space-3) !important;
+    right: var(--space-3) !important;
+    max-width: none !important;
+  }
+
+  #app-notif-container {
+    top: auto !important;
+    bottom: var(--space-3) !important;
+    left: var(--space-3) !important;
+    right: var(--space-3) !important;
+    width: auto !important;
+    max-width: none !important;
   }
 }
 
-/* Landscape Mobile Adjustments */
-@media (max-height: 500px) and (orientation: landscape) {
-  .modal-content {
-    max-height: 80vh;
-  }
-
-  .modal-body {
-    max-height: calc(80vh - 120px);
-  }
-}
-
-/* Pull to Refresh Indicator */
-.pull-to-refresh {
-  position: absolute;
-  top: -60px;
-  left: 0;
-  right: 0;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-secondary);
-  transition: transform 0.3s;
-}
-
-.pull-to-refresh.active {
-  transform: translateY(60px);
-}
-
-/* Mobile-specific utilities */
+/* ============================================
+   10. UTILITIES
+   ============================================ */
 @media (max-width: 768px) {
   .hide-mobile {
     display: none !important;
@@ -411,5 +760,13 @@
 
   .show-desktop {
     display: block !important;
+  }
+}
+
+/* Print/animation courtesy for users who ask for less motion. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-sidebar,
+  .sidebar-overlay {
+    transition: none !important;
   }
 }

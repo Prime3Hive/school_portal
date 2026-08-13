@@ -102,25 +102,25 @@ const adminDashboardModule = {
 
         <!-- ═══ FEE SUMMARY BAR ═══ -->
         ${stats.totalBilled > 0 || stats.paidFees > 0 ? `
-        <div onclick="window.app.loadModule('fees-payments')" style="cursor:pointer;display:flex;gap:12px;flex-wrap:wrap;align-items:stretch;background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:12px;padding:14px 20px;margin-bottom:var(--space-6);">
-          <div style="flex:1;min-width:130px;border-right:1px solid var(--border-primary);padding-right:16px;">
-            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Total Billed</div>
-            <div style="font-size:1.1rem;font-weight:800;color:var(--text-primary);">${this.formatCurrency(stats.totalBilled)}</div>
+        <div class="dash-fee-summary" onclick="window.app.loadModule('fees-payments')">
+          <div class="dash-fee-cell">
+            <div class="dash-fee-label">Total Billed</div>
+            <div class="dash-fee-value">${this.formatCurrency(stats.totalBilled)}</div>
           </div>
-          <div style="flex:1;min-width:130px;border-right:1px solid var(--border-primary);padding-right:16px;">
-            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Collection Rate</div>
-            <div style="font-size:1.1rem;font-weight:800;color:${stats.collectionRate >= 75 ? '#10b981' : stats.collectionRate >= 40 ? '#f59e0b' : '#ef4444'};">${stats.collectionRate}%</div>
-            <div style="height:4px;background:#e2e8f0;border-radius:99px;margin-top:4px;overflow:hidden;">
+          <div class="dash-fee-cell">
+            <div class="dash-fee-label">Collection Rate</div>
+            <div class="dash-fee-value" style="color:${stats.collectionRate >= 75 ? '#10b981' : stats.collectionRate >= 40 ? '#f59e0b' : '#ef4444'};">${stats.collectionRate}%</div>
+            <div class="dash-fee-track">
               <div style="height:100%;width:${stats.collectionRate}%;background:${stats.collectionRate >= 75 ? '#10b981' : stats.collectionRate >= 40 ? '#f59e0b' : '#ef4444'};border-radius:99px;"></div>
             </div>
           </div>
-          <div style="flex:1;min-width:130px;border-right:1px solid var(--border-primary);padding-right:16px;">
-            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Collected</div>
-            <div style="font-size:1.1rem;font-weight:800;color:#10b981;">${this.formatCurrency(stats.paidFees)}</div>
+          <div class="dash-fee-cell">
+            <div class="dash-fee-label">Collected</div>
+            <div class="dash-fee-value" style="color:#10b981;">${this.formatCurrency(stats.paidFees)}</div>
           </div>
-          <div style="flex:1;min-width:130px;">
-            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Outstanding</div>
-            <div style="font-size:1.1rem;font-weight:800;color:#ef4444;">${this.formatCurrency(stats.pendingFees)}</div>
+          <div class="dash-fee-cell">
+            <div class="dash-fee-label">Outstanding</div>
+            <div class="dash-fee-value" style="color:#ef4444;">${this.formatCurrency(stats.pendingFees)}</div>
           </div>
         </div>` : ''}
 
@@ -174,14 +174,14 @@ const adminDashboardModule = {
                 <h3 class="card-title-modern">📈 Student Enrollment Trend</h3>
                 <span class="dash-chart-label">Last 6 months</span>
               </div>
-              <canvas id="enrollmentChart" style="max-height:260px;"></canvas>
+              <div class="dash-chart-box"><canvas id="enrollmentChart"></canvas></div>
             </div>
             <div class="card-modern" onclick="window.app.loadModule('fees-payments')" style="cursor:pointer;">
               <div class="card-header-modern">
                 <h3 class="card-title-modern">💵 Revenue Overview</h3>
                 <span class="dash-chart-label">Last 6 months</span>
               </div>
-              <canvas id="revenueChart" style="max-height:260px;"></canvas>
+              <div class="dash-chart-box"><canvas id="revenueChart"></canvas></div>
             </div>
           </div>
 
@@ -471,7 +471,66 @@ const adminDashboardModule = {
           margin-bottom: var(--space-6);
         }
         @media (max-width: 1100px) { .dash-kpi-grid { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 560px)  { .dash-kpi-grid { grid-template-columns: 1fr; } }
+        /* Two-up stays denser than one-up on a phone; only the narrowest
+           screens drop to a single column. */
+        @media (max-width: 768px)  { .dash-kpi-grid { gap: var(--space-3); margin-bottom: var(--space-4); } }
+        @media (max-width: 339px)  { .dash-kpi-grid { grid-template-columns: 1fr; } }
+
+        /* ── Fee Summary Bar ── */
+        .dash-fee-summary {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 0;
+          cursor: pointer;
+          background: var(--bg-secondary);
+          border: 1px solid var(--border-primary);
+          border-radius: 12px;
+          padding: 14px 20px;
+          margin-bottom: var(--space-6);
+        }
+        .dash-fee-cell {
+          padding: 0 16px;
+          border-right: 1px solid var(--border-primary);
+          min-width: 0;
+        }
+        .dash-fee-cell:first-child { padding-left: 0; }
+        .dash-fee-cell:last-child  { padding-right: 0; border-right: none; }
+        .dash-fee-label {
+          font-size: 0.72rem;
+          font-weight: 700;
+          color: var(--text-tertiary);
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 4px;
+        }
+        .dash-fee-value {
+          font-size: 1.1rem;
+          font-weight: 800;
+          color: var(--text-primary);
+          overflow-wrap: anywhere;
+        }
+        .dash-fee-track {
+          height: 4px;
+          background: var(--bg-tertiary);
+          border-radius: 99px;
+          margin-top: 4px;
+          overflow: hidden;
+        }
+        /* 2x2 on a phone — four figures across 360px are unreadable, and the
+           dividers have to move with the cells. */
+        @media (max-width: 768px) {
+          .dash-fee-summary {
+            grid-template-columns: repeat(2, 1fr);
+            row-gap: 14px;
+            padding: 14px 16px;
+            margin-bottom: var(--space-4);
+          }
+          .dash-fee-cell { padding: 0 12px; }
+          .dash-fee-cell:nth-child(odd)  { padding-left: 0; }
+          .dash-fee-cell:nth-child(even) { padding-right: 0; border-right: none; }
+          .dash-fee-cell:nth-child(-n+2) { padding-bottom: 14px; border-bottom: 1px solid var(--border-primary); }
+          .dash-fee-value { font-size: 1rem; }
+        }
 
         .stat-card-modern {
           border-radius: var(--radius-xl, 16px);
@@ -590,6 +649,14 @@ const adminDashboardModule = {
           color: var(--text-tertiary);
           font-weight: 600;
         }
+        /* Fixed-height box + maintainAspectRatio:false lets Chart.js render at
+           exactly this size instead of being CSS-scaled (and blurred) to fit. */
+        .dash-chart-box {
+          position: relative;
+          height: 260px;
+          width: 100%;
+        }
+        @media (max-width: 768px) { .dash-chart-box { height: 200px; } }
 
         /* ── Quick Actions ── */
         .dash-actions-grid {
@@ -743,17 +810,99 @@ const adminDashboardModule = {
 
         /* ── Mobile ── */
         @media (max-width: 768px) {
+          .dashboard-v2 { min-width: 0; }
+
+          /* Hero — the grid already stacks at 900px; here it just gets tighter
+             and the toolbar spans the full width. */
           .dash-hero {
-            padding: var(--space-5);
-            flex-direction: column;
-            align-items: flex-start;
+            padding: var(--space-4);
+            border-radius: var(--radius-lg, 12px);
+            margin-bottom: var(--space-4);
           }
-          .dash-hero-right { width: 100%; align-items: stretch; }
-          .dash-hero-actions { justify-content: flex-start; }
-          .dash-hero-meta { justify-content: flex-start; }
-          .date-filter-input { width: 100%; min-width: unset; }
-          .dash-btn-refresh { justify-content: center; }
+          .dash-hero-top-row { flex-wrap: wrap; gap: var(--space-2); }
+          .dash-hero-badge { padding: 5px 12px; font-size: 0.62rem; }
+          .dash-hero-date { font-size: 0.72rem; }
+          .dash-hero-title { font-size: 1.35rem; letter-spacing: -0.02em; }
+          .dash-hero-crest { width: 44px; height: 44px; border-radius: 11px; }
+          .dash-hero-brand { gap: var(--space-3); }
+          .dash-hero-motto { font-size: 0.74rem; }
+          .dash-hero-meta-row { gap: var(--space-2); }
+          .dash-hero-location,
+          .dash-hero-year,
+          .dash-hero-term { font-size: 0.75rem; }
+
+          .dash-hero-actions {
+            width: 100%;
+            margin-top: var(--space-4);
+            gap: var(--space-2);
+          }
+          .date-picker-wrap { flex: 1; min-width: 0; }
+          .date-filter-input { width: 100%; min-width: 0; }
+          .dash-btn-refresh { flex-shrink: 0; justify-content: center; }
+
+          /* Three status items on one line overflow a phone. */
+          .dash-hero-status {
+            flex-wrap: wrap;
+            gap: var(--space-2) var(--space-3);
+            margin-top: var(--space-3);
+          }
+          .dash-status-item { font-size: 0.7rem; }
+
+          /* KPI cards — smaller figures so currency fits two-up. */
+          .stat-card-modern { padding: var(--space-4); }
+          .stat-header-modern { margin-bottom: var(--space-2); }
+          .stat-icon-modern { font-size: 1.35rem; }
+          .stat-trend-modern { font-size: 0.62rem; padding: 3px 8px; }
+          .stat-label-modern { font-size: 0.65rem; letter-spacing: 0.04em; }
+          .stat-value-modern { font-size: 1.15rem; overflow-wrap: anywhere; }
+
           .card-title-modern { font-size: 1rem; }
+          .card-header-modern { margin-bottom: var(--space-4); gap: var(--space-2); }
+
+          /* Quick actions — compact tiles, three across. */
+          .dash-actions-grid { gap: var(--space-3); }
+          .dash-action-btn { padding: var(--space-3) var(--space-1); font-size: 0.72rem; gap: var(--space-2); }
+          .dash-action-icon { width: 40px; height: 40px; border-radius: 12px; font-size: 1.2rem; }
+
+          /* Activity rows wrap instead of truncating mid-word — the whole
+             point of the feed is reading what happened. */
+          .activities-list-modern { max-height: 380px; }
+          .activity-text-modern {
+            white-space: normal;
+            overflow: visible;
+            text-overflow: clip;
+            font-size: 0.82rem;
+            line-height: 1.35;
+          }
+          .activity-item-modern { padding: var(--space-3) var(--space-2); }
+
+          .dash-chip { padding: var(--space-3); gap: var(--space-2); }
+          .dash-chip-icon { font-size: 1.2rem; }
+          .dash-chip-label { font-size: 0.65rem; }
+          .dash-chip-value { font-size: 1.2rem; }
+
+          .expense-amount-modern { font-size: 1.05rem; }
+
+          /* Pending verifications: thumbnail + details on the first line,
+             amount under them, actions on a full-width row. */
+          .pending-item { gap: var(--space-3) !important; padding: var(--space-3) !important; }
+          .pending-item > div:nth-child(2) { min-width: 140px !important; }
+          .pending-item > div:nth-child(3) { text-align: left !important; min-width: 0 !important; }
+          .pending-item > div:last-child { width: 100%; }
+          .pending-item > div:last-child > * { flex: 1; justify-content: center; text-align: center; }
+        }
+
+        /* Three-up quick actions still fit on a 360px screen and save a lot of
+           vertical scrolling over two-up. */
+        @media (min-width: 340px) and (max-width: 560px) {
+          .dash-actions-grid { grid-template-columns: repeat(3, 1fr); gap: var(--space-2); }
+        }
+
+        @media (max-width: 339px) {
+          .dash-hero-actions { flex-wrap: wrap; }
+          .dash-btn-refresh { width: 100%; }
+          .dash-chip-grid { grid-template-columns: 1fr; }
+          .dash-actions-grid { grid-template-columns: repeat(2, 1fr); }
         }
       </style>
     `;
@@ -858,7 +1007,8 @@ const adminDashboardModule = {
         },
         options: {
           responsive: true,
-          maintainAspectRatio: true,
+          // The wrapper (.dash-chart-box) owns the height.
+          maintainAspectRatio: false,
           plugins: { legend: { display: false } }
         }
       });
@@ -891,7 +1041,13 @@ const adminDashboardModule = {
         },
         options: {
           responsive: true,
-          maintainAspectRatio: true
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              // Free up vertical space on a phone; the bars stay labelled.
+              labels: { boxWidth: 12, font: { size: 11 } }
+            }
+          }
         }
       });
     }

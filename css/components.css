@@ -225,20 +225,28 @@
     background: var(--bg-secondary);
     border: 1px solid var(--border-primary);
     border-radius: var(--radius-xl);
-    overflow: hidden;
+    /* overflow-x (not `hidden`) so a table wider than the card scrolls
+       instead of having its right-hand columns clipped away. */
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
-.table {
+/* `.table` and `.data-table` are used interchangeably across the modules —
+   they must look identical. */
+.table,
+.data-table {
     width: 100%;
     border-collapse: collapse;
 }
 
-.table thead {
+.table thead,
+.data-table thead {
     background: var(--bg-tertiary);
     border-bottom: 2px solid var(--border-primary);
 }
 
-.table th {
+.table th,
+.data-table th {
     padding: var(--space-4) var(--space-6);
     text-align: left;
     font-size: var(--font-size-sm);
@@ -248,21 +256,25 @@
     letter-spacing: 0.05em;
 }
 
-.table td {
+.table td,
+.data-table td {
     padding: var(--space-4) var(--space-6);
     color: var(--text-primary);
     border-bottom: 1px solid var(--border-secondary);
 }
 
-.table tbody tr {
+.table tbody tr,
+.data-table tbody tr {
     transition: background-color var(--transition-fast);
 }
 
-.table tbody tr:hover {
+.table tbody tr:hover,
+.data-table tbody tr:hover {
     background: var(--bg-tertiary);
 }
 
-.table tbody tr:last-child td {
+.table tbody tr:last-child td,
+.data-table tbody tr:last-child td {
     border-bottom: none;
 }
 
@@ -711,6 +723,103 @@
     }
     .dash-subjects-grid {
         grid-template-columns: 1fr !important;
+    }
+}
+
+/* ============================================
+   MODULE PAGE HEADER
+   Used by staff-management, applications, settings, report-cards and others.
+   ============================================ */
+.module-container {
+    min-width: 0;
+}
+
+.module-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+}
+
+.module-title {
+    font-family: var(--font-display);
+    font-size: var(--font-size-3xl);
+    font-weight: var(--font-weight-bold);
+    color: var(--text-primary);
+    margin: 0 0 var(--space-2);
+    line-height: 1.2;
+}
+
+.module-subtitle {
+    font-size: var(--font-size-base);
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+/* On a phone the action button sits under the title, full width. */
+@media (max-width: 768px) {
+    .module-header {
+        gap: var(--space-3);
+        margin-bottom: var(--space-5);
+    }
+
+    .module-header > *:not(:first-child) {
+        width: 100%;
+    }
+
+    .module-header > .btn {
+        justify-content: center;
+    }
+}
+
+/* ============================================
+   GRADIENT STAT CARDS (fees & payments)
+   ============================================ */
+/* Four full-width hero tiles push the tabs almost a full screen down on a
+   phone. Two-up with tighter type keeps the whole summary above the fold. */
+@media (max-width: 768px) {
+    .gradient-stat-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: var(--space-3) !important;
+        margin-bottom: var(--space-5) !important;
+    }
+
+    .gradient-stat-card {
+        padding: var(--space-4) !important;
+    }
+
+    .gradient-stat-card > div:first-child {
+        margin-bottom: var(--space-2) !important;
+    }
+
+    .gradient-stat-icon {
+        font-size: 1.5rem !important;
+    }
+
+    .gradient-stat-label {
+        font-size: 0.72rem !important;
+    }
+
+    .gradient-stat-value {
+        font-size: 1.15rem !important;
+        overflow-wrap: anywhere;
+    }
+
+    .gradient-stat-sub {
+        font-size: 0.7rem !important;
+    }
+
+    .gradient-stat-watermark {
+        font-size: 3.5rem !important;
+    }
+}
+
+@media (max-width: 339px) {
+    .gradient-stat-grid {
+        grid-template-columns: 1fr;
     }
 }
 

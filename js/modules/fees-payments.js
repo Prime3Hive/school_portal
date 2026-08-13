@@ -172,7 +172,7 @@ const feesPaymentsModule = {
         </div>
 
         <!-- Enhanced Financial Stats with Gradients -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" style="margin-bottom: var(--space-8);">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 gradient-stat-grid" style="margin-bottom: var(--space-8);">
           ${pendingVerifications.length > 0 ? `
           <div style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(254,225,64,0.1) 100%); border: 2px solid var(--color-warning); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-4);">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
@@ -2873,7 +2873,7 @@ const feesPaymentsModule = {
 
   createGradientStatCard(label, value, icon, gradient, subtitle) {
     return `
-      <div style="
+      <div class="gradient-stat-card" style="
         background: ${gradient};
         color: white;
         padding: var(--space-6);
@@ -2887,12 +2887,12 @@ const feesPaymentsModule = {
       onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(0, 0, 0, 0.2)';"
       onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)';">
         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-4);">
-          <div style="font-size: 2.5rem; opacity: 0.9;">${icon}</div>
+          <div class="gradient-stat-icon" style="font-size: 2.5rem; opacity: 0.9;">${icon}</div>
         </div>
-        <div style="font-size: 0.875rem; opacity: 0.9; margin-bottom: var(--space-2); font-weight: 500;">${label}</div>
-        <div style="font-size: 2rem; font-weight: 700; margin-bottom: var(--space-2);">${value}</div>
-        <div style="font-size: 0.875rem; opacity: 0.8;">${subtitle}</div>
-        <div style="
+        <div class="gradient-stat-label" style="font-size: 0.875rem; opacity: 0.9; margin-bottom: var(--space-2); font-weight: 500;">${label}</div>
+        <div class="gradient-stat-value" style="font-size: 2rem; font-weight: 700; margin-bottom: var(--space-2);">${value}</div>
+        <div class="gradient-stat-sub" style="font-size: 0.875rem; opacity: 0.8;">${subtitle}</div>
+        <div class="gradient-stat-watermark" style="
           position: absolute;
           bottom: -20px;
           right: -20px;

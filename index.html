@@ -214,7 +214,9 @@
       bottom: 0;
       width: 280px;
       transition: transform 0.3s ease;
-      z-index: 1000;
+      /* Above the sticky top header (--z-sticky: 1100), or the drawer slides
+         underneath it on mobile. */
+      z-index: 1200;
     }
 
     .nav-sidebar.collapsed {
@@ -369,9 +371,17 @@
 </head>
 
 <body>
+  <!-- Sidebar backdrop (mobile) -->
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
   <div class="app-container">
     <!-- Sidebar Navigation -->
     <nav class="nav-sidebar" id="sidebar">
+      <!-- Close button (mobile only) -->
+      <div class="nav-mobile-close">
+        <button onclick="closeSidebar()" title="Close menu" aria-label="Close menu">✕</button>
+      </div>
+
       <div class="nav-logo">
         <div class="nav-logo-icon"><img src="assets/logo-mark.svg" alt="TBD International Academy crest" width="32"
             height="32"></div>
@@ -503,7 +513,8 @@
     <div class="main-wrapper">
       <header class="top-header">
         <div class="header-left">
-          <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+          <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open menu" aria-controls="sidebar"
+            aria-expanded="false">☰</button>
           <div class="breadcrumbs" style="margin-bottom:0;">
             <span style="font-size:13px; color:var(--text-tertiary); font-weight:500;">Admin Portal</span>
             <span style="color:var(--text-tertiary); margin:0 6px; font-size:11px;">›</span>
@@ -1040,37 +1051,64 @@
   <script src="js/app.js"></script>
 
   <script>
-    // Toggle sidebar for both desktop and mobile
+    // ── Sidebar: a collapsible rail on desktop, a drawer on mobile ──
+    const MOBILE_BREAKPOINT = 1024;
+
+    function isMobileLayout() {
+      return window.innerWidth <= MOBILE_BREAKPOINT;
+    }
+
+    // Mirror the drawer state onto the backdrop, the page scroll lock and the
+    // hamburger's aria-expanded so screen readers and touch both behave.
+    function setSidebarOpen(open) {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebar-overlay');
+      const menuBtn = document.querySelector('.mobile-menu-btn');
+
+      sidebar.classList.toggle('open', open);
+      if (overlay) overlay.classList.toggle('open', open);
+      if (menuBtn) menuBtn.setAttribute('aria-expanded', String(open));
+      // Stop the page behind the drawer from scrolling under the user's finger.
+      document.body.style.overflow = open ? 'hidden' : '';
+    }
+
+    function closeSidebar() {
+      setSidebarOpen(false);
+    }
+
     function toggleSidebar() {
       const sidebar = document.querySelector('.nav-sidebar');
       const mainWrapper = document.querySelector('.main-wrapper');
 
-      if (window.innerWidth > 1024) {
-        // Desktop: toggle collapsed state
+      if (!isMobileLayout()) {
+        // Desktop: collapse the rail and reclaim the space.
         sidebar.classList.toggle('collapsed');
         mainWrapper.classList.toggle('sidebar-collapsed');
-      } else {
-        // Mobile: toggle open state
-        sidebar.classList.toggle('open');
+        return;
       }
+
+      setSidebarOpen(!sidebar.classList.contains('open'));
     }
 
-    // Close sidebar when clicking outside on mobile only
-    document.addEventListener('click', (e) => {
-      const sidebar = document.getElementById('sidebar');
-      const menuBtn = document.querySelector('.mobile-menu-btn');
-      const mainContent = document.querySelector('.main-content');
+    window.closeSidebar = closeSidebar;
+    window.toggleSidebar = toggleSidebar;
 
-      if (window.innerWidth <= 1024 &&
-        !sidebar.contains(e.target) &&
-        !menuBtn.contains(e.target) &&
-        sidebar.classList.contains('open') &&
-        mainContent.contains(e.target)) {
-        sidebar.classList.remove('open');
+    // Picking a section closes the drawer — otherwise it covers the page the
+    // user just asked for.
+    document.addEventListener('click', (e) => {
+      if (!isMobileLayout()) return;
+      const link = e.target.closest('.nav-sidebar .nav-link');
+      if (link) closeSidebar();
+    });
+
+    // Escape closes the drawer.
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && document.getElementById('sidebar')?.classList.contains('open')) {
+        closeSidebar();
       }
     });
 
-    // Prevent sidebar state changes on window resize
+    // Keep the two layouts from inheriting each other's state on rotate/resize.
     let resizeTimer;
     window.addEventListener('resize', () => {
       clearTimeout(resizeTimer);
@@ -1078,11 +1116,11 @@
         const sidebar = document.querySelector('.nav-sidebar');
         const mainWrapper = document.querySelector('.main-wrapper');
 
-        if (window.innerWidth > 1024) {
-          // Desktop: remove mobile class
-          sidebar.classList.remove('open');
+        if (!isMobileLayout()) {
+          // Desktop: drop the drawer state (and its scroll lock).
+          setSidebarOpen(false);
         } else {
-          // Mobile: remove desktop class
+          // Mobile: drop the desktop collapse state.
           sidebar.classList.remove('collapsed');
           mainWrapper.classList.remove('sidebar-collapsed');
         }
