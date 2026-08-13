@@ -205,6 +205,8 @@ function build() {
   // Emit the manifest as a build artifact — useful for debugging a bad deploy.
   writeOut('asset-manifest.json', JSON.stringify({ buildId, assets: assetMap }, null, 2));
 
+  verifyEmittedHtml(files, assetMap);
+
   report({ htmlCount, hashedCount, copiedCount, buildId, started, assetMap });
 }
 
@@ -214,12 +216,57 @@ function build() {
  * to its hashed filename at navigation time.
  */
 function buildInlineAssetMap(assetMap) {
-  // Only module scripts are looked up at runtime; shipping the whole map to
-  // every page would be dead weight.
+  // Every JS file, not just js/modules/.
+  //
+  // This used to be filtered to `js/modules/` on the theory that only app.js
+  // resolved paths at runtime. That shipped a broken admissions page:
+  // admissions.html has its own loadScript() and pulls in seven scripts by
+  // string literal — js/config.js, js/supabase-client.js,
+  // js/application-manager.js and friends — none of which live under
+  // js/modules/. They were hashed on disk, absent under their original names,
+  // and missing from the map, so all seven 404'd in production.
+  //
+  // The couple of KB saved by filtering is not worth a class of bug that only
+  // appears in a production build. Any file that might be loaded by name is now
+  // resolvable.
   const runtimeEntries = Object.fromEntries(
-    Object.entries(assetMap).filter(([k]) => k.startsWith('js/modules/'))
+    Object.entries(assetMap).filter(([k]) => k.endsWith('.js'))
   );
   return `<script>window.__ASSET_MAP=${JSON.stringify(runtimeEntries)};</script>`;
+}
+
+/**
+ * Guard against the failure that shipped a dead admissions page: an HTML file
+ * naming a hashed asset in a string literal (not a src=/href= attribute, so the
+ * rewriter cannot see it) on a page with no runtime map to resolve it through.
+ * The file exists only under its hashed name, so the browser 404s — and nothing
+ * in the build output looks wrong.
+ *
+ * Cheap to check, and it fails the build rather than the deploy.
+ */
+function verifyEmittedHtml(files, assetMap) {
+  const keys = Object.keys(assetMap).filter(k => k.endsWith('.js'));
+  const problems = [];
+
+  for (const rel of files.filter(f => f.endsWith('.html'))) {
+    const html = fs.readFileSync(path.join(OUT_DIR, rel), 'utf8');
+    if (html.includes('__ASSET_MAP')) continue;   // resolvable at runtime
+
+    const unresolved = keys.filter(k =>
+      html.includes(`'${k}'`) || html.includes(`"${k}"`)
+    );
+    if (unresolved.length) problems.push({ rel, unresolved });
+  }
+
+  if (problems.length) {
+    console.error('\n  ERROR: unresolvable asset references in emitted HTML.\n');
+    for (const { rel, unresolved } of problems) {
+      console.error(`    ${rel} has no __ASSET_MAP but names:`);
+      for (const u of unresolved) console.error(`      ${u}  → shipped as ${assetMap[u]}`);
+    }
+    console.error('\n  These would 404 at runtime. Load them through resolveAssetPath().\n');
+    process.exit(1);
+  }
 }
 
 /** Rewrite src=/href= attributes and inject the runtime asset map. */

@@ -781,13 +781,24 @@
             }
         })();
         
-        // Helper function to load scripts dynamically
+        // Helper function to load scripts dynamically.
+        //
+        // Production builds content-hash these filenames (js/config.js →
+        // js/config.9f2c1a4d.js) and inline the lookup table as
+        // window.__ASSET_MAP. The names above are string literals, so the
+        // build's src=/href= rewriter cannot touch them — without this lookup
+        // every one of them 404s in production. In dev there is no map and the
+        // path passes through unchanged.
+        function resolveAssetPath(src) {
+            return (window.__ASSET_MAP && window.__ASSET_MAP[src]) || src;
+        }
+
         function loadScript(src) {
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = src;
+                script.src = resolveAssetPath(src);
                 script.onload = resolve;
-                script.onerror = reject;
+                script.onerror = () => reject(new Error('Failed to load ' + src));
                 document.body.appendChild(script);
             });
         }
