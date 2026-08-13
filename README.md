@@ -203,14 +203,34 @@ and did not:
 - a view left `SECURITY DEFINER`, bypassing the policies underneath it
 - a `SECURITY DEFINER` function granted `EXECUTE` to `PUBLIC`
 
-After any policy change, run both:
+After any policy change, run:
 
 ```bash
-npm run verify:rls                          # what the anon key can read
-supabase db advisors --linked --type security
+npm run verify:db     # asserts the live schema — must exit 0
+npm run verify:rls    # black-box probe of what the anon key can read
 ```
 
-`db advisors` should report zero ERRORs.
+`npm run verify:db` (`scripts/check-db-security.js`) is the important one. It
+asks the **live database** what is actually true rather than trusting migration
+text, which is how all five of the failures above slipped through. It asserts:
+
+1. every table carrying a policy has RLS enabled
+2. no table in the API schema has RLS disabled
+3. no `SECURITY DEFINER` function is executable by anon
+4. every view runs with `security_invoker`
+5. no anon-reachable policy is ungated
+6. nothing anonymous can read the `documents` bucket
+7. every `SECURITY DEFINER` function pins `search_path`
+
+Exceptions live in an `ALLOW` map at the top of that file and **each one carries
+a written reason**. If a check fails, fix the schema — only add an allowlist
+entry when the exposure is genuinely intended, and say why.
+
+It needs the Supabase CLI linked and authenticated. It issues only catalog
+`SELECT`s: it never reads application data and never writes.
+
+`supabase db advisors --linked --type security` is a useful second opinion and
+should report zero ERRORs.
 
 ## 📊 Data Storage
 
