@@ -8,6 +8,20 @@
  *
  * SECRET keys (service role, webhook secrets, etc.) must NEVER appear here.
  */
+/**
+ * Read an environment variable, stripping surrounding whitespace.
+ *
+ * Values pasted into the Vercel dashboard from a Windows `.env` keep their
+ * trailing CRLF, and every variable on this project currently carries one.
+ * The URL parser and fetch's header normalisation happen to strip it, but a
+ * Paystack key with a newline on the end is sent verbatim to Paystack and
+ * rejected. Trim on the way out so a stray newline can never reach the client.
+ */
+function env(name, fallback = '') {
+    const value = process.env[name];
+    return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
 module.exports = function handler(req, res) {
     // Only allow GET requests
     if (req.method !== 'GET') {
@@ -16,18 +30,18 @@ module.exports = function handler(req, res) {
 
     // Build the public config object from Vercel environment variables
     const config = {
-        SUPABASE_URL: process.env.SUPABASE_URL || '',
-        SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
-        PAYSTACK_PUBLIC_KEY: process.env.PAYSTACK_PUBLIC_KEY || '',
-        APP_ENV: process.env.APP_ENV || 'production',
-        SCHOOL_NAME: process.env.SCHOOL_NAME || 'TBD International Academy',
-        SCHOOL_EMAIL: process.env.SCHOOL_EMAIL || '',
-        SCHOOL_PHONE: process.env.SCHOOL_PHONE || '',
-        SCHOOL_ADDRESS: process.env.SCHOOL_ADDRESS || '',
-        APP_URL: process.env.APP_URL || '',
-        EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS || '',
-        EMAIL_FROM_NAME: process.env.EMAIL_FROM_NAME || 'TBD International Academy',
-        SESSION_TIMEOUT_MINUTES: process.env.SESSION_TIMEOUT_MINUTES || '30',
+        SUPABASE_URL: env('SUPABASE_URL'),
+        SUPABASE_ANON_KEY: env('SUPABASE_ANON_KEY'),
+        PAYSTACK_PUBLIC_KEY: env('PAYSTACK_PUBLIC_KEY'),
+        APP_ENV: env('APP_ENV', 'production'),
+        SCHOOL_NAME: env('SCHOOL_NAME', 'TBD International Academy'),
+        SCHOOL_EMAIL: env('SCHOOL_EMAIL'),
+        SCHOOL_PHONE: env('SCHOOL_PHONE'),
+        SCHOOL_ADDRESS: env('SCHOOL_ADDRESS'),
+        APP_URL: env('APP_URL'),
+        EMAIL_FROM_ADDRESS: env('EMAIL_FROM_ADDRESS'),
+        EMAIL_FROM_NAME: env('EMAIL_FROM_NAME', 'TBD International Academy'),
+        SESSION_TIMEOUT_MINUTES: env('SESSION_TIMEOUT_MINUTES', '30'),
     };
 
     // Cache for 60 seconds on CDN, no private caching
