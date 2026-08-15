@@ -396,15 +396,17 @@ class DataManager {
         if (!this._cache[collection]) this._cache[collection] = [];
       } else {
         let rows = data || [];
-        // Security: strip sensitive fields from client-side cache.
-        // NOTE: this is damage limitation only — the values still travelled over
-        // the wire and are visible in devtools. The real fix is a column-level
-        // grant / view so PostgREST never returns them.
+        // Belt and braces on credentials in the issuance log.
+        //
+        // Migration 0022 dropped invitations.default_password, and nothing
+        // writes a password into metadata any more — passwords are shown to the
+        // admin once and never stored. These deletes are kept because a
+        // database that skipped that migration would otherwise serve the old
+        // plaintext straight into the client cache.
         if (collection === 'invitations') {
           rows = rows.map(r => {
             const c = { ...r };
             delete c.default_password;
-            // Older rows also mirror the plaintext password inside metadata.
             if (c.metadata && typeof c.metadata === 'object') {
               c.metadata = { ...c.metadata };
               delete c.metadata.password;

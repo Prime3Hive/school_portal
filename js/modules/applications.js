@@ -973,47 +973,23 @@ const applicationsModule = {
         try {
             console.log('[Applications] Starting student account creation for application:', app.id);
 
-            // Get auth token
-            const session = await supabaseClient.auth.getSession();
-            const accessToken = session.data.session?.access_token;
-            if (!accessToken) {
-                throw new Error('Not authenticated — please log out and back in.');
-            }
+            // The student's own login gets an internal address: the address on
+            // the application belongs to the parent, and one address can only
+            // back one account. The parent gets their credentials on paper or
+            // through a separate guardian account.
+            const studentInternalEmail = `student-${Date.now()}-${Math.floor(Math.random() * 10000)}@tbd.internal`;
 
-            // Always use an internal email for the student account so the
-            // parent's real email never triggers the duplicate-email check.
-            const studentInternalEmail = `student-${Date.now()}-${Math.floor(Math.random()*10000)}@tbd.internal`;
+            const studentResult = await authManager.createAccount({
+                email: studentInternalEmail,
+                role: 'student',
+                fullName: app.student_name || app.studentName,
+                grade: app.grade,
+                section: 'A',
+                dateOfBirth: app.student_dob || app.studentDob || null
+            });
 
-            console.log('[Applications] Calling create-invitation-v2 edge function...');
-            let studentRes, studentResult;
-            try {
-                studentRes = await fetch(`${SUPABASE_URL}/functions/v1/create-invitation-v2`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${accessToken}`,
-                        'apikey': SUPABASE_ANON
-                    },
-                    body: JSON.stringify({
-                        email: studentInternalEmail,
-                        role: 'student',
-                        fullName: app.student_name || app.studentName,
-                        grade: app.grade,
-                        section: 'A',
-                        dateOfBirth: app.student_dob || app.studentDob || null,
-                        expiryDays: 30
-                    })
-                });
-                studentResult = await studentRes.json();
-            } catch (fetchErr) {
-                throw new Error('Network error calling edge function: ' + (fetchErr?.message || String(fetchErr)));
-            }
-
-            console.log('[Applications] Edge function response:', studentResult);
-
-            if (!studentRes.ok || !studentResult.success) {
-                const msg = studentResult?.error || `HTTP ${studentRes.status}`;
-                throw new Error('Failed to create student account: ' + msg);
+            if (!studentResult.success) {
+                throw new Error('Failed to create student account: ' + studentResult.error);
             }
 
             // Fetch the student DB record — retry a few times to handle
@@ -1038,7 +1014,7 @@ const applicationsModule = {
             console.log('[Applications] Student account created successfully. DB id:', studentRecord.id);
             return {
                 studentId: studentRecord.id,
-                studentLoginId: studentResult.userId,
+                studentLoginId: studentResult.schoolId,
                 studentPassword: studentResult.password,
                 guardianAuthId: null,
                 guardianPassword: null

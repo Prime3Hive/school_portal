@@ -310,12 +310,11 @@ const staffManagementModule = {
       const role = data.type === 'teaching' ? 'teacher' : 'staff';
       let result;
       try {
-        result = await authManager.createInvitation({
+        result = await authManager.createAccount({
           email: data.email,
           role: role,
           fullName: data.name,
-          department: data.department || '',
-          expiryDays: 14
+          department: data.department || ''
         });
       } catch (err) {
         result = { success: false, error: err.message };

@@ -1,16 +1,32 @@
 // ============================================
-// AUTH MANAGER — Supabase Auth Edition
-// Drop-in replacement for the localStorage+bcrypt version.
-// Public API is identical so all existing pages work unchanged:
-//   authManager.login(userId, password)
+// AUTH MANAGER — Supabase Auth
+//
+//   authManager.login(schoolId, password)
 //   authManager.logout()
 //   authManager.isAuthenticated()
 //   authManager.getSession()
 //   authManager.getRedirectUrl(role)
-//   authManager.createUser(...)
-//   authManager.changePassword(userId, currentPwd, newPwd)
+//   authManager.changePassword(schoolId, currentPwd, newPwd)
 //   authManager.getUsers()   / getUserById()
 //   authManager.updateUser() / deleteUser()
+//
+// ── ACCOUNTS ────────────────────────────────
+// There is no self-signup. An admin creates every account, and exactly two
+// calls do it:
+//
+//   authManager.createAccount({ email, role, fullName, ... })
+//       → create-account: auth user + profile + role record + credential
+//         email via Resend. The account works immediately; the first login
+//         forces a password change.
+//
+//   authManager.resendCredentials(schoolId)
+//       → resend-credentials: new password on the *same* account, emailed.
+//         This is also the password-reset path.
+//
+// createUser() and createInvitation() are aliases of createAccount kept for
+// older call sites. There is no invitation to accept: an earlier design wrote
+// an `invitations` row and left the user to be created on acceptance, but
+// nothing created it, so no invitation could ever be accepted.
 // ============================================
 
 class AuthManager {
@@ -88,11 +104,14 @@ class AuthManager {
             return { success: false, error: 'Your account is inactive. Contact your administrator.' };
         }
 
-        // Update last login
-        await supabaseClient
-            .from('profiles')
-            .update({ last_login: new Date().toISOString() })
-            .eq('id', data.user.id);
+        // Stamp last_login. Goes through an RPC because a direct UPDATE only
+        // lands if the profiles RLS policy lets a user write their own row —
+        // and the admin console now treats a null last_login as "credentials
+        // may never have reached this person", so a silently dropped write
+        // would have admins reissuing passwords to people already using them.
+        // Non-fatal: failing to record the visit must not block the sign-in.
+        const { error: stampError } = await supabaseClient.rpc('record_login');
+        if (stampError) console.warn('record_login:', stampError.message);
 
         const session = this._buildSession(profile, data.session);
         this._sessionCache = session;
@@ -202,29 +221,19 @@ class AuthManager {
             return this._usersCache;
         }
 
-        // Fetch profiles joined with invitations to filter out unaccepted invited users
+        // Every profile is a real, usable account, so every profile is listed.
+        //
+        // This used to hide anyone whose invitation was not 'accepted' — which,
+        // once accounts started being created up front, meant an admin created
+        // a user and then could not see them anywhere in the portal. Whether
+        // someone has actually signed in is shown per-row from last_login.
         const { data: profiles, error } = await supabaseClient
             .from('profiles')
             .select('*')
             .order('created_at');
         if (error) { console.error('getUsers:', error.message); return []; }
 
-        // Fetch all invitations keyed by school_id
-        const { data: invitations } = await supabaseClient
-            .from('invitations')
-            .select('school_id, status');
-        const inviteMap = {};
-        (invitations || []).forEach(inv => { inviteMap[inv.school_id] = inv.status; });
-
-        // Only include profiles that:
-        // 1. Have no invitation record (e.g. built-in admin), OR
-        // 2. Have an invitation with status 'accepted'
-        const filtered = profiles.filter(p => {
-            const invStatus = inviteMap[p.school_id];
-            return invStatus === undefined || invStatus === 'accepted';
-        });
-
-        this._usersCache = filtered.map(p => this._profileToUser(p));
+        this._usersCache = profiles.map(p => this._profileToUser(p));
         this._usersCacheReady = true;
         this._usersCacheTime = Date.now();
         return this._usersCache;
@@ -251,40 +260,96 @@ class AuthManager {
     }
 
     /**
-     * Create a new user via the create-invitation-v2 edge function.
-     * This is the unified path — creates auth user + profile + role record.
-     * payload: { role, fullName, email, department, grade, section, dateOfBirth }
+     * Call an account edge function with the admin's own token.
+     *
+     * Every account operation goes through here, so the authorization header,
+     * the "you are signed out" case and the shape of a failure are decided once
+     * instead of in each of the eight places that used to open their own fetch.
      */
-    async createUser(payload) {
-        if (!window.supabaseReady) return this._legacyCreateUser(payload);
-
-        const { role, fullName, email, department, grade, section, dateOfBirth } = payload;
-
+    async _callAccountFunction(fn, payload) {
         try {
-            const session = await supabaseClient.auth.getSession();
-            const accessToken = session.data.session?.access_token;
-            if (!accessToken) return { success: false, error: 'Not authenticated' };
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const accessToken = session?.access_token;
+            if (!accessToken) {
+                return { success: false, error: 'Your session has expired. Please sign in again.' };
+            }
 
-            const res = await fetch(`${SUPABASE_URL}/functions/v1/create-invitation-v2`, {
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/${fn}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${accessToken}`,
                     'apikey': SUPABASE_ANON
                 },
-                body: JSON.stringify({ email, role, fullName, department, grade, section, dateOfBirth })
+                body: JSON.stringify(payload)
             });
 
-            const result = await res.json();
-            if (!res.ok) return { success: false, error: result.error || 'Failed to create user' };
+            const result = await res.json().catch(() => ({}));
+            if (!res.ok || !result.success) {
+                return { success: false, error: result.error || `Request failed (HTTP ${res.status})` };
+            }
 
-            // Refresh cache
-            await this.refreshUsers();
-            return { success: true, userId: result.userId, password: result.password, authId: result.authId };
+            // Any account change invalidates both lists.
+            this.invalidateUsersCache();
+            return result;
         } catch (err) {
-            console.error('createUser error:', err);
-            return { success: false, error: err.message };
+            console.error(`${fn} error:`, err);
+            return { success: false, error: err.message || 'Network error. Check your connection and try again.' };
         }
+    }
+
+    /**
+     * Create a portal account. The single entry point — there is no separate
+     * "invite" flow, because there is nothing to accept: the account is live as
+     * soon as this returns, and create-account has already emailed the
+     * credentials via Resend.
+     *
+     * payload: { email, role, fullName, department?, grade?, section?,
+     *            dateOfBirth?, gender?, photoUrl?, guardian? }
+     *
+     * Returns { success, schoolId, userId, authId, password, emailSent,
+     *           emailMessage } — `password` is the one and only time the
+     * plaintext is available, so show it to the admin before discarding it.
+     */
+    async createAccount(payload) {
+        if (!window.supabaseReady) return this._legacyCreateUser(payload);
+
+        const result = await this._callAccountFunction('create-account', {
+            email:       payload.email,
+            role:        payload.role,
+            fullName:    payload.fullName,
+            department:  payload.department || null,
+            grade:       payload.grade || null,
+            section:     payload.section || null,
+            dateOfBirth: payload.dateOfBirth || null,
+            gender:      payload.gender || null,
+            photoUrl:    payload.photoUrl || null,
+            guardian:    payload.guardian || null
+        });
+
+        if (result.success) await this.refreshUsers();
+        return result;
+    }
+
+    /**
+     * Issue a fresh password for an account that already exists and email it.
+     * Same person, same login ID, same records — this is both "resend the
+     * credentials" and "reset their password", which are the same operation.
+     *
+     * Pass `email` only to correct a wrong address at the same time.
+     */
+    async resendCredentials(schoolId, email) {
+        if (!window.supabaseReady) {
+            return { success: false, error: 'Resending credentials requires a connection.' };
+        }
+        const result = await this._callAccountFunction('resend-credentials', { schoolId, email });
+        if (result.success) await this.refreshUsers();
+        return result;
+    }
+
+    /** @deprecated Use createAccount(). Kept so older call sites keep working. */
+    async createUser(payload) {
+        return this.createAccount(payload);
     }
 
     async updateUser(schoolId, updates) {
@@ -384,51 +449,15 @@ class AuthManager {
     }
 
     // ─────────────────────────────────────────
-    // Invitation system (admin-driven)
+    // Issuance records
+    //
+    // `invitations` is a log of who was granted access, not a set of tickets to
+    // redeem. Nothing is pending: the account works the moment it is created.
     // ─────────────────────────────────────────
 
-    /**
-     * Admin creates an invitation via create-invitation-v2 edge function.
-     * Creates auth user + profile + role record + invitation in one call.
-     * Returns { success, userId, password, authId }
-     */
-    async createInvitation({ email, role, fullName, department, grade, section, dateOfBirth, schoolId, password, expiryDays = 14 }) {
-        if (!window.supabaseReady) {
-            return this._legacyCreateInvitation({ email, role, fullName, department, schoolId, password });
-        }
-
-        try {
-            const session = await supabaseClient.auth.getSession();
-            const accessToken = session.data.session?.access_token;
-            if (!accessToken) return { success: false, error: 'Not authenticated' };
-
-            const res = await fetch(`${SUPABASE_URL}/functions/v1/create-invitation-v2`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`,
-                    'apikey': SUPABASE_ANON
-                },
-                body: JSON.stringify({ email, role, fullName, department, grade, section, dateOfBirth, expiryDays })
-            });
-
-            const result = await res.json();
-            if (!res.ok) return { success: false, error: result.error || 'Failed to create invitation' };
-
-            await this.refreshUsers();
-            return {
-                success: true,
-                token: result.token,
-                schoolId: result.userId,
-                password: result.password,
-                authId: result.authId,
-                emailSent: result.emailSent,
-                emailMessage: result.emailMessage
-            };
-        } catch (err) {
-            console.error('createInvitation error:', err);
-            return { success: false, error: err.message };
-        }
+    /** @deprecated Use createAccount(). Alias kept for existing call sites. */
+    async createInvitation(payload) {
+        return this.createAccount(payload);
     }
 
     /** Get all invitations from Supabase. Cached for 30 s; pass force=true to bypass. */
@@ -446,53 +475,6 @@ class AuthManager {
         this._invitationsCache = data;
         this._invitationsCacheTime = Date.now();
         return data;
-    }
-
-    /** Verify an invitation token — returns pending or accepted invitations */
-    async verifyInvitation(token) {
-        if (!window.supabaseReady) return null;
-        const { data, error } = await supabaseClient
-            .from('invitations')
-            .select('*')
-            .eq('token', token)
-            .in('status', ['pending', 'accepted'])
-            .single();
-        if (error || !data) return null;
-        // Reject if pending and expired
-        if (data.status === 'pending' && new Date(data.expires_at) < new Date()) return null;
-        return data;
-    }
-
-    /** Mark invitation as accepted */
-    async acceptInvitation(token) {
-        if (!window.supabaseReady) return { success: false, error: 'Supabase not ready' };
-        const { error } = await supabaseClient
-            .from('invitations')
-            .update({ status: 'accepted', accepted_at: new Date().toISOString() })
-            .eq('token', token);
-        return { success: !error, error: error?.message };
-    }
-
-    /** Resend invitation — refreshes token and expiry, keeps status as accepted
-     *  so the user remains visible in the users list */
-    async resendInvitation(oldToken) {
-        const inv = await this.verifyInvitation(oldToken);
-        if (!inv) return { success: false, error: 'Invitation not found or expired' };
-
-        const newToken = crypto.randomUUID();
-        const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
-
-        // Update existing invitation with new token/expiry instead of creating a new one
-        const { error } = await supabaseClient.from('invitations')
-            .update({
-                token: newToken,
-                expires_at: expiresAt
-            })
-            .eq('token', oldToken);
-
-        return error
-            ? { success: false, error: error.message }
-            : { success: true, token: newToken };
     }
 
     // ─────────────────────────────────────────
@@ -533,8 +515,23 @@ class AuthManager {
             email: profile.email,
             status: profile.status || 'active',
             permissions: profile.permissions || [],
-            createdAt: profile.created_at
+            createdAt: profile.created_at,
+            // Access state, straight off the profile. `lastLogin === null` is
+            // the honest answer to "did they ever get in?" — the old proxy for
+            // it was an invitation status nothing kept up to date.
+            lastLogin: profile.last_login || null,
+            mustChangePassword: !!profile.must_change_password
         };
+    }
+
+    /** Human-readable access state for a user row. */
+    static accessState(user) {
+        if (user.status === 'inactive' || user.status === 'suspended') {
+            return { label: 'Suspended', tone: 'danger' };
+        }
+        if (!user.lastLogin) return { label: 'Never signed in', tone: 'warning' };
+        if (user.mustChangePassword) return { label: 'Temporary password', tone: 'warning' };
+        return { label: 'Active', tone: 'success' };
     }
 
     // ── Local session cache (keeps login state across page reloads) ──
@@ -605,10 +602,20 @@ class AuthManager {
         return this._legacyGetUsers().find(u => u.id === schoolId) || null;
     }
     _legacyCreateUser(payload) {
+        // Offline dev only. Mirrors the edge function's return shape so the
+        // credential modals render something instead of "undefined".
         const users = this._legacyGetUsers();
-        users.push({ id: payload.schoolId, ...payload });
+        const prefixes = { admin: 'ADM', teacher: 'TCH', staff: 'STF', student: 'STU', guardian: 'GDN' };
+        const schoolId = payload.schoolId
+            || `${prefixes[payload.role] || 'USR'}-${new Date().getFullYear()}-${100000 + Math.floor(Math.random() * 900000)}`;
+        const password = payload.password || Math.random().toString(36).slice(2, 12).toUpperCase();
+
+        users.push({ ...payload, id: schoolId, schoolId, passwordHash: password, status: 'active' });
         localStorage.setItem('school_portal_users', JSON.stringify(users));
-        return { success: true };
+        return {
+            success: true, schoolId, userId: schoolId, password,
+            emailSent: false, emailMessage: 'Offline mode — no email sent.'
+        };
     }
     _legacyUpdateUser(schoolId, updates) {
         const users = this._legacyGetUsers();
@@ -621,22 +628,6 @@ class AuthManager {
         const users = this._legacyGetUsers().filter(u => u.id !== schoolId);
         localStorage.setItem('school_portal_users', JSON.stringify(users));
         return { success: true };
-    }
-    _legacyCreateInvitation({ email, role, fullName, department, schoolId, password }) {
-        // Create user in localStorage
-        this._legacyCreateUser({ schoolId, password, role, fullName, email, passwordHash: password });
-        // Store invitation
-        const token = crypto.randomUUID();
-        const invitations = JSON.parse(localStorage.getItem('tbd_academy_invitations') || '[]');
-        invitations.push({
-            token, email, role, school_id: schoolId, full_name: fullName,
-            default_password: password, status: 'pending',
-            metadata: { fullName, department },
-            expiresAt: Date.now() + 14 * 24 * 60 * 60 * 1000,
-            createdAt: Date.now()
-        });
-        localStorage.setItem('tbd_academy_invitations', JSON.stringify(invitations));
-        return { success: true, token, schoolId, password };
     }
     _legacyChangePassword(schoolId, currentPwd, newPwd) {
         return { success: false, error: 'Password change requires Supabase connection.' };

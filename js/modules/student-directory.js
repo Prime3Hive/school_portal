@@ -1123,27 +1123,28 @@ const studentDirectoryModule = {
       submitBtn.disabled = true;
 
       try {
-        const result = await authManager.createInvitation({
+        const result = await authManager.createAccount({
           email: guardianEmail,
           role: 'guardian',
-          fullName: guardianName,
-          expiryDays: 30
+          fullName: guardianName
         });
 
         // Close the add student modal
         document.querySelector('.modal-backdrop')?.remove();
 
         if (result.success) {
-          // Show success modal with credentials (use returned schoolId/password)
-          this.showGuardianInviteSuccess(studentName, guardianName, guardianEmail, result.schoolId, result.password, result.token);
+          this.showGuardianInviteSuccess(
+            studentName, guardianName, guardianEmail,
+            result.schoolId, result.password, result.emailSent, result.emailMessage
+          );
         } else {
-          showToast(`Student added but guardian invite failed: ${result.error}`, 'warning');
+          showToast(`Student added but the guardian account failed: ${result.error}`, 'warning');
           this.render();
         }
       } catch (err) {
-        console.error('Guardian invite error:', err);
+        console.error('Guardian account error:', err);
         document.querySelector('.modal-backdrop')?.remove();
-        showToast(`Student added but guardian invite failed: ${err.message}`, 'warning');
+        showToast(`Student added but the guardian account failed: ${err.message}`, 'warning');
         this.render();
       }
     } else {
@@ -1154,9 +1155,14 @@ const studentDirectoryModule = {
     }
   },
 
-  showGuardianInviteSuccess(studentName, guardianName, guardianEmail, schoolId, password, token) {
-    const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    const inviteLink = `${baseUrl}verify-invitation.html?token=${token}`;
+  showGuardianInviteSuccess(studentName, guardianName, guardianEmail, schoolId, password, emailSent, emailMessage) {
+    const mailStatus = emailSent
+      ? `<div style="background:#dcfce7;border:1px solid #86efac;color:#166534;padding:var(--space-3);border-radius:var(--radius-md);margin-bottom:var(--space-4);font-size:var(--font-size-sm);">
+           ✉️ Credentials emailed to <strong>${escapeHtml(guardianEmail)}</strong>.
+         </div>`
+      : `<div style="background:#fef9c3;border:1px solid #fde047;color:#854d0e;padding:var(--space-3);border-radius:var(--radius-md);margin-bottom:var(--space-4);font-size:var(--font-size-sm);">
+           ⚠️ ${escapeHtml(emailMessage || 'The email could not be sent.')} Share the credentials below directly.
+         </div>`;
 
     const content = `
       <div style="text-align: center; margin-bottom: var(--space-6);">
@@ -1164,12 +1170,15 @@ const studentDirectoryModule = {
           ✅
         </div>
         <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); color: var(--text-primary); margin-bottom: var(--space-2);">
-          Student Added & Guardian Invited!
+          Student Added & Guardian Account Created
         </h3>
         <p style="color: var(--text-secondary);">
-          <strong>${studentName}</strong> has been enrolled and an invite has been created for <strong>${guardianName}</strong>.
+          <strong>${escapeHtml(studentName)}</strong> has been enrolled and
+          <strong>${escapeHtml(guardianName)}</strong> can sign in straight away.
         </p>
       </div>
+
+      ${mailStatus}
 
       <!-- Credentials Card -->
       <div style="background: var(--bg-secondary); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-4); border: 1px solid var(--border-primary);">
@@ -1192,24 +1201,13 @@ const studentDirectoryModule = {
         </div>
         <div style="margin-bottom: var(--space-3);">
           <p style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1);">Guardian Email</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-medium);">${guardianEmail}</p>
+          <p style="color: var(--text-primary); font-weight: var(--font-weight-medium);">${escapeHtml(guardianEmail)}</p>
         </div>
-        ${token ? `
-          <div>
-            <p style="font-size: var(--font-size-xs); color: var(--text-secondary); margin-bottom: var(--space-1);">Invite Link (optional — guardian can change password here)</p>
-            <div style="display: flex; gap: var(--space-2); align-items: center;">
-              <input type="text" class="form-input" value="${inviteLink}" readonly style="font-size: var(--font-size-sm); font-family: monospace; flex: 1;" id="invite-link-input">
-              <button type="button" class="btn btn-ghost" onclick="studentDirectoryModule.copyToClipboard('invite-link-input', this)" title="Copy link" style="flex-shrink: 0;">
-                📋 Copy
-              </button>
-            </div>
-          </div>
-        ` : ''}
       </div>
 
       <!-- Action Buttons -->
       <div style="display: flex; gap: var(--space-3);">
-        <button type="button" class="btn btn-ghost flex-1" onclick="studentDirectoryModule.copyAllCredentials('${schoolId}', '${password}', '${guardianEmail}', '${inviteLink.replace(/'/g, "\\'")}')">
+        <button type="button" class="btn btn-ghost flex-1" onclick="studentDirectoryModule.copyAllCredentials('${escapeJs(schoolId)}', '${escapeJs(password)}', '${escapeJs(guardianEmail)}')">
           📋 Copy All
         </button>
         <button type="button" class="btn btn-primary flex-1" onclick="closeModal(this); studentDirectoryModule.render();">
@@ -1218,11 +1216,12 @@ const studentDirectoryModule = {
       </div>
 
       <p style="font-size: var(--font-size-xs); color: var(--text-tertiary); text-align: center; margin-top: var(--space-4);">
-        Share these credentials with the guardian. They can log in at the portal login page using the Login ID and Password above.
+        This password is shown once and is not stored anywhere. If it is lost, issue a
+        new one from User Management rather than looking it up.
       </p>
     `;
 
-    createModal('Guardian Invitation Created', content);
+    createModal('Guardian Account Created', content);
   },
 
   copyToClipboard(inputId, button) {
@@ -1242,8 +1241,8 @@ const studentDirectoryModule = {
     }
   },
 
-  copyAllCredentials(schoolId, password, email, inviteLink) {
-    const text = `Guardian Portal Access\n---------------------\nLogin ID: ${schoolId}\nPassword: ${password}\nEmail: ${email}\n${inviteLink ? 'Invite Link: ' + inviteLink : ''}\n\nLog in at the school portal login page.`;
+  copyAllCredentials(schoolId, password, email) {
+    const text = `Guardian Portal Access\n---------------------\nLogin ID: ${schoolId}\nPassword: ${password}\nEmail: ${email}\n\nLog in at ${window.location.origin}/login.html — you will be asked to choose a new password.`;
     navigator.clipboard.writeText(text).then(() => {
       showToast('All credentials copied to clipboard!', 'success');
     }).catch(() => {

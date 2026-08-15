@@ -63,7 +63,7 @@ if (!URL_BASE || !ANON_KEY) {
  *   mustBeEmpty: false → anon reads are expected/acceptable
  */
 const TABLES = [
-  { name: 'invitations',              mustBeEmpty: true,  why: 'holds default_password in plaintext' },
+  { name: 'invitations',              mustBeEmpty: true,  why: 'names, emails and login IDs of every account issued' },
   { name: 'profiles',                 mustBeEmpty: true,  why: 'names, emails, roles of every user' },
   { name: 'students',                 mustBeEmpty: true,  why: 'minors’ personal data' },
   { name: 'staff',                    mustBeEmpty: true,  why: 'includes salary' },

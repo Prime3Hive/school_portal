@@ -1,6 +1,9 @@
 # TBD Academy Portal
 
-**Live Site**: https://school-portal-tbd.vercel.app
+**Live Site**: https://tbdacademy.org &nbsp;·&nbsp; **Staff Portal**: https://tbdacademy.org/portal
+
+Going live? Follow [`PRODUCTION_LAUNCH.md`](PRODUCTION_LAUNCH.md) — DNS, Resend,
+Paystack, secrets and the data reset, in order.
 
 Excellence in Education, Character in Action. A comprehensive school management portal for TBD Academy, Makurdi, Benue State.
 
@@ -172,6 +175,44 @@ the public subset to the browser; anything secret must never appear there.
 - `/index.html` - Admin dashboard
 - All modules accessible via navigation
 
+## 🔑 Accounts and sign-in
+
+**There is no self-signup.** Every login is created by an administrator, and one
+path does it end to end:
+
+```
+Admin fills the form
+  → authManager.createAccount()
+  → create-account edge function
+        · verifies the caller is an admin
+        · rejects an email that already has an account
+        · allocates a school ID (ADM/TCH/STF/STU/GDN-YYYY-nnnnnn)
+        · generates a 12-character password from a CSPRNG
+        · creates the auth user, then profile + student/staff row in one
+          transaction (create_user_records), rolling the auth user back if
+          that fails
+        · emails the credentials through Resend, from support@
+  → account is live; the admin sees the password once, in a modal
+  → first sign-in is forced through change-password.html
+```
+
+Nobody accepts anything. An earlier design wrote an `invitations` row and left
+the account to be created when the recipient clicked a link — but nothing ever
+created it, so no invitation could be accepted. `invitations` survives only as
+an issuance log: who was given access, by whom, when. Whether they have
+actually signed in is `profiles.last_login`.
+
+Sign-in itself is Supabase Auth. Users type a school ID, never an email;
+`schoolIdToEmail()` in `js/supabase-client.js` derives the internal address the
+auth user is keyed on, and the edge functions derive it identically — the two
+must not drift.
+
+**Lost password?** There is no self-service reset. An admin uses
+`resend-credentials`, which sets a new password on the *same* account and mails
+it. Passwords are shown once at creation and stored nowhere; the column that
+used to hold them in plaintext was readable by every signed-in user and was
+dropped in migration `0022`.
+
 ## 🔒 Security Notes
 
 This portal holds the personal data of children — names, dates of birth, birth
@@ -261,9 +302,14 @@ Update in all HTML files:
 
 ## 📚 Documentation
 
-- **Quick Start Guide**: `BLOG_QUICK_START.md`
-- **Implementation Plan**: See artifacts folder
-- **Walkthrough**: See artifacts folder
+Everything lives in the repo — there is no wiki and no artifacts folder.
+
+| Document | What it covers |
+|---|---|
+| `README.md` | This file: architecture, security model, accounts, local dev |
+| `PRODUCTION_LAUNCH.md` | The go-live runbook — secrets, DNS, deploys, smoke tests |
+| `supabase/migrations/README.md` | Migration list, how to apply them, why not `db push` |
+| `supabase/migrations/archive/README.md` | Superseded migrations and why they must never run |
 
 ## 🐛 Known Limitations
 
@@ -272,23 +318,16 @@ Update in all HTML files:
    dashboard. Until it is, nothing verifies a school-fee payment server-side —
    which is why student-recorded payments land as `pending` and need admin
    approval (migration `0020`).
-2. **Invitation activation does not work.** The RLS policy on `invitations`
-   matches an `invitation_token` JWT claim that nothing in the codebase ever
-   sets, so the lookup returns no rows. Admins hand out credentials directly from
-   the user-management modal instead.
-3. **`invitations.default_password` is a plaintext credential.** Admin-only, but
-   it should not exist; activation belongs in an edge function.
-4. **Fee mutators are authorized but not audited by role.** `record_fee_payment`
+2. **Fee mutators are authorized but not audited by role.** `record_fee_payment`
    and friends now check the caller, but 10 other `SECURITY DEFINER` functions
    still lack a pinned `search_path` — see `db advisors`.
-5. **`yp_*` tables belong to a separate app** on the same Supabase project and
+3. **`yp_*` tables belong to a separate app** on the same Supabase project and
    have `{public}` read policies. They are currently empty; that stops being safe
    the moment that app stores a row.
 
 ## 🚀 Future Enhancements
 
 - [ ] Configure and verify the Paystack webhook, then let it settle payments
-- [ ] `activate-invitation` edge function, removing the plaintext password
 - [ ] CI check asserting RLS end state (see Security Notes)
 - [ ] Pin `search_path` on the remaining `SECURITY DEFINER` functions
 - [ ] Email/SMS notifications

@@ -456,19 +456,19 @@ const userManagementModule = {
 
   renderStats() {
     const users = this._users;   // already includes merged directory data
-    const invitations = this._invitations;
-    const now = new Date().toISOString();
-    const pendingInvites = invitations.filter(inv => inv.status === 'pending' && inv.expires_at > now);
 
     const totalUsers = users.length;
     const activeUsers = users.filter(u => u.status === 'active').length;
     const suspendedUsers = users.filter(u => u.status === 'inactive' || u.status === 'suspended').length;
+    // Accounts that exist but have never been used. The actionable number: it
+    // is the one that means "credentials may not have reached this person".
+    const neverSignedIn = users.filter(u => !u.lastLogin && u.status === 'active').length;
 
     return `
       <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--space-5);margin-bottom:var(--space-8);">
       ${this.createModernStatCard('Total Users', totalUsers, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', '#667eea', '#764ba2')}
         ${this.createModernStatCard('Active Users', activeUsers, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="20 6 9 17 4 12"/></svg>', '#43e97b', '#38f9d7')}
-        ${this.createModernStatCard('Pending Invitations', pendingInvites.length, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>', '#fa709a', '#fee140')}
+        ${this.createModernStatCard('Never Signed In', neverSignedIn, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', '#fa709a', '#fee140', "userManagementModule.switchTab('invitations')")}
         ${this.createModernStatCard('Suspended Users', suspendedUsers, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>', '#f093fb', '#f5576c', "userManagementModule.switchTab('suspended')")}
       </div>
     `;
@@ -492,7 +492,7 @@ const userManagementModule = {
       { id: 'overview', label: 'Dashboard', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' },
       { id: 'users', label: 'All Users', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' },
       { id: 'students', label: 'Students', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>' },
-      { id: 'invitations', label: 'Invitations', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>' },
+      { id: 'invitations', label: 'Accounts Issued', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>' },
       { id: 'roles', label: 'Roles & Permissions', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' },
       { id: 'suspended', label: 'Suspended', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' },
       { id: 'audit', label: 'Audit Trail', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' }
@@ -1045,13 +1045,11 @@ const userManagementModule = {
         ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
         : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'}
       </button>
-      ${user.status === 'pending' ? `
-            <button onclick="userManagementModule.resendInvitation('${user.email}')" title="Resend Invite"
-              style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-                border-radius:8px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;cursor:pointer;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            </button>
-          ` : ''}
+      <button onclick="userManagementModule.resendCredentials('${escapeJs(user.schoolId || user.id)}')" title="Email a new password"
+        style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
+          border-radius:8px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;cursor:pointer;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
+      </button>
         </div>
       </div>
     `;
@@ -1223,20 +1221,35 @@ const userManagementModule = {
   },
 
   // ============================================
-  // INVITATIONS TAB - ENHANCED
+  // ACCESS LOG TAB
+  //
+  // Every row here is a live account, not a pending ticket. Nothing expires
+  // and nothing waits to be accepted — the question this tab answers is
+  // "who has been given a login, and have they used it yet?", which is read
+  // from the profile (last_login), not from the issuance row's status.
   // ============================================
+
+  /** Pair an issuance row with the account it created. */
+  _accountFor(invitation) {
+    return this._users.find(u => u.schoolId === invitation.school_id) || null;
+  },
+
   renderInvitationsTab() {
     const invitations = this._invitations;
-    const now = new Date().toISOString();
-    const pending = invitations.filter(inv => inv.status === 'pending' && inv.expires_at > now);
-    const expired = invitations.filter(inv => inv.status === 'expired' || (inv.status === 'pending' && inv.expires_at <= now));
-    const accepted = invitations.filter(inv => inv.status === 'accepted');
+    const states = invitations.map(inv => {
+      const user = this._accountFor(inv);
+      if (!user) return 'deleted';
+      if (user.status === 'inactive' || user.status === 'suspended') return 'suspended';
+      return user.lastLogin ? 'active' : 'never';
+    });
+
+    const count = (s) => states.filter(x => x === s).length;
 
     const statCards = [
-      { label: 'Total', value: invitations.length, color: '#7c3aed', bg: '#f5f3ff', icon: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>' },
-      { label: 'Pending', value: pending.length, color: '#d97706', bg: '#fffbeb', icon: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' },
-      { label: 'Accepted', value: accepted.length, color: '#16a34a', bg: '#f0fdf4', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>' },
-      { label: 'Expired', value: expired.length, color: '#dc2626', bg: '#fef2f2', icon: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' },
+      { label: 'Accounts issued', value: invitations.length, color: '#7c3aed', bg: '#f5f3ff', icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>' },
+      { label: 'Signed in', value: count('active'), color: '#16a34a', bg: '#f0fdf4', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>' },
+      { label: 'Never signed in', value: count('never'), color: '#d97706', bg: '#fffbeb', icon: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' },
+      { label: 'Suspended', value: count('suspended'), color: '#dc2626', bg: '#fef2f2', icon: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' },
     ];
 
     return `
@@ -1262,8 +1275,8 @@ const userManagementModule = {
         <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
         <div>
-          <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:#1e293b;">All Invitations</h3>
-          <p style="margin:0;font-size:0.8rem;color:#64748b;">${invitations.length} invitation${invitations.length !== 1 ? 's' : ''} total</p>
+          <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:#1e293b;">Accounts issued</h3>
+          <p style="margin:0;font-size:0.8rem;color:#64748b;">${invitations.length} account${invitations.length !== 1 ? 's' : ''} created by an administrator</p>
         </div>
       </div>
       <div style="display:grid;gap:var(--space-3);">
@@ -1271,11 +1284,11 @@ const userManagementModule = {
               <div style="text-align:center;padding:var(--space-10);color:#94a3b8;">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
                   style="margin:0 auto var(--space-3);display:block;opacity:0.4;">
-                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
-                  <polyline points="22,6 12,13 2,6"/>
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/>
+                  <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
                 </svg>
-                <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:#64748b;">No invitations sent yet</p>
-                <p style="margin:0;font-size:0.8rem;">Use the Invite button above to get started</p>
+                <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:#64748b;">No accounts created yet</p>
+                <p style="margin:0;font-size:0.8rem;">Use the Add User button above to create one</p>
               </div>
             ` : invitations.map(inv => this.renderInvitationRow(inv)).join('')}
       </div>
@@ -1285,29 +1298,35 @@ const userManagementModule = {
   },
 
   renderInvitationRow(invitation) {
-    const now = new Date().toISOString();
-    const isExpired = invitation.status === 'expired' || (invitation.status === 'pending' && invitation.expires_at <= now);
-    let status = isExpired ? 'expired' : invitation.status;
-    if (invitation.metadata && invitation.metadata.emailFailed) status = 'pending';
+    const user = this._accountFor(invitation);
+
+    // State comes from the account, not from this row. A row whose account has
+    // been deleted is shown as such rather than as a live invitation.
+    let status;
+    if (!user) status = 'deleted';
+    else if (user.status === 'inactive' || user.status === 'suspended') status = 'suspended';
+    else if (!user.lastLogin) status = 'never';
+    else status = 'active';
 
     const roleConfig = {
       admin: { color: '#7c3aed', bg: '#f5f3ff', label: 'Admin' },
       teacher: { color: '#0891b2', bg: '#ecfeff', label: 'Teacher' },
       staff: { color: '#0d9488', bg: '#f0fdfa', label: 'Staff' },
-      student: { color: '#ea580c', bg: '#fff7ed', label: 'Student' }
+      student: { color: '#ea580c', bg: '#fff7ed', label: 'Student' },
+      guardian: { color: '#c026d3', bg: '#fdf4ff', label: 'Guardian' }
     };
     const statusConfig = {
-      pending: { color: '#d97706', bg: '#fffbeb', label: 'Pending' },
-      accepted: { color: '#16a34a', bg: '#f0fdf4', label: 'Accepted' },
-      expired: { color: '#dc2626', bg: '#fef2f2', label: 'Expired' },
-      failed: { color: '#dc2626', bg: '#fef2f2', label: 'Failed' }
+      active:    { color: '#16a34a', bg: '#f0fdf4', label: 'Signed in' },
+      never:     { color: '#d97706', bg: '#fffbeb', label: 'Never signed in' },
+      suspended: { color: '#dc2626', bg: '#fef2f2', label: 'Suspended' },
+      deleted:   { color: '#64748b', bg: '#f8fafc', label: 'Account deleted' }
     };
     const rcfg = roleConfig[invitation.role] || { color: '#64748b', bg: '#f8fafc', label: invitation.role || 'Unknown' };
-    const scfg = statusConfig[status] || statusConfig.pending;
+    const scfg = statusConfig[status];
     const name = invitation.full_name || invitation.metadata?.fullName || 'N/A';
     const dept = invitation.school_id || invitation.metadata?.department || '';
     const sentDate = new Date(invitation.created_at || invitation.createdAt || Date.now()).toLocaleDateString();
-    const expiresDate = invitation.expires_at || invitation.expiresAt ? new Date(invitation.expires_at || invitation.expiresAt).toLocaleDateString() : 'N/A';
+    const lastSeen = user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'not yet';
 
     return `
       <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:var(--radius-xl);transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.07)'" onmouseout="this.style.boxShadow='none'">
@@ -1339,20 +1358,13 @@ const userManagementModule = {
 
         <!--Dates -->
         <div style="flex-shrink:0;text-align:right;min-width:90px;">
-          <div style="font-size:0.75rem;color:#64748b;">Sent ${sentDate}</div>
-          <div style="font-size:0.72rem;color:#94a3b8;">Exp ${expiresDate}</div>
+          <div style="font-size:0.75rem;color:#64748b;">Created ${sentDate}</div>
+          <div style="font-size:0.72rem;color:#94a3b8;">Signed in ${lastSeen}</div>
         </div>
 
         <!--Actions -->
     <div style="flex-shrink:0;display:flex;gap:6px;">
-      ${status === 'pending' ? `
-            <button onclick="userManagementModule.copyInvitationLink('${invitation.token}')" title="Copy Link"
-              style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-                border-radius:8px;border:1px solid #e2e8f0;background:white;color:#475569;cursor:pointer;"
-              onmouseover="this.style.borderColor='#7c3aed';this.style.color='#7c3aed'"
-              onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-            </button>
+      ${user ? `
             <button onclick="userManagementModule.viewInvitationDetails('${invitation.token}')" title="View Details"
               style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
                 border-radius:8px;border:1px solid #e2e8f0;background:white;color:#475569;cursor:pointer;"
@@ -1360,14 +1372,7 @@ const userManagementModule = {
               onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
-            <button onclick="userManagementModule.resendInvitationEmail('${invitation.token}')" title="Resend Email"
-              style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-                border-radius:8px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;cursor:pointer;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
-            </button>
-          ` : ''}
-      ${status === 'expired' || status === 'failed' ? `
-            <button onclick="userManagementModule.resendInvitation('${invitation.token}')" title="Resend"
+            <button onclick="userManagementModule.resendCredentials('${invitation.school_id}')" title="Email a new password"
               style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
                 border-radius:8px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;cursor:pointer;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
@@ -1441,34 +1446,14 @@ const userManagementModule = {
         }
       }
 
-      if (submitBtn) { submitBtn.textContent = 'Creating...'; }
+      if (submitBtn) { submitBtn.textContent = 'Creating account...'; }
 
-      // Use unified create-invitation-v2 edge function
-      const projectUrl = typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : '';
-      const sbSession = window.supabaseReady ? (await supabaseClient.auth.getSession()).data.session : null;
-      const accessToken = sbSession?.access_token || session?.accessToken;
-      const anonKey = typeof SUPABASE_ANON !== 'undefined' ? SUPABASE_ANON : '';
-
-      if (!projectUrl || !accessToken) {
-        throw new Error('Not authenticated or Supabase not configured');
-      }
-
-      const response = await fetch(`${projectUrl}/functions/v1/create-invitation-v2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'apikey': anonKey
-        },
-        body: JSON.stringify({
-          email: data.email,
-          role: data.role,
-          fullName: data.fullName,
-          department: data.department || null
-        })
+      const result = await authManager.createAccount({
+        email: data.email,
+        role: data.role,
+        fullName: data.fullName,
+        department: data.department || null
       });
-
-      const result = await response.json();
 
       if (!result.success) {
         showToast(result.error || 'Failed to create staff account', 'danger');
@@ -1476,11 +1461,8 @@ const userManagementModule = {
         return;
       }
 
-      const defaultUserId = result.userId;
-      const defaultPassword = result.password;
-
-      showToast('Staff account created!', 'success');
-      writeAuditLog('INVITE_STAFF', data.email, `Role: ${data.role} | Name: ${data.fullName} | ID: ${defaultUserId}`);
+      showToast(result.emailSent ? 'Account created and credentials emailed.' : 'Account created.', 'success');
+      writeAuditLog('CREATE_STAFF', data.email, `Role: ${data.role} | Name: ${data.fullName} | ID: ${result.schoolId}`);
       closeModal();
 
       this._invitations = await authManager.getInvitations(true);
@@ -1490,15 +1472,15 @@ const userManagementModule = {
         data.fullName,
         data.email,
         data.role.charAt(0).toUpperCase() + data.role.slice(1),
-        defaultUserId,
-        defaultPassword,
+        result.schoolId,
+        result.password,
         result.emailSent,
         result.emailMessage
       ), 400);
 
-      this.switchTab('invitations');
+      this.switchTab('users');
     } catch (error) {
-      showToast(error.message || 'Failed to send invitation', 'danger');
+      showToast(error.message || 'Failed to create account', 'danger');
       if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Invitation'; }
     }
   },
@@ -1602,17 +1584,17 @@ const userManagementModule = {
         }
       }
 
-      if (submitBtn) { submitBtn.textContent = 'Creating...'; }
+      if (submitBtn) { submitBtn.textContent = 'Creating account...'; }
 
-      // Edge function generates school ID, password, and student record automatically
-      const result = await authManager.createInvitation({
+      // create-account allocates the school ID and password and writes the
+      // student record; the credentials are emailed before this returns.
+      const result = await authManager.createAccount({
         email: data.email,
         role: 'student',
         fullName: data.fullName,
         grade: data.grade,
         section: data.section,
-        dateOfBirth: data.dateOfBirth,
-        expiryDays: 30
+        dateOfBirth: data.dateOfBirth
       });
 
       if (!result.success) {
@@ -1646,12 +1628,14 @@ const userManagementModule = {
 
       this._users = await authManager.getUsers();
 
-      setTimeout(() => showEmailTemplate(
+      setTimeout(() => showCredentialModal(
         data.fullName,
         data.email,
         'Student',
         studentId,
-        password
+        password,
+        result.emailSent,
+        result.emailMessage
       ), 400);
 
       this.switchTab('students');
@@ -1923,15 +1907,15 @@ const userManagementModule = {
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Converting...'; }
 
     try {
-      // Edge function generates school ID, password, and student record automatically
-      const result = await authManager.createInvitation({
+      // create-account allocates the school ID and password and writes the
+      // student record; the credentials are emailed before this returns.
+      const result = await authManager.createAccount({
         email: app.parentEmail,
         role: 'student',
         fullName: app.studentName,
         grade: data.grade,
         section: data.section,
-        dateOfBirth: app.dateOfBirth,
-        expiryDays: 30
+        dateOfBirth: app.dateOfBirth
       });
 
       if (!result.success) {
@@ -2059,12 +2043,6 @@ const userManagementModule = {
       const container = document.querySelector('.module-container')?.parentElement || document.getElementById('main-content');
       this.init(container);
     }
-  },
-
-  copyInvitationLink(token) {
-    const inviteLink = `${window.location.origin}/verify-invitation.html?token=${token}`;
-    navigator.clipboard.writeText(inviteLink);
-    showToast('Invitation link copied!', 'success');
   },
 
   // ============================================
@@ -2801,25 +2779,18 @@ const userManagementModule = {
           </div>
         </div>
 
-        <div class="form-group">
-          <label class="form-label">Invitation Expiry</label>
-          <select class="form-select" name="expiryDays">
-            <option value="7">7 days</option>
-            <option value="14" selected>14 days</option>
-            <option value="30">30 days</option>
-          </select>
-        </div>
-
         <div style="background: var(--bg-tertiary); padding: var(--space-3); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
           <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
-            📧 An email with login credentials and a portal link will be sent to the invitee.
-            The account will be active immediately.
+            📧 The account is created immediately and its login ID and password are
+            emailed straight away. Nothing needs to be accepted — the person can sign
+            in as soon as the email arrives, and will be asked to choose their own
+            password on the first login.
           </p>
         </div>
 
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="invite-submit-btn">✉️ Send Invite</button>
+          <button type="submit" class="btn btn-primary" id="invite-submit-btn">Create account</button>
         </div>
       </form>
     `;
@@ -2872,56 +2843,34 @@ const userManagementModule = {
 
       if (submitBtn) { submitBtn.textContent = 'Creating account...'; }
 
-      // Call unified edge function that handles everything
-      const projectUrl = typeof SUPABASE_URL !== 'undefined' ? SUPABASE_URL : '';
-      const sbSession = window.supabaseReady ? (await supabaseClient.auth.getSession()).data.session : null;
-      const accessToken = sbSession?.access_token || session?.accessToken;
-
-      if (!projectUrl || !accessToken) {
-        throw new Error('Not authenticated or Supabase not configured');
-      }
-
-      const anonKey = typeof SUPABASE_ANON !== 'undefined' ? SUPABASE_ANON : '';
-      const response = await fetch(`${projectUrl}/functions/v1/create-invitation-v2`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'apikey': anonKey
-        },
-        body: JSON.stringify({
-          email: data.email,
-          role: data.role,
-          fullName: data.fullName,
-          department: data.department || null,
-          grade: data.grade || null,
-          section: data.section || null,
-          dateOfBirth: data.dateOfBirth || null,
-          expiryDays: parseInt(data.expiryDays) || 14
-        })
+      const result = await authManager.createAccount({
+        email: data.email,
+        role: data.role,
+        fullName: data.fullName,
+        department: data.department || null,
+        grade: data.grade || null,
+        section: data.section || null,
+        dateOfBirth: data.dateOfBirth || null
       });
 
-      const result = await response.json();
-
       if (!result.success) {
-        showToast(result.error || 'Failed to create invitation', 'danger');
+        showToast(result.error || 'Failed to create account', 'danger');
         if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '✉️ Send Invite'; }
         return;
       }
 
-      // Extract credentials from edge function response
-      const defaultUserId = result.userId;
+      const defaultUserId = result.schoolId;
       const defaultPassword = result.password;
       const emailSent = result.emailSent;
       const emailMessage = result.emailMessage || '';
 
       // Log and refresh
-      this.logAuditEvent('user_invited', data.email, `Invited as ${data.role} by ${session.fullName}`);
-      writeAuditLog('user_invited', data.email, `Role: ${data.role} | Name: ${data.fullName} | invited by ${session.fullName}`);
-      this._invitations = await authManager.getInvitations();
-      this._users = await authManager.getUsers();
+      this.logAuditEvent('account_created', data.email, `Created as ${data.role} by ${session.fullName}`);
+      writeAuditLog('account_created', data.email, `Role: ${data.role} | Name: ${data.fullName} | ID: ${defaultUserId} | by ${session.fullName}`);
+      this._invitations = await authManager.getInvitations(true);
+      this._users = await authManager.getUsers(true);
 
-      showToast(emailSent ? 'Invitation sent successfully!' : 'Account created! Share credentials manually.', emailSent ? 'success' : 'warning');
+      showToast(emailSent ? 'Account created and credentials emailed.' : 'Account created — share the credentials manually.', emailSent ? 'success' : 'warning');
       closeModal();
 
       const roleLabels = { admin: 'Administrator', teacher: 'Teacher', staff: 'Staff', student: 'Student' };
@@ -2943,125 +2892,10 @@ const userManagementModule = {
     }
   },
 
-  // ============================================
-  // EMAIL SENDING FUNCTIONALITY
-  // ============================================
-  async sendInvitationEmail(invitationData) {
-    const emailContent = this.generateInvitationEmailHTML(invitationData);
-
-    try {
-      console.log('📧 Sending invitation email to:', invitationData.to);
-
-      // For production: Uncomment and configure your backend email service
-      /*
-      const response = await fetch('/api/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authManager.getSession().token}`
-        },
-        body: JSON.stringify({
-          to: invitationData.to,
-          subject: `Invitation to Join School Portal - ${invitationData.role}`,
-          html: emailContent,
-          from: 'noreply@schoolportal.com'
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to send email');
-      }
-      */
-
-      // Development: Log email details
-      this.logEmailSent(invitationData);
-
-    } catch (error) {
-      console.error('Email sending error:', error);
-      showToast('Invitation created but email may not have been sent', 'warning');
-    }
-  },
-
-  generateInvitationEmailHTML(data) {
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>School Portal Invitation</title>
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4;">
-        <div style="max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          
-          <!-- Header -->
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 40px 30px; text-align: center;">
-            <h1 style="margin: 0; font-size: 28px;">🎓 School Portal Invitation</h1>
-            <p style="margin: 10px 0 0 0; opacity: 0.9;">You've been invited to join our school portal</p>
-          </div>
-          
-          <!-- Content -->
-          <div style="padding: 40px 30px;">
-            <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${data.fullName}</strong>,</p>
-            
-            <p style="font-size: 16px; margin-bottom: 20px;">
-              ${data.invitedBy} has invited you to join the school portal as a <strong>${data.role}</strong>.
-              ${data.department ? `You will be part of the <strong>${data.department}</strong> department.` : ''}
-            </p>
-            
-            <!-- Credentials Box -->
-            <div style="background: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; margin: 30px 0; border-radius: 4px;">
-              <h3 style="margin: 0 0 15px 0; color: #667eea;">Your Login Credentials</h3>
-              <p style="margin: 10px 0;"><strong>Access ID:</strong> <code style="background: white; padding: 4px 8px; border-radius: 4px; font-family: monospace;">${data.defaultUserId}</code></p>
-              <p style="margin: 10px 0;"><strong>Password:</strong> <code style="background: white; padding: 4px 8px; border-radius: 4px; font-family: monospace;">${data.defaultPassword}</code></p>
-              <p style="margin: 15px 0 0 0; font-size: 14px; color: #666;">
-                ⚠️ <em>You will be required to change your password on first login</em>
-              </p>
-            </div>
-            
-            <!-- CTA Button -->
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${data.inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 6px; font-weight: bold; font-size: 16px;">Accept Invitation</a>
-            </div>
-            
-            <p style="font-size: 14px; color: #666; margin-top: 30px;">
-              Or copy and paste this link into your browser:<br>
-              <a href="${data.inviteLink}" style="color: #667eea; word-break: break-all;">${data.inviteLink}</a>
-            </p>
-            
-            <!-- Expiry Notice -->
-            <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 4px; margin-top: 30px;">
-              <p style="margin: 0; font-size: 14px; color: #856404;">
-                ⏰ <strong>Important:</strong> This invitation expires in ${data.expiryDays} days.
-              </p>
-            </div>
-          </div>
-          
-          <!-- Footer -->
-          <div style="background: #f8f9fa; padding: 20px 30px; text-align: center; border-top: 1px solid #e9ecef;">
-            <p style="margin: 0; font-size: 14px; color: #666;">
-              If you did not expect this invitation, please ignore this email.
-            </p>
-            <p style="margin: 10px 0 0 0; font-size: 12px; color: #999;">
-              © ${new Date().getFullYear()} School Portal. All rights reserved.
-            </p>
-          </div>
-          
-        </div>
-      </body>
-      </html>
-    `;
-  },
-
-  async logEmailSent(data) {
-    await dataManager.create('emailLogs', {
-      timestamp: new Date().toISOString(),
-      recipient: data.to,
-      recipientName: data.name,
-      subject: `Invitation to Join School Portal - ${data.role}`,
-      status: 'sent'
-    });
-  },
+  // Credential emails are built and sent by the create-account and
+  // resend-credentials edge functions through Resend. The client-side
+  // template that used to live here was never wired to a sender — it built
+  // HTML, logged it, and reported success.
 
   showBulkInviteModal() {
     const content = `
@@ -3147,38 +2981,55 @@ const userManagementModule = {
     const submitBtn = document.getElementById('bulk-invite-submit');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Processing...'; }
 
-    const session = authManager.getSession();
     let successCount = 0;
-    let failCount = 0;
+    const failures = [];
 
-    for (const userData of this.bulkInviteData) {
+    for (const [index, userData] of this.bulkInviteData.entries()) {
+      if (submitBtn) submitBtn.textContent = `Creating ${index + 1} of ${this.bulkInviteData.length}...`;
+
       try {
-        const result = await authManager.createInvitation({
+        const result = await authManager.createAccount({
           email: userData.email,
           role: userData.role,
           fullName: userData.fullName,
-          department: userData.department,
-          expiryDays: 14
+          department: userData.department
         });
 
         if (result.success) {
-          this.logAuditEvent('user_invited', userData.email, `Bulk invited as ${userData.role} — ID: ${result.schoolId}`);
+          this.logAuditEvent('account_created', userData.email, `Bulk created as ${userData.role} — ID: ${result.schoolId}`);
           successCount++;
         } else {
-          failCount++;
+          failures.push(`${userData.email}: ${result.error}`);
         }
       } catch (error) {
-        failCount++;
+        failures.push(`${userData.email}: ${error.message}`);
       }
     }
 
-    // Refresh caches
     // Force-refresh caches after mutation so next render is always fresh
     this._invitations = await authManager.getInvitations(true);
     this._users = await authManager.getUsers(true);
 
     closeModal();
-    showToast(`Bulk invitation complete: ${successCount} created, ${failCount} failed`, successCount > 0 ? 'success' : 'danger');
+
+    // A silent per-row failure count is useless for fixing the CSV — one bad
+    // role or a duplicated address needs naming before the admin can re-run it.
+    if (failures.length) {
+      showModal('Bulk import finished', `
+        <p style="margin:0 0 var(--space-4);">
+          <strong>${successCount}</strong> account${successCount === 1 ? '' : 's'} created,
+          <strong>${failures.length}</strong> failed.
+        </p>
+        <div style="max-height:260px;overflow-y:auto;background:var(--bg-tertiary);padding:var(--space-3);
+                    border-radius:var(--radius-md);font-size:0.85rem;">
+          ${failures.map(f => `<div style="padding:4px 0;">${escapeHtml(f)}</div>`).join('')}
+        </div>
+        <button class="btn btn-primary" style="margin-top:var(--space-4);" onclick="closeModal()">Done</button>
+      `);
+    } else {
+      showToast(`${successCount} account${successCount === 1 ? '' : 's'} created and credentials emailed.`, 'success');
+    }
+
     this.switchTab('invitations');
   },
 
@@ -3257,163 +3108,51 @@ const userManagementModule = {
     this.switchTab('users');
   },
 
-  async resendInvitationEmail(token) {
-    const invitation = this._invitations.find(inv => inv.token === token);
-    if (!invitation) {
-      showToast('Invitation not found', 'danger');
-      return;
-    }
+  /**
+   * Issue a new password for an existing account and email it.
+   *
+   * Both "resend the credentials" and "reset their password" land here — they
+   * are the same operation. Accepts a school ID; the invitation-token variants
+   * that used to sit here called the *create* endpoint a second time, which
+   * minted a second account under a new ID and orphaned the first.
+   */
+  async resendCredentials(schoolId) {
+    const user = this._users.find(u => u.schoolId === schoolId || u.id === schoolId);
+    const who = user ? `${user.fullName} (${user.email})` : schoolId;
 
-    try {
-      showToast('Resending invitation email...', 'info');
-
-      const session = authManager.getSession();
-      const { data: { session: supabaseSession } } = await supabaseClient.auth.getSession();
-      const accessToken = supabaseSession?.access_token;
-
-      if (!accessToken) {
-        showToast('Please login again to resend invitation', 'danger');
-        return;
-      }
-
-      const metadata = invitation.metadata || {};
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/create-invitation-v2`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON
-        },
-        body: JSON.stringify({
-          email: invitation.email,
-          role: invitation.role,
-          fullName: invitation.full_name,
-          department: metadata.department,
-          grade: metadata.grade,
-          section: metadata.section,
-          dateOfBirth: metadata.dateOfBirth,
-          expiryDays: 14
-        })
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        if (result.emailSent) {
-          showToast('Invitation email resent successfully!', 'success');
-        } else {
-          showToast(`Account exists. ${result.emailMessage}`, 'warning');
-        }
-        this._invitations = await authManager.getInvitations();
-        this.render();
-      } else {
-        showToast(result.error || 'Failed to resend invitation', 'danger');
-      }
-    } catch (error) {
-      console.error('Resend invitation error:', error);
-      showToast('Failed to resend invitation email', 'danger');
-    }
-  },
-
-  async resendInvitation(token) {
-    const invitation = this._invitations.find(inv => inv.token === token);
-    if (!invitation) {
-      showToast('Invitation not found', 'danger');
-      return;
-    }
-
-    const confirmed = confirm(`Resend invitation to ${invitation.full_name} (${invitation.email})?\n\nThis will create a new invitation with fresh credentials.`);
+    const confirmed = confirm(
+      `Issue a new password for ${who}?\n\n` +
+      `Their current password stops working immediately, and the new one is emailed to them.`
+    );
     if (!confirmed) return;
 
     try {
-      showToast('Creating new invitation...', 'info');
+      showToast('Issuing a new password...', 'info');
 
-      const session = authManager.getSession();
-      const { data: { session: supabaseSession } } = await supabaseClient.auth.getSession();
-      const accessToken = supabaseSession?.access_token;
+      const result = await authManager.resendCredentials(schoolId);
 
-      if (!accessToken) {
-        showToast('Please login again to resend invitation', 'danger');
+      if (!result.success) {
+        showToast(result.error || 'Failed to issue a new password', 'danger');
         return;
       }
 
-      const metadata = invitation.metadata || {};
-      const response = await fetch(`${SUPABASE_URL}/functions/v1/create-invitation-v2`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'apikey': SUPABASE_ANON
-        },
-        body: JSON.stringify({
-          email: invitation.email,
-          role: invitation.role,
-          fullName: invitation.full_name,
-          department: metadata.department,
-          grade: metadata.grade,
-          section: metadata.section,
-          dateOfBirth: metadata.dateOfBirth,
-          expiryDays: 14
-        })
-      });
+      this.logAuditEvent('credentials_reissued', result.email || who, `New password issued for ${schoolId}`);
+      this._invitations = await authManager.getInvitations(true);
+      this._users = await authManager.getUsers(true);
+      this.render();
 
-      const result = await response.json();
-
-      if (result.success) {
-        const emailMessage = result.emailMessage || '';
-
-        this.logAuditEvent('invitation_resent', invitation.email, `Resent invitation as ${invitation.role}`);
-        this._invitations = await authManager.getInvitations();
-        this._users = await authManager.getUsers();
-        this.render();
-
-        const credentialsContent = `
-          <div style="text-align: center; padding: var(--space-6);">
-            <div style="font-size: 3rem; margin-bottom: var(--space-4);">✅</div>
-            <h3 style="color: var(--success); margin-bottom: var(--space-4);">Invitation Resent Successfully!</h3>
-            
-            <div style="background: var(--bg-secondary); padding: var(--space-4); border-radius: var(--radius-lg); margin: var(--space-4) 0;">
-              <h4 style="margin-bottom: var(--space-3);">New Login Credentials</h4>
-              <div style="display: grid; gap: var(--space-3); text-align: left;">
-                <div>
-                  <strong>Login ID:</strong>
-                  <div style="font-family: monospace; font-size: 1.1rem; color: var(--primary); margin-top: var(--space-1);">${result.userId}</div>
-                </div>
-                <div>
-                  <strong>Password:</strong>
-                  <div style="font-family: monospace; font-size: 1.1rem; color: var(--primary); margin-top: var(--space-1);">${result.password}</div>
-                </div>
-                <div>
-                  <strong>Email:</strong>
-                  <div style="margin-top: var(--space-1);">${invitation.email}</div>
-                </div>
-              </div>
-            </div>
-
-            ${result.emailSent ? `
-              <div style="background: var(--success-bg); color: var(--success); padding: var(--space-3); border-radius: var(--radius-md); margin-top: var(--space-4);">
-                ✉️ ${emailMessage}
-              </div>
-            ` : `
-              <div style="background: var(--warning-bg); color: var(--warning); padding: var(--space-3); border-radius: var(--radius-md); margin-top: var(--space-4);">
-                ⚠️ ${emailMessage}<br>
-                <small>Please share these credentials manually with the user.</small>
-              </div>
-            `}
-
-            <button class="btn btn-primary" onclick="closeModal()" style="margin-top: var(--space-4);">
-              Done
-            </button>
-          </div>
-        `;
-
-        showModal('Invitation Resent', credentialsContent);
-      } else {
-        showToast(result.error || 'Failed to resend invitation', 'danger');
-      }
+      showCredentialModal(
+        result.fullName || user?.fullName || schoolId,
+        result.email || user?.email || '',
+        result.roleLabel || user?.role || '',
+        result.schoolId,
+        result.password,
+        result.emailSent,
+        result.emailMessage
+      );
     } catch (error) {
-      console.error('Resend invitation error:', error);
-      showToast('Failed to resend invitation', 'danger');
+      console.error('Resend credentials error:', error);
+      showToast('Failed to issue a new password', 'danger');
     }
   },
 
@@ -3425,23 +3164,27 @@ const userManagementModule = {
       return;
     }
 
-    const isAccepted = invitation.status === 'accepted';
-    const confirmMessage = isAccepted
-      ? `Delete invitation and user account for ${invitation.full_name} (${invitation.email})?\n\n` +
+    // Every issuance row has a live account behind it unless that account has
+    // already been deleted, so deleting here means deleting a person's login —
+    // never just tidying a record away.
+    const hasAccount = Boolean(this._accountFor(invitation));
+    const confirmMessage = hasAccount
+      ? `Delete the account for ${invitation.full_name} (${invitation.email})?\n\n` +
       `This will permanently remove:\n` +
-      `- The invitation record\n` +
-      `- The user account (${invitation.school_id})\n` +
-      `- All associated data\n\n` +
-      `This action cannot be undone!`
-      : `Delete invitation for ${invitation.full_name} (${invitation.email})?\n\n` +
-      `This will permanently remove the invitation record.`;
+      `- Their login (${invitation.school_id})\n` +
+      `- Their profile and role record\n` +
+      `- The issuance record\n\n` +
+      `They will lose access immediately. This cannot be undone.`
+      : `Remove the record for ${invitation.full_name} (${invitation.email})?\n\n` +
+      `The account behind it has already been deleted, so this only clears the log entry.`;
 
     const confirmed = confirm(confirmMessage);
     if (!confirmed) return;
 
     try {
-      // 1. If invitation was accepted, call delete-user edge function for complete cleanup
-      if (isAccepted && invitation.school_id) {
+      // 1. Remove the account itself first — delete-user cleans up auth user,
+      //    profile and role record together.
+      if (hasAccount && invitation.school_id) {
         const { data: { session: supabaseSession } } = await supabaseClient.auth.getSession();
         const accessToken = supabaseSession?.access_token;
 
@@ -3474,17 +3217,17 @@ const userManagementModule = {
         return;
       }
 
-      const action = isAccepted ? 'invitation and user account deleted' : 'invitation deleted';
-      this.logAuditEvent('invitation_deleted', invitation.email, `Deleted invitation for ${invitation.full_name}${isAccepted ? ' (including user account)' : ''}`);
+      this.logAuditEvent('account_deleted', invitation.email,
+        `Deleted ${hasAccount ? `account ${invitation.school_id}` : 'orphaned record'} for ${invitation.full_name}`);
 
-      this._invitations = await authManager.getInvitations();
-      this._users = await authManager.getUsers();
+      this._invitations = await authManager.getInvitations(true);
+      this._users = await authManager.getUsers(true);
       this.render();
 
-      showToast(`${isAccepted ? 'Invitation and user account' : 'Invitation'} deleted successfully`, 'success');
+      showToast(hasAccount ? 'Account deleted' : 'Record removed', 'success');
     } catch (error) {
-      console.error('Delete invitation error:', error);
-      showToast('Failed to delete invitation', 'danger');
+      console.error('Delete account error:', error);
+      showToast('Failed to delete', 'danger');
     }
   },
 
@@ -3492,18 +3235,27 @@ const userManagementModule = {
     const invitation = this._invitations.find(inv => inv.token === token);
 
     if (!invitation) {
-      showToast('Invitation not found', 'danger');
+      showToast('Record not found', 'danger');
       return;
     }
 
+    const user = this._accountFor(invitation);
+    const state = user
+      ? AuthManager.accessState(user)
+      : { label: 'Account deleted', tone: 'danger' };
+
+    // No password here. Passwords are shown once, at the moment they are
+    // generated, and are not stored anywhere afterwards — the column that used
+    // to hold them was readable by every signed-in user. To get a user back in,
+    // issue a new one.
     const content = `
       <div>
-        <h4 class="font-semibold mb-4">Invitation Details</h4>
-        
+        <h4 class="font-semibold mb-4">Account Details</h4>
+
         <div class="grid grid-cols-2 gap-4 mb-4">
           <div>
             <p class="text-sm text-secondary mb-1">Full Name</p>
-            <p class="font-semibold">${invitation.full_name || invitation.metadata?.fullName || 'N/A'}</p>
+            <p class="font-semibold">${escapeHtml(invitation.full_name || invitation.metadata?.fullName || "N/A")}</p>
           </div>
           <div>
             <p class="text-sm text-secondary mb-1">Role</p>
@@ -3511,29 +3263,31 @@ const userManagementModule = {
           </div>
           <div>
             <p class="text-sm text-secondary mb-1">Email</p>
-            <p>${invitation.email || 'N/A'}</p>
+            <p>${escapeHtml(user?.email || invitation.email || "N/A")}</p>
           </div>
           <div>
-            <p class="text-sm text-secondary mb-1">Status</p>
-            <p>${createBadge(invitation.status, invitation.status === 'accepted' ? 'success' : invitation.status === 'pending' ? 'warning' : 'danger')}</p>
+            <p class="text-sm text-secondary mb-1">Access</p>
+            <p>${createBadge(state.label, state.tone)}</p>
           </div>
         </div>
 
         <div style="background: var(--bg-tertiary); padding: var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
-          <p class="mb-2"><strong>Login ID:</strong> <code style="background: var(--bg-secondary); color: var(--text-primary); padding: 2px 8px; border-radius: var(--radius-sm);">${invitation.school_id || 'N/A'}</code></p>
-          <p class="mb-2"><strong>Default Password:</strong> <code style="background: var(--bg-secondary); color: var(--text-primary); padding: 2px 8px; border-radius: var(--radius-sm);">${invitation.default_password || 'N/A'}</code></p>
+          <p class="mb-2"><strong>Login ID:</strong> <code style="background: var(--bg-secondary); color: var(--text-primary); padding: 2px 8px; border-radius: var(--radius-sm);">${escapeHtml(invitation.school_id || "N/A")}</code></p>
           <p class="text-sm" style="color: var(--text-secondary); margin-top: var(--space-3);">
-            📅 Expires: ${new Date(invitation.expires_at).toLocaleDateString()}
+            Created ${new Date(invitation.created_at || Date.now()).toLocaleDateString()}
+            &middot; ${user?.lastLogin ? `last signed in ${new Date(user.lastLogin).toLocaleDateString()}` : 'has never signed in'}
           </p>
         </div>
 
-        <button class="btn btn-primary" onclick="navigator.clipboard.writeText('Login ID: ${invitation.school_id}\\nPassword: ${invitation.default_password}\\nPortal: ${window.location.origin}/login.html'); showToast('Credentials copied!', 'success');">
-          📋 Copy Credentials
-        </button>
+        ${user ? `
+          <button class="btn btn-primary" onclick="closeModal(); userManagementModule.resendCredentials('${invitation.school_id}');">
+            Email a new password
+          </button>
+        ` : ''}
       </div>
     `;
 
-    showModal('Invitation Details', content);
+    showModal('Account Details', content);
   },
 
   showCreateRoleModal() {

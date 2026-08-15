@@ -3,11 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verify Invitation - TBD International Academy Portal</title>
+    <!-- Behind a login: keep it out of search results. -->
+    <meta name="robots" content="noindex, nofollow">
+    <title>Your Account is Ready - TBD International Academy Portal</title>
     <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
     <meta name="theme-color" content="#1E2A5A">
     <link rel="stylesheet" href="css/design-system.css">
     <link rel="stylesheet" href="css/components.css">
+    <!--
+        There is no invitation to accept any more.
+
+        Accounts used to be created in two steps: an invitation row first, then
+        the account when the recipient clicked a link to this page. Nothing ever
+        created that account, so the second step could not succeed. Accounts are
+        now live the moment an administrator creates them, and the credentials
+        arrive by email.
+
+        This page stays because links to it went out in real emails, and a 404
+        to a parent who was told "click here to activate" is worse than a
+        sentence explaining that they can simply sign in. It redirects on a
+        short delay so the explanation is readable.
+    -->
     <style>
         body { margin:0; padding:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:var(--gradient-brand); font-family:var(--font-family-base); }
         .verify-container { width:100%; max-width:500px; padding:var(--space-6); }
@@ -17,34 +33,17 @@
         .verify-crest img { width:40px; height:40px; }
         .verify-crest .school-name { font-family:var(--font-display); font-weight:700; font-size:.95rem; line-height:1.15; color:var(--brand-navy); }
         .verify-crest .school-motto { font-size:.7rem; font-style:italic; color:var(--brand-red); }
-        .verify-header { text-align:center; margin-bottom:var(--space-8); }
+        .verify-header { text-align:center; margin-bottom:var(--space-6); }
         .verify-logo { width:80px; height:80px; margin:0 auto var(--space-4); background:var(--gradient-primary); border-radius:var(--radius-full); display:flex; align-items:center; justify-content:center; font-size:var(--font-size-3xl); color:white; }
         .verify-title { font-size:var(--font-size-2xl); font-weight:var(--font-weight-bold); color:var(--text-primary); margin-bottom:var(--space-2); }
-        .verify-subtitle { font-size:var(--font-size-sm); color:var(--text-secondary); }
-        .form-group { margin-bottom:var(--space-6); }
-        .form-label { display:block; font-size:var(--font-size-sm); font-weight:var(--font-weight-semibold); color:var(--text-primary); margin-bottom:var(--space-2); }
-        .form-input { width:100%; padding:var(--space-3) var(--space-4); border:2px solid var(--border-primary); border-radius:var(--radius-lg); font-size:var(--font-size-base); transition:all var(--transition-base); box-sizing:border-box; }
-        .form-input:focus { outline:none; border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(var(--color-primary-rgb),0.1); }
-        .password-requirements { font-size:var(--font-size-xs); color:var(--text-tertiary); margin-top:var(--space-2); padding:var(--space-3); background:var(--bg-tertiary); border-radius:var(--radius-md); }
-        .password-requirements ul { margin:var(--space-2) 0 0 0; padding-left:var(--space-5); }
-        .password-requirements li { margin-bottom:var(--space-1); }
-        .btn-verify { width:100%; padding:var(--space-4); background:var(--gradient-primary); color:white; border:none; border-radius:var(--radius-lg); font-size:var(--font-size-base); font-weight:var(--font-weight-semibold); cursor:pointer; transition:all var(--transition-base); box-shadow:var(--shadow-md); }
+        .verify-subtitle { font-size:var(--font-size-sm); color:var(--text-secondary); line-height:1.6; }
+        .steps { background:var(--bg-tertiary); border-radius:var(--radius-lg); padding:var(--space-5); margin-bottom:var(--space-6); }
+        .steps ol { margin:0; padding-left:var(--space-5); }
+        .steps li { margin-bottom:var(--space-2); font-size:var(--font-size-sm); color:var(--text-secondary); }
+        .steps li:last-child { margin-bottom:0; }
+        .btn-verify { display:block; width:100%; box-sizing:border-box; padding:var(--space-4); background:var(--gradient-primary); color:white; border:none; border-radius:var(--radius-lg); font-size:var(--font-size-base); font-weight:var(--font-weight-semibold); cursor:pointer; text-align:center; text-decoration:none; transition:all var(--transition-base); box-shadow:var(--shadow-md); }
         .btn-verify:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
-        .btn-verify:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
-        .alert { padding:var(--space-4); border-radius:var(--radius-lg); margin-bottom:var(--space-6); display:none; }
-        .alert.show { display:block; }
-        .alert-danger  { background:rgba(var(--color-danger-rgb),0.1);  color:var(--color-danger);  border:1px solid var(--color-danger); }
-        .alert-success { background:rgba(var(--color-success-rgb),0.1); color:var(--color-success); border:1px solid var(--color-success); }
-        .alert-info    { background:rgba(var(--color-info-rgb),0.1);    color:var(--color-info);    border:1px solid var(--color-info); }
-        .alert-warning { background:rgba(255,193,7,0.1); color:#856404; border:1px solid #ffc107; }
-        .invitation-info { background:var(--bg-tertiary); padding:var(--space-4); border-radius:var(--radius-lg); margin-bottom:var(--space-6); }
-        .invitation-info p { margin:var(--space-2) 0; font-size:var(--font-size-sm); }
-        .invitation-info strong { color:var(--text-primary); }
-        .loading-spinner { display:inline-block; width:16px; height:16px; border:2px solid rgba(255,255,255,0.3); border-top-color:white; border-radius:50%; animation:spin .6s linear infinite; margin-right:var(--space-2); vertical-align:middle; }
-        @keyframes spin { to { transform:rotate(360deg); } }
-        .back-link { text-align:center; margin-top:var(--space-6); padding-top:var(--space-6); border-top:1px solid var(--border-primary); }
-        .back-link a { color:var(--color-primary); text-decoration:none; font-weight:var(--font-weight-medium); font-size:var(--font-size-sm); }
-        .back-link a:hover { text-decoration:underline; }
+        .countdown { text-align:center; font-size:var(--font-size-xs); color:var(--text-tertiary); margin-top:var(--space-4); }
     </style>
 </head>
 <body>
@@ -59,203 +58,49 @@
             </div>
 
             <div class="verify-header">
-                <div class="verify-logo">&#x2709;</div>
-                <h1 class="verify-title">Verify Your Invitation</h1>
-                <p class="verify-subtitle">Set your password to activate your account</p>
+                <div class="verify-logo">&#x2713;</div>
+                <h1 class="verify-title">Your account is already active</h1>
+                <p class="verify-subtitle">
+                    Nothing needs to be accepted. Sign in with the Login ID and password
+                    from the email we sent you.
+                </p>
             </div>
 
-            <div id="alert-container"></div>
-            <div id="invitation-info" class="invitation-info" style="display:none;"></div>
-
-            <form id="verify-form" style="display:none;">
-                <div class="form-group">
-                    <label class="form-label" for="fullName">Full Name *</label>
-                    <input type="text" id="fullName" name="fullName" class="form-input" placeholder="Your full name" required>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="password">New Password *</label>
-                    <input type="password" id="password" name="password" class="form-input" placeholder="Create a strong password" required>
-                    <div class="password-requirements">
-                        <strong>Password must contain:</strong>
-                        <ul>
-                            <li>At least 8 characters</li>
-                            <li>One uppercase letter</li>
-                            <li>One lowercase letter</li>
-                            <li>One number</li>
-                        </ul>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label" for="confirmPassword">Confirm Password *</label>
-                    <input type="password" id="confirmPassword" name="confirmPassword" class="form-input" placeholder="Re-enter your password" required>
-                </div>
-                <button type="submit" class="btn-verify" id="verify-btn">Set Password &amp; Activate Account</button>
-            </form>
-
-            <div class="back-link">
-                <a href="login.html">&larr; Back to Login</a>
+            <div class="steps">
+                <ol>
+                    <li>Open the email headed <strong>&ldquo;Your portal account is ready&rdquo;</strong>.</li>
+                    <li>Sign in with the <strong>Login ID</strong> and <strong>password</strong> it lists.</li>
+                    <li>Choose your own password when the portal asks &mdash; it will, on your first sign-in.</li>
+                </ol>
             </div>
+
+            <a href="login.html" class="btn-verify">Go to sign in</a>
+
+            <p class="countdown" id="countdown">Taking you there in 8 seconds&hellip;</p>
+
+            <p class="verify-subtitle" style="text-align:center;margin-top:var(--space-6);">
+                Lost the email or the password no longer works?
+                Ask the school office to send you a new one.
+            </p>
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="js/html-escape.js"></script>
-    <script src="js/supabase-client.js"></script>
-    <script src="js/bcrypt.min.js"></script>
-    <script src="js/auth-manager.js"></script>
     <script>
-        var currentInvitation = null;
-        var urlParams = new URLSearchParams(window.location.search);
-        var token = urlParams.get('token');
+        (function () {
+            var remaining = 8;
+            var label = document.getElementById('countdown');
 
-        function showAlert(message, type) {
-            if (!type) type = 'danger';
-            document.getElementById('alert-container').innerHTML =
-                '<div class="alert alert-' + type + ' show">' + message + '</div>';
-        }
-
-        function esc(value) {
-            return String(value == null ? '' : value)
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
-
-        function validatePassword(pwd) {
-            return pwd.length >= 8 &&
-                   /[A-Z]/.test(pwd) &&
-                   /[a-z]/.test(pwd) &&
-                   /\d/.test(pwd);
-        }
-
-        async function initPage() {
-            if (!token) {
-                showAlert('No invitation token provided. Please use the link given to you by the administrator.');
-                return;
-            }
-
-            showAlert('Verifying invitation...', 'info');
-
-            try {
-                currentInvitation = await authManager.verifyInvitation(token);
-
-                if (!currentInvitation) {
-                    showAlert('Invalid or expired invitation. Please contact the administrator for a new one.');
+            var tick = setInterval(function () {
+                remaining -= 1;
+                if (remaining <= 0) {
+                    clearInterval(tick);
+                    // replace() so the back button returns to the email, not here.
+                    window.location.replace('login.html');
                     return;
                 }
-
-                document.getElementById('alert-container').innerHTML = '';
-
-                var fullName = currentInvitation.full_name ||
-                               (currentInvitation.metadata && currentInvitation.metadata.fullName) || '';
-                var role     = currentInvitation.role || '';
-                var schoolId = currentInvitation.school_id || '';
-
-                // All four values come from the database and are attacker-influenced
-                // at invite time, so they must be escaped before interpolation.
-                var infoDiv = document.getElementById('invitation-info');
-                infoDiv.innerHTML =
-                    '<p><strong>Name:</strong> ' + esc(fullName) + '</p>' +
-                    '<p><strong>Role:</strong> ' + esc(role.charAt(0).toUpperCase() + role.slice(1)) + '</p>' +
-                    '<p><strong>Your Login ID:</strong> ' + esc(schoolId) + '</p>' +
-                    (currentInvitation.email ? '<p><strong>Email:</strong> ' + esc(currentInvitation.email) + '</p>' : '');
-                infoDiv.style.display = 'block';
-
-                document.getElementById('verify-form').style.display = 'block';
-                if (fullName) document.getElementById('fullName').value = fullName;
-
-            } catch (err) {
-                showAlert('Error verifying invitation. Please try again later.');
-                console.error('Verify error:', err);
-            }
-        }
-
-        window.addEventListener('load', initPage);
-
-        document.getElementById('verify-form').addEventListener('submit', async function (e) {
-            e.preventDefault();
-
-            var newPassword     = document.getElementById('password').value;
-            var confirmPassword = document.getElementById('confirmPassword').value;
-            var verifyBtn       = document.getElementById('verify-btn');
-
-            if (!validatePassword(newPassword)) {
-                showAlert('Password does not meet requirements. Please check the rules below the password field.');
-                return;
-            }
-            if (newPassword !== confirmPassword) {
-                showAlert('Passwords do not match. Please re-enter them.');
-                return;
-            }
-
-            verifyBtn.disabled = true;
-            verifyBtn.innerHTML = '<span class="loading-spinner"></span> Activating account...';
-
-            try {
-                var schoolId   = currentInvitation.school_id;
-                var defaultPwd = currentInvitation.default_password;
-
-                if (!schoolId || !defaultPwd) {
-                    showAlert('Invitation data is incomplete. Please contact the administrator.');
-                    verifyBtn.disabled = false;
-                    verifyBtn.textContent = 'Set Password & Activate Account';
-                    return;
-                }
-
-                // ── Step 1: Log in with the default credentials ──
-                // (User account already exists — created by admin via create-invitation-v2)
-                showAlert('Signing in...', 'info');
-
-                var loginResult = await authManager.login(schoolId, defaultPwd);
-                if (!loginResult.success) {
-                    showAlert(
-                        'Login failed. Please go to the login page and use:<br>' +
-                        'Login ID: <strong>' + esc(schoolId) + '</strong> | ' +
-                        'Temporary password: <strong>' + esc(defaultPwd) + '</strong>',
-                        'warning'
-                    );
-                    verifyBtn.disabled = false;
-                    verifyBtn.textContent = 'Set Password & Activate Account';
-                    return;
-                }
-
-                // ── Step 2: Change password to the user's chosen password ──
-                showAlert('Setting your new password...', 'info');
-
-                var pwdResult = await authManager.changePassword(schoolId, defaultPwd, newPassword);
-                if (!pwdResult.success) {
-                    showAlert(
-                        'Password change failed: ' + esc(pwdResult.error || 'Unknown error') +
-                        '. You can change it after logging in.',
-                        'warning'
-                    );
-                    await authManager.logout(null);
-                    setTimeout(function () { window.location.href = 'login.html'; }, 4000);
-                    return;
-                }
-
-                // ── Step 3: Sign out silently, show success, then redirect ──
-                await authManager.logout(null);
-
-                document.getElementById('verify-form').style.display = 'none';
-                document.getElementById('invitation-info').style.display = 'none';
-
-                showAlert(
-                    '\u2713 Account activated successfully!<br>' +
-                    'Your Login ID is <strong>' + esc(schoolId) + '</strong>.<br>' +
-                    'Redirecting to login in 3 seconds...',
-                    'success'
-                );
-                setTimeout(function () { window.location.href = 'login.html'; }, 3000);
-
-            } catch (err) {
-                showAlert(esc(err.message) || 'An unexpected error occurred. Please try again.', 'danger');
-                verifyBtn.disabled = false;
-                verifyBtn.textContent = 'Set Password & Activate Account';
-            }
-        });
+                label.textContent = 'Taking you there in ' + remaining + ' second' + (remaining === 1 ? '' : 's') + '…';
+            }, 1000);
+        })();
     </script>
 </body>
 </html>
