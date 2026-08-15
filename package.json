@@ -8,7 +8,7 @@
     "build": "node scripts/build.js",
     "build:verbose": "node scripts/build.js --verbose",
     "preview": "node scripts/build.js && python -m http.server 8000 --directory dist",
-    "deploy": "vercel --prod",
+    "deploy": "echo \"Deploy by pushing to main - Vercel builds from the repo. Running 'vercel --prod' by hand ships your working tree, bypassing the build and every check.\" && exit 1",
     "test": "node tests/runner.js && node tests/service-worker.test.js",
     "test:watch": "node --watch tests/runner.js",
     "lint": "node scripts/check-syntax.js",

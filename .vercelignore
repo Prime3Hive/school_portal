@@ -27,9 +27,15 @@ tmp/
 temp/
 *.tmp
 
-# Documentation (optional - remove if you want docs deployed)
-DEPLOYMENT_CHECKLIST.md
-README.md
+# Documentation — internal, never served
+*.md
 
-# Netlify (not needed for Vercel)
-netlify/
+# SQL and tests (server-side / local only).
+# `scripts/` is deliberately NOT here: buildCommand is `node scripts/build.js`,
+# so excluding it would break the build.
+sql/
+tests/
+
+# Supabase CLI binary, if it is sitting in the project root
+supabase.exe
+*.tar.gz
