@@ -10,9 +10,16 @@ const AppConfig = {
     get publicKey() { return window.ENV?.PAYSTACK_PUBLIC_KEY || 'pk_test_xxxxxxxxxxxx'; }
   },
 
+  // Mailbox each kind of message comes from. Mail is sent by the Supabase edge
+  // functions through Resend, never from the browser — these are here so the UI
+  // can tell a parent which address to write to, and must stay in step with
+  // MAILBOX in supabase/functions/_shared/email.ts.
   email: {
-    get fromAddress() { return window.ENV?.EMAIL_FROM_ADDRESS || 'noreply@tbdacademy.edu.ng'; },
-    get fromName() { return window.ENV?.EMAIL_FROM_NAME || 'TBD International Academy'; }
+    get fromAddress() { return window.ENV?.EMAIL_FROM_ADDRESS || 'support@tbdacademy.org'; },
+    get fromName() { return window.ENV?.EMAIL_FROM_NAME || 'TBD International Academy'; },
+    get support() { return window.ENV?.SUPPORT_EMAIL || 'support@tbdacademy.org'; },
+    get finance() { return window.ENV?.FINANCE_EMAIL || 'finance@tbdacademy.org'; },
+    get admissions() { return window.ENV?.ADMISSIONS_EMAIL || 'headteacher@tbdacademy.org'; }
   },
 
   app: {
@@ -23,8 +30,8 @@ const AppConfig = {
 
   school: {
     get name() { return window.ENV?.SCHOOL_NAME || 'TBD International Academy'; },
-    get email() { return window.ENV?.SCHOOL_EMAIL || 'tbdinternationalacademy.mkd@gmail.com'; },
-    get phone() { return window.ENV?.SCHOOL_PHONE || '+234-800-000-0000'; },
+    get email() { return window.ENV?.SCHOOL_EMAIL || 'support@tbdacademy.org'; },
+    get phone() { return window.ENV?.SCHOOL_PHONE || '0803 061 4777'; },
     get address() { return window.ENV?.SCHOOL_ADDRESS || 'Behind Civil Service Commission, Kertyo, Makurdi, Nigeria'; }
   },
 

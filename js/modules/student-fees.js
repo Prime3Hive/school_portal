@@ -776,9 +776,11 @@ const studentFeesModule = {
       }
       if (payBtn) { payBtn.disabled = true; payBtn.textContent = 'Opening payment...'; }
 
+      // See fees-payments.js: the no-reply subdomain is deliberately
+      // undeliverable, and the payment webhook skips receipts addressed to it.
       const _psEmail1 = (student.email && !student.email.endsWith('@tbd.internal'))
         ? student.email
-        : `${(student.rollNo || student.roll_no || student.id).toString().toLowerCase().replace(/\s+/g, '-')}@tbdacademy.edu.ng`;
+        : `${(student.rollNo || student.roll_no || student.id).toString().toLowerCase().replace(/\s+/g, '-')}@no-reply.tbdacademy.org`;
 
       PaystackPop.setup({
         key:      paystackKey,
@@ -1134,7 +1136,7 @@ const studentFeesModule = {
 
     const _psEmail2 = (student.email && !student.email.endsWith('@tbd.internal'))
       ? student.email
-      : `${(student.rollNo || student.roll_no || student.id).toString().toLowerCase().replace(/\s+/g, '-')}@tbdacademy.edu.ng`;
+      : `${(student.rollNo || student.roll_no || student.id).toString().toLowerCase().replace(/\s+/g, '-')}@no-reply.tbdacademy.org`;
 
     PaystackPop.setup({
       key:      paystackKey,

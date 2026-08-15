@@ -38,9 +38,15 @@ module.exports = function handler(req, res) {
         SCHOOL_EMAIL: env('SCHOOL_EMAIL'),
         SCHOOL_PHONE: env('SCHOOL_PHONE'),
         SCHOOL_ADDRESS: env('SCHOOL_ADDRESS'),
-        APP_URL: env('APP_URL'),
-        EMAIL_FROM_ADDRESS: env('EMAIL_FROM_ADDRESS'),
+        APP_URL: env('APP_URL', 'https://tbdacademy.org'),
+        EMAIL_FROM_ADDRESS: env('EMAIL_FROM_ADDRESS', 'support@tbdacademy.org'),
         EMAIL_FROM_NAME: env('EMAIL_FROM_NAME', 'TBD International Academy'),
+        // The three school mailboxes the portal writes from. Displayed in the UI
+        // so parents know where to reply; the actual sending happens in the
+        // Supabase edge functions (supabase/functions/_shared/email.ts).
+        SUPPORT_EMAIL: env('SUPPORT_EMAIL', 'support@tbdacademy.org'),
+        FINANCE_EMAIL: env('FINANCE_EMAIL', 'finance@tbdacademy.org'),
+        ADMISSIONS_EMAIL: env('ADMISSIONS_EMAIL', 'headteacher@tbdacademy.org'),
         SESSION_TIMEOUT_MINUTES: env('SESSION_TIMEOUT_MINUTES', '30'),
     };
 

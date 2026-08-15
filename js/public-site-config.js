@@ -25,11 +25,18 @@
         crest: 'assets/logo-mark.svg',
         established: 2011,
 
+        website: 'tbdacademy.org',
+
         contact: {
             // As printed on the flyer.
             phones: ['0707111692', '09027512438', '08030614777'],
             whatsapp: '2348030614777',
-            email: 'tbdinternationalacademy.mkd@gmail.com',
+            // School-domain mailboxes, matching the senders the portal mails
+            // from (supabase/functions/_shared/email.ts). Each must be a real,
+            // monitored inbox — parents reply to them.
+            email: 'support@tbdacademy.org',
+            admissionsEmail: 'headteacher@tbdacademy.org',
+            financeEmail: 'finance@tbdacademy.org',
             address: 'Behind Civil Service Commission, Kertyo, Makurdi',
             officeHours: '8:00am – 2:00pm',
             formsNote: 'Forms available at the school premises'

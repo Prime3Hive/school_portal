@@ -14,8 +14,12 @@
 //   5. rate-limits per email
 //   6. inserts with the service-role key
 //
-// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PAYSTACK_SECRET_KEY
+// Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, PAYSTACK_SECRET_KEY, RESEND_API_KEY
 import { createClient } from "jsr:@supabase/supabase-js@2";
+import {
+  APP_URL, MAILBOX, SCHOOL_NAME,
+  button, code, detailRows, esc, layout, money, notice, send,
+} from "../_shared/email.ts";
 
 const SUPABASE_URL          = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -337,6 +341,72 @@ Deno.serve(async (req: Request) => {
       .eq("reference", paymentReference);
     if (txnErr) console.warn("[submit-application] Transaction update failed:", txnErr.message);
   }
+
+  // ── 8. Notify the applicant and the school (best effort) ──────────────────
+  // The row is already committed, so neither mail may fail the request — a
+  // family whose application was accepted must not see an error because Resend
+  // was unreachable. Both are awaited so the edge runtime does not tear the
+  // isolate down mid-request, but their results only reach the logs.
+  const summary: Array<[string, string]> = [
+    ["Application number", code(appNumber as string)],
+    ["Student", esc(studentName)],
+    ["Class applied for", esc(grade)],
+    ["Application fee", money(feeAmount)],
+    ["Payment", feePaid
+      ? `Confirmed &middot; ${esc(paymentReference || "")}`
+      : `Awaiting confirmation &middot; ${esc(paymentReference || "")}`],
+  ];
+
+  const applicantMail = send({
+    from: "headteacher",
+    to: parentEmail,
+    subject: `Application ${appNumber} received — ${studentName}`,
+    html: layout({
+      from: "headteacher",
+      title: "We have your application",
+      subtitle: `Reference ${appNumber}`,
+      body: `
+        <p style="margin:0 0 18px;">Dear <strong>${esc(parentName)}</strong>,</p>
+        <p style="margin:0 0 8px;color:#4b5162;">
+          Thank you for applying to ${esc(SCHOOL_NAME)}. Your application has been
+          received and is now with the admissions office.
+        </p>
+        ${detailRows(summary)}
+        ${feePaid
+          ? `<p style="margin:0;color:#4b5162;">Your application fee has been confirmed. We will review the
+             application and contact you about the entrance assessment and next steps.</p>`
+          : `<p style="margin:0;color:#4b5162;">Your bank transfer is being checked against our records.
+             Review begins once the finance office confirms it, usually within two working days.</p>`}
+        ${button(`${APP_URL}/admissions.html`, "Track your application")}
+        ${notice(`Keep reference ${esc(appNumber as string)} safe — you will need it to check your status or to contact us about this application.`)}`,
+    }),
+  });
+
+  const schoolMail = send({
+    from: "headteacher",
+    to: MAILBOX.headteacher.address,
+    // So a reply from the office goes straight to the family.
+    replyTo: parentEmail,
+    subject: `New application ${appNumber} — ${studentName} (${grade})`,
+    html: layout({
+      from: "headteacher",
+      title: "New application submitted",
+      subtitle: `${studentName} — ${grade}`,
+      body: `
+        ${detailRows([
+          ...summary,
+          ["Parent/guardian", esc(parentName)],
+          ["Email", esc(parentEmail)],
+          ["Phone", esc(parentPhone)],
+          ["Method", esc(paymentMethod === "paystack" ? "Paystack (verified)" : "Bank transfer (needs checking)")],
+        ])}
+        ${button(`${APP_URL}/portal`, "Open the admissions queue")}`,
+    }),
+  });
+
+  const [applicantResult, schoolResult] = await Promise.all([applicantMail, schoolMail]);
+  if (!applicantResult.sent) console.warn(`[submit-application] Applicant email not sent for ${appNumber}: ${applicantResult.message}`);
+  if (!schoolResult.sent)    console.warn(`[submit-application] School notification not sent for ${appNumber}: ${schoolResult.message}`);
 
   console.log(`[submit-application] Recorded ${appNumber} (${paymentMethod}, paid=${feePaid})`);
   return json({ success: true, application: inserted });

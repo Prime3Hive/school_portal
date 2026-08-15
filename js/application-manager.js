@@ -436,7 +436,8 @@
                 incomplete: { bg: 'hsl(30,100%,95%)',  border: 'hsl(30,100%,50%)',  text: 'hsl(30,100%,30%)', icon: 'fa-exclamation-triangle' }
             };
             const si = statusColors[application.status] || statusColors.pending;
-            const schoolEmail = (typeof AppConfig !== 'undefined' && AppConfig.school?.email) || 'admin@tbdacademy.edu.ng';
+            // Admissions queries belong with the head teacher, not general support.
+            const schoolEmail = (typeof AppConfig !== 'undefined' && AppConfig.email?.admissions) || 'headteacher@tbdacademy.org';
             const submittedDate = new Date(application.submitted_date).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
 
             // Escape all DB-sourced text before injecting into innerHTML

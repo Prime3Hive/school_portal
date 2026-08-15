@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.0.0";
+import { APP_URL, button, code, detailRows, esc, layout, money, notice, send } from "../_shared/email.ts";
 
 // C4: Fail loudly on startup when the secret is missing so ops get a clear signal
 const PAYSTACK_SECRET     = Deno.env.get("PAYSTACK_SECRET_KEY") || "";
@@ -78,6 +79,61 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers": "content-type, x-paystack-signature",
 };
+
+/**
+ * Email the payer a receipt, from finance@.
+ *
+ * This webhook is the point at which a payment becomes true for the school, so
+ * it is also the only honest moment to say "we have your money" — the browser
+ * callback fires before anything is verified. Failure is logged and swallowed:
+ * Paystack retries any non-2xx, and re-running a settled payment because the
+ * mail server blinked would be worse than a missing receipt.
+ */
+async function sendReceipt(opts: {
+  to: string;
+  amountKobo: number;
+  reference: string;
+  paidFor: string;
+  detail?: Array<[string, string]>;
+}) {
+  // Students without an email of their own are charged under a generated
+  // stand-in address (see js/modules/fees-payments.js). Those mailboxes do not
+  // exist, so mailing them only earns us hard bounces.
+  const to = (opts.to || "").trim().toLowerCase();
+  if (!to || to.endsWith("@tbd.internal") || to.endsWith("@no-reply.tbdacademy.org")) {
+    console.log(`[Webhook] ${opts.reference}: no real payer address (${to || "none"}) — receipt skipped`);
+    return;
+  }
+
+  const naira = opts.amountKobo / 100;
+  const result = await send({
+    from: "finance",
+    to,
+    subject: `Payment received — ${opts.reference}`,
+    html: layout({
+      from: "finance",
+      title: "Payment received",
+      subtitle: money(naira).replace(/&#8358;/, "₦"),
+      body: `
+        <p style="margin:0 0 8px;color:#4b5162;">
+          We have received and confirmed your payment. This email is your receipt —
+          keep it for your records.
+        </p>
+        ${detailRows([
+          ["Paid for", esc(opts.paidFor)],
+          ["Amount", money(naira)],
+          ["Reference", code(opts.reference)],
+          ["Date", esc(new Date().toLocaleDateString("en-NG", { day: "numeric", month: "long", year: "numeric" }))],
+          ["Status", "Confirmed"],
+          ...(opts.detail || []),
+        ])}
+        ${button(`${APP_URL}/login.html`, "View in the portal")}
+        ${notice("Questions about this payment? Reply to this email with the reference above and the finance office will look it up.")}`,
+    }),
+  });
+
+  if (!result.sent) console.warn(`[Webhook] Receipt not sent for ${opts.reference}: ${result.message}`);
+}
 
 serve(async (req: Request) => {
   // H12: Handle OPTIONS preflight
@@ -264,6 +320,16 @@ serve(async (req: Request) => {
         }
       }
 
+      await sendReceipt({
+        to: event.data.customer?.email || "",
+        amountKobo: event.data.amount,
+        reference: ref,
+        paidFor: "Application fee",
+        detail: appTxn.application_number
+          ? [["Application", esc(String(appTxn.application_number))]]
+          : [],
+      });
+
       console.log(`Application fee confirmed: ${ref}`);
       return new Response(JSON.stringify({ success: true, type: "application_fee" }), {
         status: 200,
@@ -362,6 +428,13 @@ serve(async (req: Request) => {
       performer_email:  "paystack-webhook@system",
       new_state:        { status: "paid", verified_at: new Date().toISOString() },
       details:          { webhook_reference: ref },
+    });
+
+    await sendReceipt({
+      to: event.data.customer?.email || "",
+      amountKobo: event.data.amount,
+      reference: ref,
+      paidFor: "School fees",
     });
 
     console.log(`Successfully processed payment: ${ref}`);

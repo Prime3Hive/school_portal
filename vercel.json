@@ -3,6 +3,30 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/",
+      "destination": "/public-blog.html"
+    },
+    {
+      "source": "/about",
+      "destination": "/about.html"
+    },
+    {
+      "source": "/academics",
+      "destination": "/academics.html"
+    },
+    {
+      "source": "/admissions",
+      "destination": "/admissions.html"
+    },
+    {
+      "source": "/contact",
+      "destination": "/contact.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/login.html"
+    },
+    {
       "source": "/portal",
       "destination": "/index.html"
     },
@@ -89,18 +113,13 @@
   ],
   "redirects": [
     {
-      "source": "/",
-      "destination": "/public-blog.html",
-      "permanent": false
-    },
-    {
       "source": "/home",
-      "destination": "/public-blog.html",
+      "destination": "/",
       "statusCode": 301
     },
     {
       "source": "/blog",
-      "destination": "/public-blog.html",
+      "destination": "/",
       "statusCode": 301
     }
   ],

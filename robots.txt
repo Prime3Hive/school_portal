@@ -1,0 +1,38 @@
+# TBD International Academy — https://tbdacademy.org
+#
+# The marketing pages are meant to be found. Everything behind a login is not:
+# those pages carry student names, fee balances and invitation tokens in their
+# query strings, and none of it belongs in a search index.
+
+User-agent: *
+Allow: /$
+Allow: /about
+Allow: /academics
+Allow: /admissions
+Allow: /contact
+Allow: /public-blog.html
+Allow: /about.html
+Allow: /academics.html
+Allow: /admissions.html
+Allow: /contact.html
+Allow: /assets/
+Allow: /css/
+
+Disallow: /portal
+Disallow: /admin/
+Disallow: /dashboard
+Disallow: /index.html
+Disallow: /login
+Disallow: /login.html
+Disallow: /student-portal.html
+Disallow: /teacher-portal.html
+Disallow: /student/
+Disallow: /teacher/
+Disallow: /my-
+Disallow: /verify-invitation.html
+Disallow: /change-password.html
+Disallow: /code.html
+Disallow: /offline.html
+Disallow: /api/
+
+Sitemap: https://tbdacademy.org/sitemap.xml

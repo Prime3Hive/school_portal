@@ -17,9 +17,9 @@ const schoolConfig = {
     currencySymbol: '₦',
 
     // Contact Information
-    email: 'tbdinternationalacademy.mkd@gmail.com',
+    email: 'support@tbdacademy.org',
     phone: '0803 061 4777',
-    website: 'www.tbdacademy.edu.ng',  // NOTE: not on the flyer — confirm before publishing
+    website: 'tbdacademy.org',
 
     // Academic Structure — TBD International Academy (synced with fee structure)
     // Grade names match feeStructure keys exactly — do NOT change without updating fee-structure.js

@@ -291,7 +291,8 @@
             doc.setTextColor(150, 150, 150);
             doc.text(`TBD International Academy Application Form - Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
             const _schoolPhone = (typeof AppConfig !== 'undefined' && AppConfig.school?.phone) || '0803 061 4777';
-            doc.text(`tbdinternationalacademy.mkd@gmail.com | ${_schoolPhone}`, pageWidth / 2, pageHeight - 6, { align: 'center' });
+            const _schoolEmail = (typeof AppConfig !== 'undefined' && AppConfig.email?.admissions) || 'headteacher@tbdacademy.org';
+            doc.text(`${_schoolEmail} | ${_schoolPhone} | tbdacademy.org`, pageWidth / 2, pageHeight - 6, { align: 'center' });
         }
 
         // Save the PDF

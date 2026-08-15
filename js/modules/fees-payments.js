@@ -2265,10 +2265,14 @@ const feesPaymentsModule = {
       return;
     }
 
-    // Use real email for Paystack; internal @tbd.internal addresses won't work
+    // Paystack demands an email, and internal @tbd.internal logins are not one.
+    // The stand-in uses the no-reply subdomain, which has no MX record on
+    // purpose: the payment webhook mails a receipt to whatever address Paystack
+    // reports, and a receipt bounced off an invented mailbox costs us sending
+    // reputation. The webhook recognises this subdomain and skips it.
     const studentEmail = (student.email && !student.email.endsWith('@tbd.internal'))
       ? student.email
-      : `${(student.rollNo || student.roll_no || student.id).toString().toLowerCase().replace(/\s+/g, '-')}@tbdacademy.edu.ng`;
+      : `${(student.rollNo || student.roll_no || student.id).toString().toLowerCase().replace(/\s+/g, '-')}@no-reply.tbdacademy.org`;
 
     const key = this.paystackPublicKey;
     if (!key || key === 'pk_test_xxxxxxxxxxxx' || key.length < 10) {

@@ -50,7 +50,7 @@ const settingsModule = {
     return {
       schoolName: 'TBD International Academy',
       schoolAddress: 'Behind Civil Service Commission, Kertyo, Makurdi',
-      schoolEmail: 'tbdinternationalacademy.mkd@gmail.com',
+      schoolEmail: 'support@tbdacademy.org',
       schoolPhone: '0803 061 4777',
       academicYear: '2025/2026',
       currentTerm: 'Second Term',
