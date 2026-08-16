@@ -50,6 +50,7 @@ const PRECACHE_ASSETS = [
   '/css/design-system.css',
   '/css/components.css',
   '/css/accessibility.css',
+  '/css/dashboard-v2.css',
   '/css/mobile-optimizations.css',
   '/js/config.js',
   '/js/env-loader.js',

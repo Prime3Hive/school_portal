@@ -21,6 +21,8 @@
   <link rel="stylesheet" href="css/design-system.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/accessibility.css">
+  <!-- Admin dashboard v2 — loaded before the mobile layer so mobile can override it -->
+  <link rel="stylesheet" href="css/dashboard-v2.css">
   <link rel="stylesheet" href="css/mobile-optimizations.css">
 
   <!-- Configuration -->
@@ -225,42 +227,13 @@
       transform: translateX(-100%);
     }
 
-    /* Mobile Responsive */
-    @media (max-width: 1024px) {
-      .nav-sidebar {
-        transform: translateX(-100%);
-      }
+    /* The drawer's mobile transform lives in components.css and the
+       margin-left reset in mobile-optimizations.css — one definition each,
+       so they cannot drift apart. */
 
-      .nav-sidebar.open {
-        transform: translateX(0);
-      }
-
-      .main-wrapper {
-        margin-left: 0 !important;
-      }
-    }
-
-    .mobile-menu-btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: var(--space-2);
-      background: var(--bg-tertiary);
-      border: 1px solid var(--border-primary);
-      border-radius: var(--radius-md);
-      color: var(--text-primary);
-      font-size: var(--font-size-xl);
-      cursor: pointer;
-      transition: all 0.2s;
-      width: 40px;
-      height: 40px;
-    }
-
-    .mobile-menu-btn:hover {
-      background: var(--bg-primary);
-      border-color: var(--color-primary);
-      color: var(--color-primary);
-    }
+    /* .mobile-menu-btn is defined once, in components.css — repeating it
+       here only meant the touch-target rules in mobile-optimizations.css
+       lost to a later copy of the same declaration. */
 
     /* User Profile Dropdown */
     .profile-dropdown {

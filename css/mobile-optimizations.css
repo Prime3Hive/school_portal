@@ -770,3 +770,120 @@
     transition: none !important;
   }
 }
+
+/* ============================================
+   11. LAYOUT CONTAINMENT & MODERN SELECTORS
+   ============================================
+
+   Sections 0-10 predate the `-modern` / `dash-` component set the admin
+   modules actually render. What follows covers those class names and the
+   shell above them.
+   ============================================ */
+
+/* A flex child defaults to `min-width: auto`, which means it refuses to
+   shrink below the intrinsic minimum width of its content: one wide
+   descendant anywhere inside the tree inflates the whole column, and every
+   media query further down then sizes against the inflated parent. Guard the
+   shell at every level and at every width, not just on a phone. */
+.app-container,
+.main-wrapper,
+.top-header,
+.main-content,
+#main-content {
+  min-width: 0;
+}
+
+/* Global search — global-search.js builds #gs-wrapper with an inline
+   `display:flex`, so a stylesheet can only reach it with !important. */
+@media (max-width: 768px) {
+  /* 200px of input plus a "Ctrl K" badge does not fit a phone header, and the
+     shortcut it advertises does not exist on touch. */
+  #gs-wrapper {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  /* Tablet: keep the search, but let it give ground. */
+  #gs-input-wrap {
+    min-width: 140px !important;
+  }
+
+  /* The results panel is inline-styled to min-width:380px, anchored to a
+     wrapper that no longer is one. */
+  #gs-dropdown {
+    min-width: 0 !important;
+  }
+}
+
+@media (pointer: coarse) {
+  #gs-shortcut {
+    display: none;
+  }
+}
+
+@media (max-width: 768px) {
+  /* The `-modern` cards are grid/flex children too. */
+  .card-modern,
+  .stat-card-modern,
+  .dashboard-v2,
+  .dash-kpi-grid,
+  .dash-actions-grid,
+  .dash-chip-grid {
+    min-width: 0;
+  }
+
+  /* Action toolbars are written as `<div class="flex gap-3">`, and `.flex` is
+     display:flex only — no wrap. Four buttons at ~170px each in a 357px
+     column do not overflow visibly, because body is overflow-x:hidden; they
+     are silently clipped, which makes them unreachable rather than ugly. */
+  #main-content .flex {
+    flex-wrap: wrap;
+  }
+
+  #main-content .flex.gap-3 > .btn,
+  #main-content .flex.gap-3 > .btn-primary,
+  #main-content .flex.gap-3 > .btn-secondary {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  /* Sidebar section headings sit at ~10px. */
+  .nav-section-label {
+    font-size: 0.75rem;
+  }
+
+  .dash-chip-label,
+  .dash-hero-badge {
+    font-size: 0.72rem;
+  }
+}
+
+/* ============================================
+   12. TOUCH TARGETS
+   ============================================
+   Apple and Google both put the minimum at 44x44 CSS px.
+   ============================================ */
+@media (pointer: coarse) {
+  .mobile-menu-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  /* Keep the button's drawn size, enlarge only what the finger hits. */
+  .notification-btn {
+    position: relative;
+  }
+
+  .notification-btn::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+
+  #signout-btn,
+  .btn-ghost-modern,
+  .dash-action-btn {
+    min-height: 44px;
+  }
+}
