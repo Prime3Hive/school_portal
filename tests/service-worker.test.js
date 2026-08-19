@@ -5,9 +5,9 @@
 // These are async, so they live outside tests/runner.js (which is sync-only).
 //
 // Regression guard for the bug where a public page served over a failed/slow
-// network was answered with the cached '/index.html'. That file runs an auth
+// network was answered with the cached portal shell. That file runs an auth
 // guard, so a visitor with no session was redirected to login.html while the
-// address bar still read /public-blog.html — a reload just repeated it.
+// address bar still read the public URL — a reload just repeated it.
 // ============================================
 
 const fs = require('fs');
@@ -122,10 +122,10 @@ const PORTAL_SHELL = '<html><!-- ADMIN PORTAL SHELL: redirects to login --></htm
 
   await it('never serves the portal shell for a public page when offline', async () => {
     const { listeners } = loadWorker({
-      cache: new Map([['/index.html', PORTAL_SHELL], ['/login.html', 'login']]),
+      cache: new Map([['/portal.html', PORTAL_SHELL], ['/login.html', 'login']]),
       online: false
     });
-    const { body } = await navigate(listeners, '/public-blog.html');
+    const { body } = await navigate(listeners, '/about.html');
     assert(!body.includes('ADMIN PORTAL SHELL'),
       'public page was answered with the auth-guarded portal shell');
   });
@@ -133,34 +133,34 @@ const PORTAL_SHELL = '<html><!-- ADMIN PORTAL SHELL: redirects to login --></htm
   await it('serves the offline page when the requested page is not cached', async () => {
     const { listeners } = loadWorker({
       cache: new Map([
-        ['/index.html', PORTAL_SHELL],
+        ['/portal.html', PORTAL_SHELL],
         ['/offline.html', '<html><!-- OFFLINE PAGE --></html>']
       ]),
       online: false
     });
-    const { body } = await navigate(listeners, '/public-blog.html');
+    const { body } = await navigate(listeners, '/about.html');
     assert(body.includes('OFFLINE PAGE'), 'expected the offline page, got: ' + body.slice(0, 80));
   });
 
   await it('serves the real public page offline once it is precached', async () => {
     const { listeners } = loadWorker({
       cache: new Map([
-        ['/index.html', PORTAL_SHELL],
+        ['/portal.html', PORTAL_SHELL],
         ['/offline.html', 'offline'],
-        ['/public-blog.html', '<html><!-- PUBLIC BLOG --></html>']
+        ['/about.html', '<html><!-- PUBLIC PAGE --></html>']
       ]),
       online: false
     });
-    const { body } = await navigate(listeners, '/public-blog.html');
-    assert(body.includes('PUBLIC BLOG'), 'expected the cached public page, got: ' + body.slice(0, 80));
+    const { body } = await navigate(listeners, '/about.html');
+    assert(body.includes('PUBLIC PAGE'), 'expected the cached public page, got: ' + body.slice(0, 80));
   });
 
   await it('still prefers the network when online', async () => {
     const { listeners } = loadWorker({
-      cache: new Map([['/public-blog.html', '<html><!-- STALE --></html>']]),
+      cache: new Map([['/about.html', '<html><!-- STALE --></html>']]),
       online: true
     });
-    const { body } = await navigate(listeners, '/public-blog.html');
+    const { body } = await navigate(listeners, '/about.html');
     assert(body.includes('LIVE FROM NETWORK'), 'expected the network response, got: ' + body.slice(0, 80));
   });
 
@@ -176,19 +176,21 @@ const PORTAL_SHELL = '<html><!-- ADMIN PORTAL SHELL: redirects to login --></htm
     let waited;
     listeners.install({ waitUntil: (p) => { waited = p; } });
     await waited;
-    for (const required of ['/offline.html', '/public-blog.html', '/about.html', '/login.html']) {
+    for (const required of ['/offline.html', '/', '/about.html', '/login.html']) {
       assert(added.includes(required), 'not precached: ' + required);
     }
-    assert(!added.includes('/'),
-      "'/' must not be precached — it redirects, and redirected responses cannot be cached");
+    // The redirecting path swapped over: index.html is now a real file at the
+    // root, so '/' is cacheable, while '/index.html' 301s to it and is not.
+    assert(!added.includes('/index.html'),
+      "'/index.html' must not be precached — it 301s to '/', and redirected responses cannot be cached");
   });
 
   await it('one unreachable asset does not wipe the whole precache', async () => {
     // Only these two are reachable; every other precache entry 404s. The
     // reachable ones must still be cached. cache.addAll() is atomic, so using
     // it here would leave the cache completely empty — which is what used to
-    // happen in production, because '/' redirects on Vercel and took the
-    // entire batch down with it.
+    // happen in production, because one redirecting entry took the entire
+    // batch down with it.
     const { listeners, stored } = loadWorker({
       cache: new Map([['/login.html', 'login'], ['/offline.html', 'offline']]),
       online: false

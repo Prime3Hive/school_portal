@@ -500,6 +500,8 @@ class DataManager {
       admissionDate: row.admission_date || row.admissionDate,
       bloodGroup: row.blood_group || row.bloodGroup,
       authId: row.auth_id || row.authId,
+      // Which guardian login may see this pupil (migration 0024).
+      guardianAuthId: row.guardian_auth_id || row.guardianAuthId,
       rollNo: row.roll_no || row.rollNo,
       emergencyContacts: row.emergency_contacts || row.emergencyContacts,
       previousSchool: row.previous_school || row.previousSchool,
@@ -616,7 +618,7 @@ class DataManager {
   // Only these columns are sent to the DB — everything else is stripped.
   // ─────────────────────────────────────────
   _tableColumns = {
-    students: ['id', 'name', 'grade', 'section', 'roll_no', 'status', 'attendance', 'fees', 'photo', 'date_of_birth', 'gender', 'blood_group', 'admission_date', 'previous_school', 'email', 'phone', 'address', 'father', 'mother', 'guardian', 'emergency_contacts', 'created_at', 'updated_at', 'auth_id'],
+    students: ['id', 'name', 'grade', 'section', 'roll_no', 'status', 'attendance', 'fees', 'photo', 'date_of_birth', 'gender', 'blood_group', 'admission_date', 'previous_school', 'email', 'phone', 'address', 'father', 'mother', 'guardian', 'emergency_contacts', 'created_at', 'updated_at', 'auth_id', 'guardian_auth_id'],
     staff: ['id', 'name', 'role', 'type', 'subjects', 'classes', 'attendance', 'photo', 'email', 'phone', 'address', 'status', 'hire_date', 'salary', 'created_at', 'updated_at', 'auth_id'],
     classes: ['id', 'grade', 'section', 'class_teacher', 'student_count', 'room', 'academic_year', 'created_at', 'updated_at'],
     subject_catalog: ['id', 'name', 'code', 'grade', 'grades', 'icon', 'teacher_id', 'description', 'created_at', 'updated_at'],

@@ -21,7 +21,7 @@ class SchoolPortalApp {
     }
 
     /**
-     * index.html is shared by `admin` and `staff`, but its sidebar is static
+     * portal.html is shared by `admin` and `staff`, but its sidebar is static
      * markup listing every admin module. Hide the links this role has no
      * business seeing. This is presentation only — loadModule() enforces the
      * same rule, and Supabase RLS is the actual security boundary.

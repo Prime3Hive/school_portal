@@ -17,19 +17,42 @@ const guardianPortalModule = {
     window.addEventListener('datamanager:change', this._onDataChange);
   },
 
+  /**
+   * Find the children this guardian may see.
+   *
+   * This used to filter on student.parentEmail / parent_email / guardianEmail /
+   * guardian_email. None of those are columns on `students` — parent_email
+   * belongs to `applications`, and the guardian here lives inside a jsonb blob
+   * at student.guardian.email. So the filter matched nothing and every guardian
+   * was shown "No Children Found".
+   *
+   * The link is now students.guardian_auth_id (migration 0024), which survives
+   * a parent changing their email address. The email comparison is kept as a
+   * fallback for records imported before an admin linked them, and is matched
+   * case-insensitively because addresses get typed in by hand.
+   */
   async loadChildren() {
     const session = authManager.getSession();
     if (!session) return;
 
-    const guardianEmail = session.email;
+    const authId = session.authId || session.auth_id || session.userId;
+    const email = (session.email || '').trim().toLowerCase();
     const allStudents = dataManager.getAll('students') || [];
-    
-    this.children = allStudents.filter(student => 
-      student.parentEmail === guardianEmail || 
-      student.parent_email === guardianEmail ||
-      student.guardianEmail === guardianEmail ||
-      student.guardian_email === guardianEmail
+
+    const linked = allStudents.filter(s =>
+      authId && (s.guardianAuthId || s.guardian_auth_id) === authId
     );
+
+    // Fallback: match the address recorded against the child, one level into
+    // the guardian blob. Only used for pupils not yet explicitly linked.
+    const byEmail = !email ? [] : allStudents.filter(s => {
+      if (linked.includes(s)) return false;
+      if (s.guardianAuthId || s.guardian_auth_id) return false;  // linked elsewhere
+      const g = s.guardian || {};
+      return (g.email || '').trim().toLowerCase() === email;
+    });
+
+    this.children = [...linked, ...byEmail];
 
     if (this.children.length > 0 && !this.currentChild) {
       this.currentChild = this.children[0];

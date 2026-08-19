@@ -3,10 +3,6 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/",
-      "destination": "/public-blog.html"
-    },
-    {
       "source": "/about",
       "destination": "/about.html"
     },
@@ -28,55 +24,55 @@
     },
     {
       "source": "/portal",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/portal/:path*",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/admin/:path*",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/dashboard",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/students",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/staff",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/classes",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/fees",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/inventory",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/assessments",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/tasks",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/applications",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/user-management",
-      "destination": "/index.html"
+      "destination": "/portal.html"
     },
     {
       "source": "/student/:path*",
@@ -112,6 +108,16 @@
     }
   ],
   "redirects": [
+    {
+      "source": "/index.html",
+      "destination": "/",
+      "statusCode": 301
+    },
+    {
+      "source": "/public-blog.html",
+      "destination": "/",
+      "statusCode": 301
+    },
     {
       "source": "/home",
       "destination": "/",
@@ -153,7 +159,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://checkout.paystack.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.paystack.com https://paystack.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.paystack.co https://checkout.paystack.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-src https://checkout.paystack.com https://paystack.com; worker-src blob:;"
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.paystack.co https://cdn.jsdelivr.net https://unpkg.com https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://checkout.paystack.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net https://*.paystack.com https://paystack.com; font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net data:; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.paystack.co https://checkout.paystack.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; frame-src https://checkout.paystack.com https://paystack.com https://maps.google.com https://www.google.com; worker-src blob:;"
         }
       ]
     },

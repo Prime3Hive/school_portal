@@ -750,7 +750,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="js/html-escape.js"></script>
     <script src="js/supabase-client.js"></script>
-    <script src="js/bcrypt.min.js"></script>
     <script src="js/auth-manager.js"></script>
     <script>
         (function () {
@@ -815,6 +814,79 @@
                 } else {
                     loginBtn.textContent = 'Sign In';
                 }
+            }
+
+            // ---------- Failed-attempt throttle ----------
+            // A deterrent, not a defence. Anyone serious skips this form and
+            // posts straight to the Supabase auth endpoint, where the only limits
+            // that bind are the ones configured under
+            // Authentication -> Rate Limits in the Supabase dashboard. What this
+            // does buy: it stops a casual guesser working through a password list
+            // in a browser tab, and it makes a scripted attempt against the form
+            // slow enough to be visible.
+            //
+            // Kept in localStorage so closing the tab does not reset the count.
+            // Clearing storage resets it too — again, deterrent, not defence.
+            const ATTEMPTS_KEY = 'login_failed_attempts';
+            const DELAY_AFTER  = 3;               // start pausing at the 3rd failure
+            const LOCK_AFTER   = 5;               // lock out at the 5th
+            const LOCK_BASE_MS = 5 * 60 * 1000;   // 5 min, doubling each further failure
+            const MAX_LOCK_MS  = 60 * 60 * 1000;  // never longer than an hour
+
+            function readAttempts() {
+                try {
+                    const raw = localStorage.getItem(ATTEMPTS_KEY);
+                    const parsed = raw ? JSON.parse(raw) : null;
+                    if (!parsed || typeof parsed.count !== 'number') return { count: 0, lockedUntil: 0 };
+                    return { count: parsed.count, lockedUntil: parsed.lockedUntil || 0 };
+                } catch {
+                    return { count: 0, lockedUntil: 0 };
+                }
+            }
+
+            function writeAttempts(state) {
+                try { localStorage.setItem(ATTEMPTS_KEY, JSON.stringify(state)); } catch { /* private mode */ }
+            }
+
+            function clearAttempts() {
+                try { localStorage.removeItem(ATTEMPTS_KEY); } catch { /* private mode */ }
+            }
+
+            /** Milliseconds still to wait, or 0 if not locked. */
+            function lockRemaining() {
+                const { lockedUntil } = readAttempts();
+                return Math.max(0, lockedUntil - Date.now());
+            }
+
+            function describeWait(ms) {
+                const seconds = Math.ceil(ms / 1000);
+                if (seconds < 60) return seconds + (seconds === 1 ? ' second' : ' seconds');
+                const minutes = Math.ceil(seconds / 60);
+                return minutes + (minutes === 1 ? ' minute' : ' minutes');
+            }
+
+            /** Record a failure and return how long the user must now wait. */
+            function recordFailure() {
+                const state = readAttempts();
+                state.count += 1;
+
+                if (state.count >= LOCK_AFTER) {
+                    const factor = Math.pow(2, state.count - LOCK_AFTER);
+                    const lockMs = Math.min(LOCK_BASE_MS * factor, MAX_LOCK_MS);
+                    state.lockedUntil = Date.now() + lockMs;
+                    writeAttempts(state);
+                    return { locked: true, waitMs: lockMs };
+                }
+
+                state.lockedUntil = 0;
+                writeAttempts(state);
+
+                // 3rd failure -> 2s, 4th -> 4s. Long enough to be felt, short
+                // enough that someone who simply mistyped is not punished.
+                const pauseMs = state.count >= DELAY_AFTER
+                    ? 2000 * Math.pow(2, state.count - DELAY_AFTER)
+                    : 0;
+                return { locked: false, waitMs: pauseMs, attemptsLeft: LOCK_AFTER - state.count };
             }
 
             // ---------- Field behaviour ----------
@@ -896,11 +968,18 @@
                     return;
                 }
 
+                const waitingMs = lockRemaining();
+                if (waitingMs > 0) {
+                    showAlert('Too many failed sign-in attempts. Try again in ' + describeWait(waitingMs) + ', or ask the school office to send you a new password.');
+                    return;
+                }
+
                 setBusy(true);
                 try {
                     const result = await authManager.login(userId, password);
 
                     if (result.success) {
+                        clearAttempts();
                         // A forced password change takes precedence over the role landing page.
                         if (result.mustChangePassword || (result.session && result.session.mustChangePassword)) {
                             window.location.href = 'change-password.html?userId=' + encodeURIComponent(result.session.userId);
@@ -910,7 +989,21 @@
                         return;
                     }
 
-                    showAlert(result.error || result.message || 'Login failed. Please try again.');
+                    // Failed. Hold the button through the backoff so the pause
+                    // is not merely advisory, then say what happens next.
+                    const penalty = recordFailure();
+                    if (penalty.waitMs > 0) {
+                        await new Promise(resolve => window.setTimeout(resolve, penalty.locked ? 0 : penalty.waitMs));
+                    }
+
+                    if (penalty.locked) {
+                        showAlert('Too many failed sign-in attempts. Sign-in is paused for ' + describeWait(penalty.waitMs) + '. If you have lost your password, ask the school office to send you a new one.');
+                    } else if (penalty.attemptsLeft <= 2) {
+                        showAlert((result.error || result.message || 'Login failed.') + ' ' + penalty.attemptsLeft + (penalty.attemptsLeft === 1 ? ' attempt' : ' attempts') + ' left before sign-in is paused.');
+                    } else {
+                        showAlert(result.error || result.message || 'Login failed. Please try again.');
+                    }
+
                     setBusy(false);
                     passwordInput.focus();
                     passwordInput.select();

@@ -201,7 +201,6 @@
     <script src="js/html-escape.js"></script>
     <script src="js/storage-urls.js"></script>
     <script src="js/supabase-client.js"></script>
-    <script src="js/bcrypt.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <!-- Paystack (needed for student fee payments) -->
     <script src="https://js.paystack.co/v1/inline.js"></script>
@@ -251,6 +250,35 @@
             const label = document.getElementById('portal-label');
             if (label) label.textContent = session.role === 'guardian' ? 'Guardian Portal' : 'Student Portal';
             document.title = session.role === 'guardian' ? 'Guardian Portal - TBD International Academy' : 'Student Portal - TBD International Academy';
+        })();
+
+        // ── Server-side verification ──────────────────────────────────────
+        // The guard above reads the cached session so the page can paint without
+        // waiting on the network. That cache lives in localStorage, which the
+        // person at the keyboard can write, so on its own it decides nothing —
+        // a hand-made entry would render this portal. This pass asks Supabase
+        // for the real session and re-reads the profile, and keeps the portal
+        // covered until the server agrees. It also means a suspended account
+        // loses access on the next page load.
+        (async function verifyPortalAccess() {
+            const veil = document.createElement('div');
+            veil.id = 'auth-verify-veil';
+            veil.style.cssText = 'position:fixed;inset:0;background:#fff;display:flex;align-items:center;justify-content:center;z-index:99999;font-size:1.1rem;color:#666;';
+            veil.innerHTML = '<div style="text-align:center"><div style="font-size:2rem;margin-bottom:12px;">&#128274;</div><p>Verifying session&hellip;</p></div>';
+            (document.body || document.documentElement).appendChild(veil);
+
+            try {
+                const check = await authManager.requireSession(['student', 'guardian']);
+                if (check.ok) { veil.remove(); return; }
+                // Leave the veil up through the redirect so the portal never
+                // flashes at someone who is not entitled to it.
+                window.location.replace(check.reason === 'forbidden'
+                    ? authManager.getRedirectUrl(check.session.role)
+                    : 'login.html');
+            } catch (err) {
+                console.error('Session verification failed:', err);
+                window.location.replace('login.html');
+            }
         })();
 
         // Initialize navigation — guardians get a simplified nav

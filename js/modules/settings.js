@@ -529,7 +529,9 @@ const settingsModule = {
       keys.forEach(k => localStorage.removeItem(k));
       // Re-seed
       dataManager.seedSampleData();
-      authManager.initializeDefaultUsers();
+      // No user seeding: the demo accounts (admin123 / teacher123) and the
+      // localStorage auth path that read them were removed. Accounts come from
+      // Supabase only — create them in User Management.
       showToast('Demo data has been reset successfully!', 'success');
     }
   },

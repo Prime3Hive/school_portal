@@ -606,12 +606,177 @@ const studentDirectoryModule = {
         </div>
       ` : ''}
 
+      ${this.renderPortalAccessCard(student)}
+
       <div class="mt-6">
         <button class="btn btn-primary" onclick="studentDirectoryModule.editStudent('${student.id}')">
           ✏️ Edit Parent/Guardian Info
         </button>
       </div>
     `;
+  },
+
+  /**
+   * Which guardian login can see this child, and the controls to change it.
+   *
+   * Separate from the guardian's name and phone above on purpose: those are
+   * contact details on the pupil's record, this is an access grant. Sibling
+   * grouping in the import is a guess from shared surnames, so the office
+   * needs a way to move a child to the right household when that guess is
+   * wrong — this is it.
+   */
+  renderPortalAccessCard(student) {
+    const linkedId = student.guardianAuthId || student.guardian_auth_id || null;
+    const users = (typeof authManager !== 'undefined' && authManager.getAllUsers)
+      ? authManager.getAllUsers() : [];
+    const linked = linkedId
+      ? users.find(u => (u.id || u.authId) === linkedId)
+      : null;
+
+    const status = linkedId
+      ? `<p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
+           ${escapeHtml(linked ? (linked.fullName || linked.full_name || linked.email) : 'Linked account')}
+         </p>
+         <p style="color: var(--text-secondary); font-size: var(--font-size-sm);">
+           ${escapeHtml(linked ? (linked.email || '') : linkedId)}
+         </p>`
+      : `<p style="color: var(--text-secondary);">
+           No guardian can see this child in the portal yet.
+         </p>`;
+
+    return `
+      <div class="card" style="background: var(--bg-secondary); padding: var(--space-4); margin-bottom: var(--space-4);">
+        <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2); color: var(--text-primary);">
+          🔑 Portal Access
+        </h3>
+        <div style="margin-bottom: var(--space-4);">${status}</div>
+        <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
+          <button class="btn btn-secondary btn-sm" onclick="studentDirectoryModule.manageGuardianLink('${student.id}')">
+            ${linkedId ? '↔️ Move to another guardian' : '🔗 Link a guardian'}
+          </button>
+          ${linkedId ? `
+            <button class="btn btn-ghost btn-sm" onclick="studentDirectoryModule.unlinkGuardian('${student.id}')">
+              ✖ Remove access
+            </button>` : ''}
+        </div>
+      </div>
+    `;
+  },
+
+  /** Pick which guardian account may see this pupil. */
+  async manageGuardianLink(studentId) {
+    const student = dataManager.getById('students', studentId);
+    if (!student) { showToast('Student not found', 'error'); return; }
+
+    // Force a refresh: a guardian created moments ago must appear in the list.
+    if (typeof authManager !== 'undefined' && authManager.getUsers) {
+      try { await authManager.getUsers(true); } catch { /* fall back to cache */ }
+    }
+    const guardians = (authManager.getAllUsers() || [])
+      .filter(u => (u.role || '').toLowerCase() === 'guardian')
+      .sort((a, b) => (a.fullName || a.full_name || '').localeCompare(b.fullName || b.full_name || ''));
+
+    const currentId = student.guardianAuthId || student.guardian_auth_id || '';
+
+    // Siblings already attached to each guardian, so the office can see at a
+    // glance which household they are moving the child into.
+    const childrenOf = id => (dataManager.getAll('students') || [])
+      .filter(s => (s.guardianAuthId || s.guardian_auth_id) === id && s.id !== studentId)
+      .map(s => s.name);
+
+    const options = guardians.length
+      ? guardians.map(g => {
+          const id = g.id || g.authId;
+          const kids = childrenOf(id);
+          const label = `${g.fullName || g.full_name || g.email}${kids.length ? ` — also: ${kids.join(', ')}` : ''}`;
+          return `<option value="${escapeHtml(id)}" ${id === currentId ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+        }).join('')
+      : '';
+
+    const content = `
+      <form id="guardian-link-form" onsubmit="studentDirectoryModule.handleGuardianLink(event, '${studentId}')">
+        <p style="color: var(--text-secondary); margin-bottom: var(--space-4);">
+          Choose the guardian who should see <strong>${escapeHtml(student.name)}</strong> in the parent portal.
+          Only one guardian account can be linked to a child at a time.
+        </p>
+
+        ${guardians.length ? `
+          <div class="form-group">
+            <label class="form-label">Guardian account</label>
+            <select class="form-select" name="guardianAuthId" required>
+              <option value="">— Select a guardian —</option>
+              ${options}
+            </select>
+            <small style="color: var(--text-secondary);">
+              Names in the list are existing guardian logins. Children already
+              linked to each one are shown after the dash.
+            </small>
+          </div>
+        ` : `
+          <div class="empty-state" style="padding: var(--space-4);">
+            <p style="color: var(--text-secondary);">
+              There are no guardian accounts yet. Create one from
+              <strong>User Management</strong>, or when adding a student, then link it here.
+            </p>
+          </div>
+        `}
+
+        <div class="flex gap-3 mt-6">
+          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
+          <button type="submit" class="btn btn-primary flex-1" ${guardians.length ? '' : 'disabled'}>
+            Save link
+          </button>
+        </div>
+      </form>
+    `;
+
+    createModal('Portal Access', content);
+  },
+
+  async handleGuardianLink(event, studentId) {
+    event.preventDefault();
+    const guardianAuthId = new FormData(event.target).get('guardianAuthId');
+    if (!guardianAuthId) { showToast('Pick a guardian first', 'warning'); return; }
+
+    const ok = await this._writeGuardianLink(studentId, guardianAuthId);
+    if (ok) {
+      document.querySelector('.modal-backdrop')?.remove();
+      showToast('Guardian linked — they can now see this child', 'success');
+      this.viewStudent(studentId);
+    }
+  },
+
+  async unlinkGuardian(studentId) {
+    const student = dataManager.getById('students', studentId);
+    if (!confirm(`Remove portal access to ${student?.name || 'this child'}?\n\nThe guardian keeps their login but will no longer see this child.`)) return;
+
+    const ok = await this._writeGuardianLink(studentId, null);
+    if (ok) {
+      showToast('Portal access removed', 'success');
+      this.viewStudent(studentId);
+    }
+  },
+
+  /** Single write path for the link, so both callers log and fail the same way. */
+  async _writeGuardianLink(studentId, guardianAuthId) {
+    try {
+      const updated = await dataManager.update('students', studentId, {
+        guardianAuthId: guardianAuthId
+      });
+      if (!updated) { showToast('Could not save the link — check console', 'error'); return false; }
+
+      if (typeof auditLogger !== 'undefined' && auditLogger.log) {
+        auditLogger.log(guardianAuthId ? 'guardian_linked' : 'guardian_unlinked', {
+          target: studentId,
+          details: { guardian_auth_id: guardianAuthId }
+        });
+      }
+      return true;
+    } catch (err) {
+      console.error('[StudentDirectory] guardian link failed:', err);
+      showToast(`Could not save the link: ${err.message}`, 'error');
+      return false;
+    }
   },
 
   renderEmergencyTab(student) {
@@ -1133,6 +1298,14 @@ const studentDirectoryModule = {
         document.querySelector('.modal-backdrop')?.remove();
 
         if (result.success) {
+          // Grant the new account access to the child it was created for.
+          // Without this the guardian signs in to an empty portal: creating
+          // the login and linking it are two separate writes, and only the
+          // first used to happen.
+          if (result.authId && newStudent.id) {
+            await this._writeGuardianLink(newStudent.id, result.authId);
+          }
+
           this.showGuardianInviteSuccess(
             studentName, guardianName, guardianEmail,
             result.schoolId, result.password, result.emailSent, result.emailMessage

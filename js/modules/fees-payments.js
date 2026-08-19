@@ -846,13 +846,12 @@ const feesPaymentsModule = {
             </div>
           </td>
           <td style="padding:0.5rem 0.5rem;">
-            <select class="form-select" style="font-size:0.82rem;padding:0.3rem 0.5rem;"
-              data-grade="${grade}" data-idx="${idx}" data-field="type"
-              onchange="feesPaymentsModule._feeStructureFieldChange(this)">
-              <option value="once"    ${item.type === 'once'    ? 'selected' : ''}>Once</option>
-              <option value="termly"  ${item.type === 'termly'  ? 'selected' : ''}>Termly</option>
-              <option value="monthly" ${item.type === 'monthly' ? 'selected' : ''}>Monthly</option>
-            </select>
+            <!-- Not a dropdown. This structure is billed once per term, and the
+                 old Once/Termly/Monthly select was decoration: nothing read the
+                 value, so an item could be labelled Monthly and still be charged
+                 once. Showing the real cadence beats offering a choice that has
+                 no effect. -->
+            <span style="font-size:0.78rem;color:var(--text-secondary);">Per term</span>
           </td>
           <td style="padding:0.5rem 0.5rem;text-align:right;">
             <button class="btn btn-sm btn-danger" style="padding:0.2rem 0.5rem;font-size:0.78rem;"
@@ -869,7 +868,7 @@ const feesPaymentsModule = {
             <div>
               <span style="font-weight:700;font-size:var(--font-size-base);">${grade}</span>
               <span style="font-size:var(--font-size-sm);color:var(--text-secondary);margin-left:0.75rem;">
-                ${(window.feeStructure?.feeItems?.[grade] || []).length} items &nbsp;·&nbsp; Total: <strong>₦${total.toLocaleString()}</strong>
+                ${(window.feeStructure?.feeItems?.[grade] || []).length} items &nbsp;·&nbsp; Total: <strong>₦${total.toLocaleString()}</strong> / term
               </span>
             </div>
             <div style="display:flex;gap:0.5rem;">
@@ -884,8 +883,8 @@ const feesPaymentsModule = {
               <thead style="background:var(--bg-secondary);font-size:0.78rem;color:var(--text-secondary);">
                 <tr>
                   <th style="padding:0.4rem 0.5rem;text-align:left;font-weight:600;">Item Name</th>
-                  <th style="padding:0.4rem 0.5rem;text-align:left;font-weight:600;">Amount (₦)</th>
-                  <th style="padding:0.4rem 0.5rem;text-align:left;font-weight:600;">Type</th>
+                  <th style="padding:0.4rem 0.5rem;text-align:left;font-weight:600;">Amount (₦ / term)</th>
+                  <th style="padding:0.4rem 0.5rem;text-align:left;font-weight:600;">Billed</th>
                   <th style="padding:0.4rem 0.5rem;text-align:right;font-weight:600;">Remove</th>
                 </tr>
               </thead>

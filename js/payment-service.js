@@ -8,6 +8,19 @@
 //   const result = await PaymentService.processPayment(studentId, amount, opts);
 //   const report = await PaymentService.reconcile(studentId);
 //   const history = await PaymentService.getHistory(paymentId);
+//
+// ── STATUS: not on the live path ────────────────────────────────────────────
+// Nothing in the app calls processPayment(). Payments are recorded by the
+// record_fee_payment / verify_fee_payment / void_fee_payment RPCs, which are
+// SECURITY DEFINER and authorize the caller inside the function (migration
+// 0020). Since migration 0023 the direct fees_payments and fee_items writes
+// below cannot succeed from a browser anyway.
+//
+// It is kept because the reconciliation, history and formatting helpers are
+// useful and correct, and because deleting a facade that four modules are
+// written against is a larger change than it looks. Treat processPayment() as
+// reference, not as an entry point: if you need to record a payment, call the
+// RPC, and if you need this facade to work again, make it call the RPC too.
 // ============================================
 
 const PaymentService = {
@@ -35,22 +48,61 @@ const PaymentService = {
 
   /**
    * Generate an idempotency key to prevent double-payment.
+   *
+   * Delegates — paymentVerificationManager owns the one implementation. Note
+   * what such a key is and is not: it ends in a fresh crypto.randomUUID(), so
+   * two calls with identical arguments produce different keys by design. It
+   * guards a single in-flight submission (the row is written before the
+   * Paystack popup opens), not "has this student paid this amount before".
+   * The thing that answers *that* is the payment reference — see
+   * isDuplicateReference() below.
    */
   generateIdempotencyKey(studentId, amount) {
-    if (typeof paymentVerificationManager !== 'undefined') {
-      return paymentVerificationManager.generateIdempotencyKey(studentId, amount);
-    }
-    return `${studentId}-${Math.round(amount * 100)}-${crypto.randomUUID()}`;
+    return paymentVerificationManager.generateIdempotencyKey(studentId, amount);
   },
 
   /**
-   * Check whether an idempotency key was already used.
+   * Look up a previously issued idempotency key.
    */
   async checkIdempotency(key) {
-    if (typeof paymentVerificationManager !== 'undefined') {
-      return paymentVerificationManager.checkIdempotency(key);
+    return paymentVerificationManager.checkIdempotency(key);
+  },
+
+  /**
+   * Has this payment reference already been recorded?
+   *
+   * This replaces a guard that could not work. processPayment() used to pass
+   * the transaction reference to checkIdempotency(), which searches
+   * payment_idempotency.idempotency_key — a random UUID-suffixed value a teller
+   * number or Paystack ref will never equal. It then compared the result
+   * against status 'processed', a value nothing in the codebase writes. So the
+   * duplicate check was two independent no-ops, and double-posting was caught
+   * only by the unique constraint on fees_payments.transaction_ref (migration
+   * 0010), surfacing to the user as a raw Postgres 23505.
+   *
+   * A reference is the right key: it is what the bank or the gateway gives the
+   * payment, and it is what is the same across a retry.
+   */
+  async isDuplicateReference(reference) {
+    if (!reference || !window.supabaseReady || !window.supabaseClient) return { found: false };
+    try {
+      const { data } = await supabaseClient
+        .from('fees_payments')
+        .select('id, status')
+        .eq('transaction_ref', reference)
+        .maybeSingle();
+      if (data) return { found: true, paymentId: data.id, status: data.status };
+
+      // Also catch a payment that is mid-flight: the idempotency row is written
+      // before the gateway popup opens, so it exists before fees_payments does.
+      const inFlight = await paymentVerificationManager.isReferenceAlreadyProcessing(reference);
+      return inFlight ? { found: true, paymentId: null, status: 'pending' } : { found: false };
+    } catch (err) {
+      // Never let the guard itself fail the payment — the unique constraint on
+      // transaction_ref is the backstop, and it is the one that cannot be raced.
+      console.warn('[PaymentService] Duplicate check failed, relying on the DB constraint:', err.message);
+      return { found: false };
     }
-    return { status: 'not_found' };
   },
 
   // ── Core payment processing pipeline ──────────────────────────────────────
@@ -72,12 +124,21 @@ const PaymentService = {
     const { feeType = 'tuition', paymentMethod, transactionRef, receiptNo, term, year, recordedBy, metadata = {} } = opts;
 
     try {
-      // 1. Idempotency check
+      // 1. Duplicate guard — by payment reference, the only value that repeats
+      //    across a resubmission. See isDuplicateReference() for what was wrong
+      //    with the check this replaces.
       if (transactionRef) {
-        const idempotencyCheck = await this.checkIdempotency(transactionRef);
-        if (idempotencyCheck?.status === 'processed') {
+        const duplicate = await this.isDuplicateReference(transactionRef);
+        if (duplicate.found) {
           console.warn(`[PaymentService] Duplicate transaction: ${transactionRef}`);
-          return { success: false, error: 'Duplicate transaction reference', duplicate: true, paymentId: idempotencyCheck.payment_id };
+          return {
+            success: false,
+            error: duplicate.status === 'pending'
+              ? 'This payment is already submitted and awaiting verification.'
+              : 'This payment reference has already been recorded.',
+            duplicate: true,
+            paymentId: duplicate.paymentId,
+          };
         }
       }
 

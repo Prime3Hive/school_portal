@@ -18,6 +18,80 @@ const validationManager = {
         return this.emailRegex.test(email.trim());
     },
 
+    // ── Password policy ────────────────────────────────────────────────
+    // One definition, so the rules the change-password form enforces are the
+    // rules stated to the user and the rules any future form inherits.
+    //
+    // IMPORTANT: this is a usability layer, not the boundary. Supabase Auth
+    // accepts whatever its own project settings allow, and nothing here runs
+    // when a password is set through the API. Mirror these values under
+    // Authentication -> Policies in the Supabase dashboard; until you do, this
+    // only stops people choosing a weak password through the portal's own UI.
+    passwordPolicy: {
+        minLength: 8,
+        requireUpper: true,
+        requireLower: true,
+        requireNumber: true,
+        // Off by default: forcing symbols on parents and young students drives
+        // passwords onto paper. Turn it on here and the form follows.
+        requireSymbol: false
+    },
+
+    /** Human-readable list of the rules, for rendering next to a password field. */
+    passwordRequirements() {
+        const p = this.passwordPolicy;
+        const rules = [{ key: 'length', label: `At least ${p.minLength} characters` }];
+        if (p.requireUpper)  rules.push({ key: 'upper',  label: 'One uppercase letter' });
+        if (p.requireLower)  rules.push({ key: 'lower',  label: 'One lowercase letter' });
+        if (p.requireNumber) rules.push({ key: 'number', label: 'One number' });
+        if (p.requireSymbol) rules.push({ key: 'symbol', label: 'One symbol' });
+        return rules;
+    },
+
+    /**
+     * Check a password against the policy.
+     *
+     * @param {string} password
+     * @param {object} [context] - { current, userId, fullName } to reject a new
+     *        password that is the old one, or that simply repeats the login ID.
+     * @returns {{valid: boolean, checks: object, errors: string[], score: number, max: number}}
+     */
+    validatePassword(password, context = {}) {
+        const p   = this.passwordPolicy;
+        const pwd = typeof password === 'string' ? password : '';
+
+        const checks = { length: pwd.length >= p.minLength };
+        if (p.requireUpper)  checks.upper  = /[A-Z]/.test(pwd);
+        if (p.requireLower)  checks.lower  = /[a-z]/.test(pwd);
+        if (p.requireNumber) checks.number = /[0-9]/.test(pwd);
+        if (p.requireSymbol) checks.symbol = /[^A-Za-z0-9]/.test(pwd);
+
+        const errors = [];
+        if (!checks.length) errors.push(`Password must be at least ${p.minLength} characters.`);
+        const missing = [];
+        if (checks.upper  === false) missing.push('an uppercase letter');
+        if (checks.lower  === false) missing.push('a lowercase letter');
+        if (checks.number === false) missing.push('a number');
+        if (checks.symbol === false) missing.push('a symbol');
+        if (missing.length) errors.push('Password must contain ' + missing.join(', ') + '.');
+
+        // A new password identical to the temporary one defeats the point of
+        // must_change_password, which exists so the emailed credential stops
+        // being a working key the moment the account is used.
+        if (context.current && pwd && pwd === context.current) {
+            errors.push('New password must be different from your current one.');
+        }
+        const lower = pwd.toLowerCase();
+        if (context.userId && lower.includes(String(context.userId).toLowerCase())) {
+            errors.push('Password must not contain your Login ID.');
+        }
+
+        const total = Object.keys(checks).length;
+        const met   = Object.values(checks).filter(Boolean).length;
+
+        return { valid: errors.length === 0, checks, errors, score: met, max: total };
+    },
+
     /**
      * Validate phone number format
      */

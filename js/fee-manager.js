@@ -163,139 +163,17 @@ const feeManager = {
     };
   },
 
-  /**
-   * Allocate a payment to specific fee items
-   * @param {string} paymentId - Payment UUID
-   * @param {number} paymentAmount - Total payment amount
-   * @param {string} studentId - Student UUID
-   * @param {Array} itemAllocations - Array of {item_id, amount} allocations (optional)
-   */
-  async allocatePayment(paymentId, paymentAmount, studentId, itemAllocations = null) {
-    try {
-      const feeItemsResult = await this.getFeeItems(studentId);
-      
-      if (!feeItemsResult.success) {
-        return feeItemsResult;
-      }
-
-      let feeItems = feeItemsResult.data;
-      let remainingAmount = parseFloat(paymentAmount);
-
-      // If specific allocations provided, use them
-      if (itemAllocations && itemAllocations.length > 0) {
-        for (const allocation of itemAllocations) {
-          const item = feeItems.find(fi => fi.id === allocation.item_id);
-          if (!item) continue;
-
-          const allocAmount = parseFloat(allocation.amount);
-          const newPaid = parseFloat(item.amount_paid || 0) + allocAmount;
-          const itemTotal = parseFloat(item.amount);
-          
-          let newStatus = 'pending';
-          if (newPaid >= itemTotal) {
-            newStatus = 'paid';
-          } else if (newPaid > 0) {
-            newStatus = 'partial';
-          }
-
-          await supabaseClient
-            .from('fee_items')
-            .update({
-              amount_paid: newPaid,
-              status: newStatus,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', item.id);
-        }
-      } else {
-        // Auto-allocate: pay items in order until amount is exhausted
-        const pendingItems = feeItems
-          .filter(item => item.status !== 'paid')
-          .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
-
-        for (const item of pendingItems) {
-          if (remainingAmount <= 0) break;
-
-          const itemBalance = parseFloat(item.amount) - parseFloat(item.amount_paid || 0);
-          const allocAmount = Math.min(remainingAmount, itemBalance);
-          const newPaid = parseFloat(item.amount_paid || 0) + allocAmount;
-          const itemTotal = parseFloat(item.amount);
-
-          let newStatus = 'pending';
-          if (newPaid >= itemTotal) {
-            newStatus = 'paid';
-          } else if (newPaid > 0) {
-            newStatus = 'partial';
-          }
-
-          await supabaseClient
-            .from('fee_items')
-            .update({
-              amount_paid: newPaid,
-              status: newStatus,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', item.id);
-
-          remainingAmount -= allocAmount;
-        }
-      }
-
-      return { success: true, message: 'Payment allocated successfully' };
-
-    } catch (err) {
-      console.error('[FeeManager] Exception in allocatePayment:', err);
-      return { success: false, error: err.message };
-    }
-  },
-
-  /**
-   * Update a specific fee item's payment
-   * @param {string} itemId - Fee item UUID
-   * @param {number} amountPaid - Amount paid for this item
-   */
-  async updateFeeItem(itemId, amountPaid) {
-    try {
-      const { data: item, error: fetchError } = await supabaseClient
-        .from('fee_items')
-        .select('*')
-        .eq('id', itemId)
-        .single();
-
-      if (fetchError || !item) {
-        return { success: false, error: 'Fee item not found' };
-      }
-
-      const newPaid = parseFloat(amountPaid);
-      const itemTotal = parseFloat(item.amount);
-      
-      let newStatus = 'pending';
-      if (newPaid >= itemTotal) {
-        newStatus = 'paid';
-      } else if (newPaid > 0) {
-        newStatus = 'partial';
-      }
-
-      const { error } = await supabaseClient
-        .from('fee_items')
-        .update({
-          amount_paid: newPaid,
-          status: newStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', itemId);
-
-      if (error) {
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, message: 'Fee item updated successfully' };
-
-    } catch (err) {
-      console.error('[FeeManager] Exception in updateFeeItem:', err);
-      return { success: false, error: err.message };
-    }
-  },
+  // ── Removed: allocatePayment() and updateFeeItem() ────────────────────────
+  //
+  // Both wrote fee_items.amount_paid and .status straight from the browser with
+  // a plain .update() — no RPC, no role check. Nothing called either one; the
+  // live path allocates inside the record_fee_payment / verify_fee_payment RPCs,
+  // which are SECURITY DEFINER and check the caller. They stayed callable from
+  // the console, and read as the obvious way to allocate a payment to anyone
+  // reading this file next.
+  //
+  // Balance changes belong to the database. See migration 0023, which revokes
+  // client UPDATE on fee_items so this cannot come back by accident.
 
   /**
    * Get overall fee status for a student

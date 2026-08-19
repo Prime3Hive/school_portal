@@ -42,7 +42,7 @@ class PermissionManager {
                     'admin-dashboard',
                     'inventory',
                     'fees-payments',
-                    // Staff share index.html with admins; they still need their own
+                    // Staff share portal.html with admins; they still need their own
                     // profile and the shared calendar for the portal to be usable.
                     'admin-profile',
                     'calendar'

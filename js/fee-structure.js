@@ -1,151 +1,247 @@
 // ============================================
 // FEE STRUCTURE CONFIGURATION
-// TBD International Academy - 2025/2026 Academic Session
+// TBD International Academy - 2026/2027 Academic Session
+//
+// Transcribed from the school's two published sheets:
+//   SCHOOL FEES FOR NEW INTAKE.docx
+//   SCHOOL FEES FOR RETURNING STUDENTS 2026-2027.docx
 // ============================================
 
+/**
+ * True for the public marketing site, where no portal machinery should run.
+ *
+ * This used to be a list of pathname.includes() checks against filenames.
+ * Two things broke it: the public pages are also served at clean URLs with
+ * no filename (/about), and the homepage is now the bare root. Matching
+ * both forms plus "/" is what makes the guard actually hold.
+ */
+function isPublicPath(pathname) {
+  const p = String(pathname || '').replace(/\/+$/, '') || '/';
+  if (p === '/' || p === '/index.html') return true;
+  return /^\/(about|academics|admissions|contact|login|verify-invitation)(\.html)?$/.test(p);
+}
+
 const feeStructure = {
-  academicYear: '2025-2026',
-  
-  // Fee items breakdown by grade
+  academicYear: '2026-2027',
+
+  // ── Billing cadence ────────────────────────────────────────────────
+  // Every amount below is what a student owes for ONE TERM. The structure is
+  // applied at the start of each term (admin → Fees & Payments → Assign Fees),
+  // which writes a fresh set of fee_items rows for that term. There is no
+  // monthly billing anywhere in the school.
+  //
+  // This matters because `item.type` used to carry the value 'monthly' on one
+  // item while nothing in the app read the field, so the label was free to
+  // disagree with the maths without anyone noticing. Totals are per-term sums;
+  // see getTotalFees() / getSessionFees().
+  billingCycle: 'per-term',
+  termsPerSession: 3,
+
+  // Fee items breakdown by grade — amounts are PER TERM
   feeItems: {
     'Creche': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 10000, type: 'monthly', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 3800, type: 'once', required: true },
-      { id: 'sweater', name: 'Sweater', amount: 2600, type: 'once', required: true },
-      { id: 'casual_wear', name: 'Casual Wear', amount: 2800, type: 'once', required: true },
-      { id: 'sportswear', name: 'Sportswear', amount: 2800, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 30000, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Pre-nursery': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 22000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 20550, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 7500, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 2000, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 22000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount:  7500, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  2000, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Nursery 1': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 28000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 20550, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 16800, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 3500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 28000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 16800, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  3500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Nursery 2': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 28000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 20550, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 16800, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 3500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 28000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 16800, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  3500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Nursery 3': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 28000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 20550, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 16800, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 3500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 28000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 16800, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  3500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Basic 1': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 30000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 25000, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 17000, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 4500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 30000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 17000, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  4500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Basic 2': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 30000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 25000, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 17000, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 4500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 30000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 17000, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  4500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Basic 3': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 30000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 25000, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 17000, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 4500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 30000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 17000, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  4500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Basic 4': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 35000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 25500, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 17800, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 5500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 35000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 17800, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  5500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Basic 5': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 35000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 25500, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 17800, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 5500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 35000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 17800, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  5500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'Basic 6': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 35000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 25500, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 17800, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 5500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 1500, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 1500, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1000, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 35000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 17800, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  5500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  1500, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  1500, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1000, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'JSS 1': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 40000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 26000, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 15000, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 6500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 2000, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 2000, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1500, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 40000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 18000, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  6500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  2000, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  2000, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1500, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'JSS 2': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 40000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 26000, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 15000, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 6500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 2000, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 2000, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1500, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 40000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 18000, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  6500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  2000, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  2000, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1500, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
     ],
     'JSS 3': [
-      { id: 'tuition', name: 'Tuition Fees', amount: 40000, type: 'once', required: true },
-      { id: 'uniforms', name: 'Uniforms (2 pairs daily uniform)', amount: 26000, type: 'once', required: true },
-      { id: 'textbooks', name: 'Textbooks', amount: 15000, type: 'once', required: true },
-      { id: 'exercise_books', name: 'Exercise Books', amount: 6500, type: 'once', required: true },
-      { id: 'exam_fees', name: 'Exam Fees', amount: 2000, type: 'once', required: true },
-      { id: 'ict', name: 'ICT', amount: 2000, type: 'once', required: true },
-      { id: 'natality_assurance', name: 'Natality Assurance', amount: 1500, type: 'once', required: true },
-      { id: 'first_aid', name: 'First Aid', amount: 1000, type: 'once', required: true }
+      { id: 'tuition',            name: 'Tuition Fees',          amount: 40000, type: 'once', required: true },
+      { id: 'textbooks',          name: 'Textbooks',             amount: 18000, type: 'once', required: true },
+      { id: 'exercise_books',     name: 'Exercise Books',        amount:  6500, type: 'once', required: true },
+      { id: 'exam_fees',          name: 'Exam Fees',             amount:  2000, type: 'once', required: true },
+      { id: 'ict',                name: 'ICT',                   amount:  2000, type: 'once', required: true },
+      { id: 'quality_assurance',  name: 'Quality Assurance',     amount:  1500, type: 'once', required: true },
+      { id: 'first_aid',          name: 'First Aid',             amount:  1000, type: 'once', required: true },
+      { id: 'christmas_carol',    name: 'Christmas Carol',       amount:  2000, type: 'once', required: true },
+      { id: 'pta',                name: 'PTA',                   amount:   500, type: 'once', required: true }
+    ]
+  },
+
+  /**
+   * Charged ONCE, when a pupil is first admitted — never again.
+   *
+   * The school publishes two sheets, "new intake" and "returning learners".
+   * The only difference between them is this uniform set, so it lives here
+   * rather than duplicating fourteen grades of identical rows.
+   *
+   * Pass enrolment: 'new' to getFeeItems / calculateFeeBreakdown to include it.
+   * Do NOT include it when re-assigning fees in a pupil's second or third
+   * term: the base items above repeat every term, this one does not.
+   */
+  newIntakeItems: {
+    'Creche': [],
+    'Pre-nursery': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 20550, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'Nursery 1': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 20550, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'Nursery 2': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 20550, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'Nursery 3': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 20550, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'Basic 1': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 26800, type: 'once', required: true, oncePerAdmission: true }   // PROVISIONAL — see note above
+    ],
+    'Basic 2': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 26800, type: 'once', required: true, oncePerAdmission: true }   // PROVISIONAL — see note above
+    ],
+    'Basic 3': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 26800, type: 'once', required: true, oncePerAdmission: true }   // PROVISIONAL — see note above
+    ],
+    'Basic 4': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 25500, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'Basic 5': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 25500, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'Basic 6': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 25500, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'JSS 1': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 26000, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'JSS 2': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 26000, type: 'once', required: true, oncePerAdmission: true }
+    ],
+    'JSS 3': [
+      { id: 'uniform_set', name: 'Uniform, Sportswear, T-shirt & Cardigan', amount: 26000, type: 'once', required: true, oncePerAdmission: true }
     ]
   },
 
@@ -205,14 +301,55 @@ const feeStructure = {
     return gradeStr;
   },
 
-  getFeeItems(grade) {
+  /**
+   * Items to bill for one term.
+   *
+   * `enrolment` is 'returning' (the default, and what every existing pupil is)
+   * or 'new'. A new pupil additionally owes the uniform set, once, in the term
+   * they are admitted — pass 'returning' for their second term onwards or they
+   * will be charged for it again.
+   */
+  getFeeItems(grade, enrolment = 'returning') {
     const normalizedGrade = this.normalizeGrade(grade);
-    return this.feeItems[normalizedGrade] || [];
+    const base = this.feeItems[normalizedGrade] || [];
+    if (enrolment !== 'new') return base;
+    return base.concat(this.newIntakeItems[normalizedGrade] || []);
   },
 
-  getTotalFees(grade) {
-    const items = this.getFeeItems(grade);
+  /**
+   * Total owed for ONE TERM. A plain sum is correct: the structure is applied
+   * afresh each term, so multiplying here would bill the same item twice.
+   */
+  getTotalFees(grade, enrolment = 'returning') {
+    const items = this.getFeeItems(grade, enrolment);
     return items.reduce((total, item) => total + item.amount, 0);
+  },
+
+  /**
+   * What the same grade costs across a full session.
+   *
+   * The recurring items repeat each term; the new-intake uniform does not, so
+   * it is added once rather than multiplied.
+   */
+  getSessionFees(grade, enrolment = 'returning') {
+    const recurring = this.getTotalFees(grade) * this.termsPerSession;
+    if (enrolment !== 'new') return recurring;
+    const normalizedGrade = this.normalizeGrade(grade);
+    const once = (this.newIntakeItems[normalizedGrade] || [])
+      .reduce((total, item) => total + item.amount, 0);
+    return recurring + once;
+  },
+
+  /**
+   * Coerce a fee item's cadence label to something true.
+   *
+   * The admin editor once offered Once / Termly / Monthly and nothing read the
+   * answer, so a saved override can still carry 'monthly' — a label that would
+   * be a lie about a per-term structure. Normalising on the way in stops old
+   * saved data reintroducing it.
+   */
+  normalizeItemType(type) {
+    return type === 'monthly' || type === 'termly' ? 'once' : (type || 'once');
   },
 
   getAdditionalItems(grade) {
@@ -223,14 +360,21 @@ const feeStructure = {
     return this.additionalItems.preNurToBasic;
   },
 
-  calculateFeeBreakdown(grade) {
-    const items = this.getFeeItems(grade);
-    const total = this.getTotalFees(grade);
-    
+  calculateFeeBreakdown(grade, enrolment = 'returning') {
+    const items = this.getFeeItems(grade, enrolment);
+    const total = this.getTotalFees(grade, enrolment);
+
     return {
       grade: this.normalizeGrade(grade),
-      items: items.map(item => ({...item})),
+      enrolment,
+      items: items.map(item => ({ ...item, type: this.normalizeItemType(item.type) })),
+      // `total` is per term. Kept under its original name because call sites
+      // (fee-manager, the modules) already treat it as the amount to bill now.
       total,
+      perTermTotal: total,
+      termsPerSession: this.termsPerSession,
+      sessionTotal: this.getSessionFees(grade, enrolment),
+      billingCycle: this.billingCycle,
       additionalItems: this.getAdditionalItems(grade),
       academicYear: this.academicYear
     };
@@ -239,12 +383,7 @@ const feeStructure = {
   // Load admin-saved fee structure overrides from Supabase school_settings
   async loadFromSupabase() {
     // Skip load on pages that have no fee UI (login, public pages)
-    const path = window.location.pathname;
-    if (path.includes('login.html') || path.includes('public-blog.html') ||
-        path.includes('about.html') || path.includes('admissions.html') ||
-        path.includes('contact.html') || path.includes('academics.html')) {
-      return;
-    }
+    if (isPublicPath(window.location.pathname)) return;
 
     try {
       if (!window.supabaseClient) return;
@@ -264,7 +403,10 @@ const feeStructure = {
         // for any grades the admin has not overridden.
         for (const [grade, items] of Object.entries(saved.feeItems)) {
           if (Array.isArray(items) && items.length > 0) {
-            this.feeItems[grade] = items;
+            this.feeItems[grade] = items.map(item => ({
+              ...item,
+              type: this.normalizeItemType(item.type)
+            }));
           }
         }
         console.log('[FeeStructure] Loaded admin overrides from Supabase');

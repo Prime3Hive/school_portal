@@ -2,8 +2,21 @@
 // PAYMENT ALLOCATION MANAGER
 // ============================================
 // Atomic payment allocation to fee items
-// Standard fintech procedure: every dollar must be traceable to specific charges
+// Standard fintech procedure: every naira must be traceable to specific charges
 // Implements reversible allocations for payment voids/refunds
+//
+// ── STATUS: superseded, and no longer able to write ─────────────────────────
+// "Atomic" here means best-effort-with-rollback across several round trips from
+// a browser, which is not atomicity: a closed tab between two of those trips
+// leaves fee_items and payment_allocations disagreeing. The real allocation now
+// happens inside _allocate_payment_to_fee_items, called by the record/verify
+// payment RPCs — one transaction, server side, caller authorized (migration
+// 0020). Nothing in the app calls this module.
+//
+// Since migration 0023 the fee_items .update() calls below fail with 42501 for
+// any browser client. That is deliberate: a student's balance is not something
+// a page should be able to write. Read this file as history; if you need to
+// allocate a payment, call the RPC.
 
 const paymentAllocationManager = {
   /**

@@ -255,17 +255,24 @@ const sessionManager = {
   }
 };
 
+
+/**
+ * True for the public marketing site, where no portal machinery should run.
+ *
+ * This used to be a list of pathname.includes() checks against filenames.
+ * Two things broke it: the public pages are also served at clean URLs with
+ * no filename (/about), and the homepage is now the bare root. Matching
+ * both forms plus "/" is what makes the guard actually hold.
+ */
+function isPublicPath(pathname) {
+  const p = String(pathname || '').replace(/\/+$/, '') || '/';
+  if (p === '/' || p === '/index.html') return true;
+  return /^\/(about|academics|admissions|contact|login|verify-invitation)(\.html)?$/.test(p);
+}
+
 if (typeof window !== 'undefined') {
   window.addEventListener('load', () => {
-    if (window.location.pathname.includes('login.html') || 
-        window.location.pathname.includes('verify-invitation.html') ||
-        window.location.pathname.includes('public-blog.html') ||
-        window.location.pathname.includes('about.html') ||
-        window.location.pathname.includes('academics.html') ||
-        window.location.pathname.includes('admissions.html') ||
-        window.location.pathname.includes('contact.html')) {
-      return;
-    }
+    if (isPublicPath(window.location.pathname)) return;
     sessionManager.init();
   });
 

@@ -28,8 +28,38 @@ Files are numbered sequentially: `NNNN_description.sql`
 | 0020 | `0020_authorize_fee_functions.sql` | Authorization inside the fee functions |
 | 0021 | `0021_pin_search_path_and_revoke_triggers.sql` | Pin `search_path`, revoke trigger functions |
 | 0022 | `0022_consolidate_account_provisioning.sql` | One account-creation path; drops the plaintext password column |
+| 0023 | `0023_lock_fee_item_balances.sql` | Revoke client UPDATE on `fee_items` — balances move only via RPC |
+| 0024 | `0024_link_students_to_guardians.sql` | `students.guardian_auth_id` + RLS so a guardian sees their own children |
 
 `archive/` holds superseded files that must never be run — see `archive/README.md`.
+
+## ⚠️ There is no baseline — this folder cannot build a database from scratch
+
+19 of the 24 migrations below reference tables that **no migration in this folder
+creates**:
+
+> `students` · `staff` · `profiles` · `classes` · `fee_items` · `fees_payments` ·
+> `invitations` · `documents` · `audit_logs` · `payment_transactions` ·
+> `school_schedules`
+
+Those tables were created by hand in the Supabase dashboard and never captured in
+a file. Run 0002 onwards against an empty project and it fails with
+`relation "public.<table>" does not exist` — which is a missing baseline, not a
+broken migration.
+
+`sql/live_functions_recovered.sql` is the same problem, already hit once and
+solved for functions only.
+
+**Before pointing this folder at any new project**, capture the live schema as
+`0000_baseline_schema.sql`:
+
+```bash
+./supabase.exe db dump   --db-url "postgresql://postgres:[PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"   --schema public   -f supabase/migrations/0000_baseline_schema.sql
+```
+
+Run `sql/diagnose-database.sql` first if you are unsure which project holds the
+real tables — with more than one project around, the SQL Editor is easy to leave
+open on the wrong one.
 
 ## Running Migrations
 

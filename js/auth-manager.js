@@ -81,8 +81,13 @@ class AuthManager {
     // Core: login
     // ─────────────────────────────────────────
     async login(schoolId, password) {
+        // No offline fallback. There used to be one — _legacyLogin read users
+        // from localStorage and bcrypt-compared in the browser — which meant a
+        // second, weaker authentication implementation shipped to every visitor
+        // and one refactor away from being reachable. Without Supabase there is
+        // nothing to authenticate against, and saying so is the honest answer.
         if (!window.supabaseReady) {
-            return this._legacyLogin(schoolId, password);
+            return { success: false, error: 'The portal cannot reach its server right now. Check your connection and try again.' };
         }
 
         const email = schoolIdToEmail(schoolId.trim().toUpperCase());
@@ -174,11 +179,79 @@ class AuthManager {
         return this._sessionCache;
     }
 
+    /**
+     * Authoritative session check — the one a page guard should use.
+     *
+     * isAuthenticated() above is synchronous and reads the cache, which is
+     * hydrated from localStorage in the constructor so the UI has something to
+     * render before Supabase answers. That makes it a convenience, not a
+     * control: a hand-written `sb_session` entry with role "admin" satisfies it.
+     * RLS is what actually stops such a person reading anything, but they
+     * should not get as far as a rendered admin shell.
+     *
+     * This asks Supabase for the session, re-reads the profile from the server,
+     * and rejects accounts that are no longer active — a suspension now takes
+     * effect on the next page load rather than whenever the cached session
+     * happens to expire.
+     *
+     * Fails closed: no Supabase, no session.
+     *
+     * @param {string[]} [allowedRoles] - roles permitted on this page
+     * @returns {Promise<{ok: boolean, reason?: 'offline'|'unauthenticated'|'inactive'|'forbidden', session: object|null}>}
+     */
+    async requireSession(allowedRoles = null) {
+        if (!window.supabaseReady || !window.supabaseClient) {
+            this._sessionCache = null;
+            this._clearLocalSession();
+            return { ok: false, reason: 'offline', session: null };
+        }
+
+        let session = null;
+        try {
+            ({ data: { session } } = await supabaseClient.auth.getSession());
+        } catch (err) {
+            console.error('requireSession:', err);
+        }
+
+        if (!session) {
+            this._sessionCache = null;
+            this._clearLocalSession();
+            return { ok: false, reason: 'unauthenticated', session: null };
+        }
+
+        const profile = await this._fetchProfile(session.user.id);
+        if (!profile || profile.status === 'inactive' || profile.status === 'suspended') {
+            try { await supabaseClient.auth.signOut(); } catch { /* redirect anyway */ }
+            this._sessionCache = null;
+            this._clearLocalSession();
+            return { ok: false, reason: 'inactive', session: null };
+        }
+
+        const built = this._buildSession(profile, session);
+        this._sessionCache = built;
+        this._saveLocalSession(built);
+
+        if (allowedRoles && !allowedRoles.includes(built.role)) {
+            return { ok: false, reason: 'forbidden', session: built };
+        }
+        return { ok: true, session: built };
+    }
+
+    /**
+     * Where each role lands after signing in.
+     *
+     * `staff` goes to portal.html, not teacher-portal.html. The nav
+     * permissionManager gives a staff member is Dashboard / Inventory /
+     * Fees & Payments, and none of those modules are loaded by
+     * teacher-portal.html — a staff member sent there saw three links that
+     * all rendered "coming soon". portal.html already guards on
+     * ['admin','staff'] and hides the modules staff may not open.
+     */
     getRedirectUrl(role) {
         const routes = {
-            admin: 'index.html',
+            admin: 'portal.html',
             teacher: 'teacher-portal.html',
-            staff: 'teacher-portal.html',
+            staff: 'portal.html',
             student: 'student-portal.html',
             guardian: 'student-portal.html'
         };
@@ -207,14 +280,14 @@ class AuthManager {
 
     /** Get all users (synchronous from cache). Call refreshUsers() first on page load. */
     getAllUsers() {
-        if (!window.supabaseReady) return this._legacyGetUsers();
+        if (!window.supabaseReady) return [];
         return this._usersCache;
     }
 
     /** Async fetch all users from Supabase profiles table.
      *  Results are cached for 30 s — pass force=true to bypass cache. */
     async getUsers(force = false) {
-        if (!window.supabaseReady) return this._legacyGetUsers();
+        if (!window.supabaseReady) return [];
 
         // Return cached result if still fresh
         if (!force && this._usersCacheReady && (Date.now() - this._usersCacheTime) < AuthManager._CACHE_TTL) {
@@ -249,7 +322,7 @@ class AuthManager {
     }
 
     async getUserById(schoolId) {
-        if (!window.supabaseReady) return this._legacyGetUserById(schoolId);
+        if (!window.supabaseReady) return null;
         // Try cache first
         const cached = this._usersCache.find(u => u.id === schoolId || u.schoolId === schoolId);
         if (cached) return cached;
@@ -312,7 +385,7 @@ class AuthManager {
      * plaintext is available, so show it to the admin before discarding it.
      */
     async createAccount(payload) {
-        if (!window.supabaseReady) return this._legacyCreateUser(payload);
+        if (!window.supabaseReady) return { success: false, error: 'Cannot create an account while offline.' };
 
         const result = await this._callAccountFunction('create-account', {
             email:       payload.email,
@@ -353,7 +426,7 @@ class AuthManager {
     }
 
     async updateUser(schoolId, updates) {
-        if (!window.supabaseReady) return this._legacyUpdateUser(schoolId, updates);
+        if (!window.supabaseReady) return { success: false, error: 'Cannot update an account while offline.' };
         // Build only the fields that are provided
         const patch = { updated_at: new Date().toISOString() };
         if (updates.fullName !== undefined) patch.full_name = updates.fullName;
@@ -369,7 +442,7 @@ class AuthManager {
     }
 
     async deleteUser(schoolId) {
-        if (!window.supabaseReady) return this._legacyDeleteUser(schoolId);
+        if (!window.supabaseReady) return { success: false, error: 'Cannot delete an account while offline.' };
 
         try {
             const session = await supabaseClient.auth.getSession();
@@ -398,7 +471,7 @@ class AuthManager {
     }
 
     async changePassword(schoolId, currentPassword, newPassword) {
-        if (!window.supabaseReady) return this._legacyChangePassword(schoolId, currentPassword, newPassword);
+        if (!window.supabaseReady) return { success: false, error: 'Password change requires a connection to the portal server.' };
 
         // Guard: prevent onAuthStateChange from firing during this flow
         this._changingPassword = true;
@@ -563,125 +636,24 @@ class AuthManager {
         keysToRemove.forEach(k => localStorage.removeItem(k));
     }
 
-    // ──────────────────────────────────────────
-    // Legacy localStorage fallback methods
-    // (used when Supabase is not connected/offline)
-    // ──────────────────────────────────────────
-    async _legacyLogin(schoolId, password) {
-        const users = JSON.parse(localStorage.getItem('school_portal_users') || '[]');
-        const user = users.find(u => u.id === schoolId.toUpperCase());
-        if (!user) return { success: false, error: 'User not found.' };
-
-        let passwordMatch = false;
-        try {
-            if (typeof dcodeIO !== 'undefined') {
-                passwordMatch = dcodeIO.bcrypt.compareSync(password, user.passwordHash);
-            } else if (typeof bcrypt !== 'undefined') {
-                passwordMatch = bcrypt.compareSync(password, user.passwordHash);
-            }
-        } catch { passwordMatch = (password === user.passwordHash); }
-
-        if (!passwordMatch) return { success: false, error: 'Invalid password.' };
-
-        const session = {
-            userId: user.id,
-            fullName: user.fullName,
-            role: user.role,
-            permissions: user.permissions || [],
-            loginTime: new Date().toISOString()
-        };
-        this._sessionCache = session;
-        localStorage.setItem('school_portal_session', JSON.stringify(session));
-        return { success: true, session };
-    }
-
-    _legacyGetUsers() {
-        return JSON.parse(localStorage.getItem('school_portal_users') || '[]');
-    }
-    _legacyGetUserById(schoolId) {
-        return this._legacyGetUsers().find(u => u.id === schoolId) || null;
-    }
-    _legacyCreateUser(payload) {
-        // Offline dev only. Mirrors the edge function's return shape so the
-        // credential modals render something instead of "undefined".
-        const users = this._legacyGetUsers();
-        const prefixes = { admin: 'ADM', teacher: 'TCH', staff: 'STF', student: 'STU', guardian: 'GDN' };
-        const schoolId = payload.schoolId
-            || `${prefixes[payload.role] || 'USR'}-${new Date().getFullYear()}-${100000 + Math.floor(Math.random() * 900000)}`;
-        const password = payload.password || Math.random().toString(36).slice(2, 12).toUpperCase();
-
-        users.push({ ...payload, id: schoolId, schoolId, passwordHash: password, status: 'active' });
-        localStorage.setItem('school_portal_users', JSON.stringify(users));
-        return {
-            success: true, schoolId, userId: schoolId, password,
-            emailSent: false, emailMessage: 'Offline mode — no email sent.'
-        };
-    }
-    _legacyUpdateUser(schoolId, updates) {
-        const users = this._legacyGetUsers();
-        const idx = users.findIndex(u => u.id === schoolId);
-        if (idx > -1) { users[idx] = { ...users[idx], ...updates }; }
-        localStorage.setItem('school_portal_users', JSON.stringify(users));
-        return { success: true };
-    }
-    _legacyDeleteUser(schoolId) {
-        const users = this._legacyGetUsers().filter(u => u.id !== schoolId);
-        localStorage.setItem('school_portal_users', JSON.stringify(users));
-        return { success: true };
-    }
-    _legacyChangePassword(schoolId, currentPwd, newPwd) {
-        return { success: false, error: 'Password change requires Supabase connection.' };
-    }
-
-    // ──────────────────────────────────────────
-    // Default user seeding (localStorage fallback)
-    // ──────────────────────────────────────────
-    initializeDefaultUsers() {
-        // Only seed demo accounts in development/offline mode.
-        // In production (Supabase connected), all accounts are managed via the DB.
-        if (window.supabaseReady) {
-            console.warn('AuthManager: Skipping demo user seed — Supabase is connected. Use the admin UI to create accounts.');
-            return;
-        }
-
-        // Additional guard: refuse to seed if we detect a production hostname
-        const hostname = window.location.hostname;
-        const isProd = hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.endsWith('.local');
-        if (isProd) {
-            console.warn('AuthManager: Refusing to seed demo accounts on production host:', hostname);
-            return;
-        }
-
-        const existing = JSON.parse(localStorage.getItem('school_portal_users') || '[]');
-        if (existing.length > 0) return;
-
-        let hashFn = (pwd) => pwd;
-        try {
-            if (typeof dcodeIO !== 'undefined') {
-                hashFn = (pwd) => dcodeIO.bcrypt.hashSync(pwd, 10);
-            } else if (typeof bcrypt !== 'undefined') {
-                hashFn = (pwd) => bcrypt.hashSync(pwd, 10);
-            }
-        } catch { /* plain text fallback */ }
-
-        const defaultUsers = [
-            { id: 'ADMIN-0001', fullName: 'System Administrator', role: 'admin', passwordHash: hashFn('admin123'), status: 'active', permissions: [] },
-            { id: 'TCH-0001', fullName: 'Sample Teacher', role: 'teacher', passwordHash: hashFn('teacher123'), status: 'active', permissions: [] },
-            { id: 'STU-0001', fullName: 'Sample Student', role: 'student', passwordHash: hashFn('student123'), status: 'active', permissions: [] },
-            { id: 'STAFF-001', fullName: 'Admin Officer', role: 'staff', passwordHash: hashFn('staff123'), status: 'active', permissions: [] }
-        ];
-
-        localStorage.setItem('school_portal_users', JSON.stringify(defaultUsers));
-        console.log('AuthManager: Default users seeded for localStorage dev mode.');
-    }
+    // ── Removed: the localStorage fallback auth path ──────────────────────
+    //
+    // _legacyLogin / _legacyGetUsers / _legacyCreateUser / _legacyUpdateUser /
+    // _legacyDeleteUser / _legacyChangePassword / initializeDefaultUsers used to
+    // live here. Together they were a complete second authentication system —
+    // users in localStorage, bcrypt.compareSync in the browser, and seeded
+    // admin123 / teacher123 demo accounts — shipped to every visitor so that the
+    // portal would "work" with Supabase unreachable.
+    //
+    // It failed closed in production (the seed refused to run on a non-local
+    // hostname, so there were no users to match), but a login form with two
+    // implementations only ever has one that is actually reviewed. Deleting it
+    // also drops bcrypt.min.js — 21 KB on every page including the login page.
+    //
+    // Everything above now fails closed when window.supabaseReady is false.
 }
 
 // ─────────────────────────────────────────────
 // Singleton export (same name all pages use)
 // ─────────────────────────────────────────────
 const authManager = new AuthManager();
-
-// Auto-seed default users if in localStorage mode
-if (!window.supabaseReady) {
-    authManager.initializeDefaultUsers();
-}

@@ -691,8 +691,10 @@ const studentFeesModule = {
       };
 
       // NOTE: fee_items allocation is handled inside the record_fee_payment RPC
-      // (SECURITY DEFINER bypasses RLS). Do NOT call feeManager.allocatePayment
-      // from student context — it is blocked by the fee_items UPDATE policy.
+      // (SECURITY DEFINER, so it authorizes the caller and then bypasses RLS).
+      // There is no client-side allocation to call any more —
+      // feeManager.allocatePayment is deleted and migration 0023 revoked
+      // UPDATE on fee_items from every browser client.
 
       if (payBtn) { payBtn.disabled = true; payBtn.textContent = 'Processing...'; }
 
