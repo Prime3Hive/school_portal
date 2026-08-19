@@ -25,20 +25,22 @@ const DYNAMIC_CACHE = `tbd-dynamic-${CACHE_VERSION}`;
 
 /**
  * Page served when an HTML navigation cannot be satisfied from network or cache.
- * It must never be the portal shell: index.html runs an auth guard, so handing
+ * It must never be the portal shell: portal.html runs an auth guard, so handing
  * it to someone who asked for a public page bounces them to the login screen.
  */
 const OFFLINE_PAGE = '/offline.html';
 
 // Static assets to pre-cache on install.
-// NOTE: no '/' entry — on Vercel it 3xx-redirects to /public-blog.html, and a
-// redirected response cannot be written to the cache.
+// '/' is cacheable again now that index.html is a real file at the root: it is
+// served straight from the filesystem, so there is no redirect to trip over.
 const PRECACHE_ASSETS = [
-  '/index.html',
+  '/portal.html',
   '/login.html',
   OFFLINE_PAGE,
   // Public pages carry no auth guard and must stay reachable offline.
-  '/public-blog.html',
+  // '/' only, never '/index.html': that path 301s to '/' and a redirected
+  // response cannot be written to the cache.
+  '/',
   '/about.html',
   '/academics.html',
   '/admissions.html',
@@ -47,6 +49,8 @@ const PRECACHE_ASSETS = [
   '/assets/logo.svg',
   '/assets/app-icon.svg',
   '/assets/campus-panel.svg',
+  '/assets/portal-preview.svg',
+  '/assets/proprietor.jpg',
   '/css/design-system.css',
   '/css/components.css',
   '/css/accessibility.css',
@@ -59,7 +63,6 @@ const PRECACHE_ASSETS = [
   '/js/components.js',
   '/js/loading-manager.js',
   '/js/theme-manager.js',
-  '/js/bcrypt.min.js',
   '/js/auth-manager.js',
   '/js/data-manager.js',
   '/js/supabase-client.js',
@@ -234,12 +237,12 @@ async function networkFirst(request, cacheName, timeoutMs) {
 
     // Offline fallback for HTML pages.
     //
-    // This used to hand back the cached '/index.html'. That is an SPA-shell
+    // This used to hand back the cached portal shell. That is an SPA-shell
     // assumption and this app is multi-page: every route is a real file with
-    // its own guard. Serving the portal shell for, say, /public-blog.html ran
-    // index.html's auth check against a visitor with no session, which
-    // redirected them to login.html — while the address bar still read
-    // /public-blog.html, so reloading just repeated the bounce.
+    // its own guard. Serving the portal shell for, say, /about ran that page's
+    // auth check against a visitor with no session, which redirected them to
+    // login.html — while the address bar still read /about, so reloading just
+    // repeated the bounce.
     //
     // Never substitute a different page: serve a neutral offline page instead.
     if (request.headers.get('accept')?.includes('text/html')) {

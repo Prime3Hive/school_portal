@@ -2,7 +2,7 @@
 // PUBLIC SITE CONFIG — TBD INTERNATIONAL ACADEMY, MAKURDI
 // ============================================
 // Public-facing school details, taken from the school's admission flyer.
-// The public pages (public-blog / about / academics / admissions / contact)
+// The public pages (homepage / about / academics / admissions / contact)
 // deliberately do NOT load js/school-config.js: that file is portal
 // infrastructure and starts a Supabase poll on load. This is the small,
 // dependency-free equivalent for the marketing site.

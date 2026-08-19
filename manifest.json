@@ -2,7 +2,7 @@
   "name": "TBD International Academy School Portal",
   "short_name": "TBD Academy",
   "description": "Comprehensive school management portal for TBD International Academy",
-  "start_url": "/index.html",
+  "start_url": "/portal.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#1E2A5A",
@@ -27,17 +27,17 @@
   "shortcuts": [
     {
       "name": "Dashboard",
-      "url": "/index.html#admin-dashboard",
+      "url": "/portal.html#admin-dashboard",
       "description": "Admin dashboard overview"
     },
     {
       "name": "Students",
-      "url": "/index.html#student-directory",
+      "url": "/portal.html#student-directory",
       "description": "Student directory"
     },
     {
       "name": "Fees & Payments",
-      "url": "/index.html#fees-payments",
+      "url": "/portal.html#fees-payments",
       "description": "Fee management"
     }
   ]

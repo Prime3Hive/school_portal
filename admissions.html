@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-NG">
 
 <head>
     <meta charset="UTF-8">
@@ -36,17 +36,19 @@
 </head>
 
 <body>
+    <a class="skip-link" href="#main">Skip to main content</a>
+
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="navbar-container">
-            <a href="public-blog.html" class="navbar-logo">
+            <a href="/" class="navbar-logo">
                 <div class="navbar-logo-icon"><img src="assets/logo-mark.svg" alt="" width="40" height="40"></div>
                 <span>TBD International Academy</span>
             </a>
 
             <div class="navbar-collapse" id="navbarMenu">
                 <ul class="navbar-menu">
-                    <li><a href="public-blog.html" class="navbar-link">Home</a></li>
+                    <li><a href="/" class="navbar-link">Home</a></li>
                     <li><a href="about.html" class="navbar-link">About</a></li>
                     <li><a href="academics.html" class="navbar-link">Academics</a></li>
                     <li><a href="admissions.html" class="navbar-link active">Admissions</a></li>
@@ -79,6 +81,8 @@
 
         <div class="navbar-progress" aria-hidden="true"><span></span></div>
     </nav>
+
+    <main id="main">
 
     <!-- Page Header -->
     <section class="hero" style="min-height: 60vh; padding-top: 8rem;">
@@ -683,6 +687,8 @@
     </div>
 
     <!-- Footer -->
+    </main>
+
     <footer class="footer">
         <div class="footer-container">
             <div class="footer-grid">
@@ -694,19 +700,10 @@
                         for a brighter future since 2011.
                     </p>
                     <div class="footer-social">
-                        <a href="#" class="footer-social-link" aria-label="Facebook">
-                            <i class="fab fa-facebook-f"></i>
-                        </a>
-                        <a href="#" class="footer-social-link" aria-label="X (Twitter)">
-                            <i class="fab fa-x-twitter"></i>
-                        </a>
-                        <a href="#" class="footer-social-link" aria-label="Instagram">
-                            <i class="fab fa-instagram"></i>
-                        </a>
-                        <a href="#" class="footer-social-link" aria-label="LinkedIn">
-                            <i class="fab fa-linkedin-in"></i>
-                        </a>
-                        <a href="https://wa.me/2348030614777" target="_blank" rel="noopener" class="footer-social-link" aria-label="WhatsApp">
+                        <!-- Social icons return here once the school has live pages to
+                             point at. An icon linked to "#" reads as an abandoned site. -->
+                        <a href="https://wa.me/2348030614777?text=Hello%20TBD%20International%20Academy%2C%20I%27d%20like%20to%20ask%20about%20admission%20for%20my%20child." target="_blank" rel="noopener"
+                            class="footer-social-link" data-cta="whatsapp" aria-label="Chat with us on WhatsApp">
                             <i class="fab fa-whatsapp"></i>
                         </a>
                     </div>
@@ -715,7 +712,7 @@
                 <div>
                     <h4 class="footer-section-title">Quick Links</h4>
                     <ul class="footer-links">
-                        <li><a href="public-blog.html" class="footer-link">Home</a></li>
+                        <li><a href="/" class="footer-link">Home</a></li>
                         <li><a href="about.html" class="footer-link">About Us</a></li>
                         <li><a href="academics.html" class="footer-link">Academics</a></li>
                         <li><a href="admissions.html" class="footer-link">Admissions</a></li>
@@ -749,7 +746,14 @@
             </div>
 
             <div class="footer-bottom">
-                <p>&copy; <span data-year>2026</span> TBD International Academy. All rights reserved. | Designed with ❤️ for Excellence</p>
+                <p>&copy; <span data-year>2026</span> TBD International Academy. All rights reserved.</p>
+                <!-- TODO: add "Approved by the Benue State Ministry of Education ·
+                     Registration No. XXXX" here once the number is confirmed. Do not
+                     publish an approval claim that cannot be checked. -->
+                <p class="footer-trust">
+                    <strong>Creche to JSS 3</strong> &#183; Behind Civil Service Commission,
+                    Kertyo, Makurdi, Benue State, Nigeria &#183; Established 2011
+                </p>
             </div>
         </div>
     </footer>
@@ -1029,6 +1033,50 @@
     <button class="to-top" type="button" aria-label="Back to top">
         <i class="fas fa-arrow-up"></i>
     </button>
+    <!-- Structured data: lets Google show the school as a local result. -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "School",
+      "@id": "https://tbdacademy.org/#school",
+      "name": "TBD International Academy",
+      "alternateName": "TBD Academy Makurdi",
+      "url": "https://tbdacademy.org/",
+      "logo": "https://tbdacademy.org/assets/logo-mark.svg",
+      "image": "https://tbdacademy.org/assets/og-image.png",
+      "slogan": "Planting Seeds of Knowledge",
+      "description": "A private school in Kertyo, Makurdi, Benue State, offering Creche through JSS 3. Established 2011.",
+      "foundingDate": "2011",
+      "telephone": "+2348030614777",
+      "email": "support@tbdacademy.org",
+      "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Behind Civil Service Commission, Kertyo",
+        "addressLocality": "Makurdi",
+        "addressRegion": "Benue State",
+        "addressCountry": "NG"
+      },
+      "areaServed": {
+        "@type": "City",
+        "name": "Makurdi"
+      },
+      "openingHoursSpecification": [
+        {
+          "@type": "OpeningHoursSpecification",
+          "dayOfWeek": [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday"
+          ],
+          "opens": "08:00",
+          "closes": "14:00"
+        }
+      ],
+      "numberOfStudents": 500
+    }
+    </script>
 </body>
 
 </html>

@@ -3,14 +3,18 @@
 # The marketing pages are meant to be found. Everything behind a login is not:
 # those pages carry student names, fee balances and invitation tokens in their
 # query strings, and none of it belongs in a search index.
+#
+# NOTE: index.html is the PUBLIC homepage. The management portal is portal.html,
+# served at /portal. These two swapped places — do not re-add a rule blocking
+# /index.html, it would deindex the whole site.
 
 User-agent: *
 Allow: /$
+Allow: /index.html
 Allow: /about
 Allow: /academics
 Allow: /admissions
 Allow: /contact
-Allow: /public-blog.html
 Allow: /about.html
 Allow: /academics.html
 Allow: /admissions.html
@@ -19,9 +23,9 @@ Allow: /assets/
 Allow: /css/
 
 Disallow: /portal
+Disallow: /portal.html
 Disallow: /admin/
 Disallow: /dashboard
-Disallow: /index.html
 Disallow: /login
 Disallow: /login.html
 Disallow: /student-portal.html

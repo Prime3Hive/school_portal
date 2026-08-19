@@ -2,7 +2,7 @@
 // interactive widgets used across the public pages.
 //
 // Every block guards for missing elements so the same file can be shared
-// by public-blog / about / academics / admissions / contact.
+// by the homepage / about / academics / admissions / contact.
 
 (function () {
     'use strict';
@@ -339,6 +339,93 @@
 
         track.appendChild(clone);
         track.dataset.cloned = 'true';
+    });
+
+    /* ============================================================
+       Gallery lightbox — [data-lightbox] buttons + #lightbox overlay
+
+       The tiles ship at 640px; the full-size 1280px file is only
+       fetched when someone actually asks to see it, so browsing the
+       page costs nine small images and nothing more.
+       ============================================================ */
+    (function lightbox() {
+        var box = document.getElementById('lightbox');
+        var triggers = Array.prototype.slice.call(document.querySelectorAll('[data-lightbox]'));
+        if (!box || !triggers.length) return;
+
+        var img = box.querySelector('#lightbox-img');
+        var caption = box.querySelector('#lightbox-caption');
+        var current = 0;
+        var lastFocus = null;
+
+        function show(index) {
+            current = (index + triggers.length) % triggers.length;
+            var t = triggers[current];
+            var tile = t.querySelector('img');
+            img.src = t.dataset.lightbox;
+            // Reuse the tile's alt: it already describes what is happening.
+            img.alt = tile ? tile.alt : '';
+            caption.textContent = t.dataset.lightboxCaption || '';
+        }
+
+        function open(index) {
+            lastFocus = document.activeElement;
+            show(index);
+            box.hidden = false;
+            document.body.classList.add('lightbox-open');
+            box.querySelector('.lightbox-close').focus();
+        }
+
+        function close() {
+            box.hidden = true;
+            document.body.classList.remove('lightbox-open');
+            img.removeAttribute('src');
+            if (lastFocus) lastFocus.focus();
+        }
+
+        triggers.forEach(function (t, i) {
+            t.addEventListener('click', function () { open(i); });
+        });
+
+        box.querySelector('.lightbox-close').addEventListener('click', close);
+        box.querySelector('.lightbox-prev').addEventListener('click', function () { show(current - 1); });
+        box.querySelector('.lightbox-next').addEventListener('click', function () { show(current + 1); });
+
+        // Clicking the backdrop closes; clicking the photo itself does not.
+        box.addEventListener('click', function (e) {
+            if (e.target === box) close();
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (box.hidden) return;
+            if (e.key === 'Escape') close();
+            else if (e.key === 'ArrowLeft') show(current - 1);
+            else if (e.key === 'ArrowRight') show(current + 1);
+        });
+    })();
+
+    /* ============================================================
+       Map facade — [data-map-facade] with a data-map-src
+
+       A Google Maps embed is roughly 800 KB and a third-party cookie.
+       On a 2 GB monthly bundle that is not a cost to impose on someone
+       who only came to read the phone number, so the iframe is built
+       on click instead of on load.
+       ============================================================ */
+    document.querySelectorAll('[data-map-facade]').forEach(function (facade) {
+        facade.addEventListener('click', function () {
+            var iframe = document.createElement('iframe');
+            iframe.src = facade.dataset.mapSrc;
+            iframe.width = '100%';
+            iframe.height = '450';
+            iframe.loading = 'lazy';
+            iframe.referrerPolicy = 'no-referrer-when-downgrade';
+            iframe.setAttribute('allowfullscreen', '');
+            iframe.style.border = '0';
+            iframe.style.display = 'block';
+            iframe.title = facade.dataset.mapTitle || 'Map';
+            facade.replaceWith(iframe);
+        });
     });
 
     /* ============================================================

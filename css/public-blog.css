@@ -1857,7 +1857,7 @@ button.hero-badge:hover i {
     border-color: rgba(255, 255, 255, 0.3);
 }
 
-.footer-social-link[aria-label="WhatsApp"]:hover {
+.footer-social-link[aria-label*="WhatsApp"]:hover {
     background: #25D366;
     border-color: #25D366;
 }
@@ -2721,4 +2721,459 @@ body.modal-open {
     .ticker-track {
         animation: none;
     }
+}
+
+/* ===================================================================
+   11. Conversion & trust layer
+   Added for the tbdacademy.org front-page rework: skip link, the
+   parent-portal showcase, and the proof-strip sublabels that turn
+   "500 pupils / 50 teachers" into the 1:10 ratio it actually is.
+   =================================================================== */
+
+/* --- Skip link -------------------------------------------------------
+   Off-screen until focused. First tab stop on every public page. */
+.skip-link {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 1000;
+    background: var(--brand-navy);
+    color: #fff;
+    font-weight: 600;
+    text-decoration: none;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0 0 var(--radius-sm) 0;
+}
+
+.skip-link:focus {
+    left: 0;
+}
+
+/* --- Proof strip sublabels ------------------------------------------
+   The number alone made the reader do arithmetic; the sublabel does it
+   for them. */
+.stat-sub {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
+    /* 0.72 keeps this above 4.5:1 even under the light radial washes
+       that .section-dark lays over the navy. */
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.stat-value .stat-ratio-sep {
+    opacity: 0.55;
+    padding-inline: 0.05em;
+}
+
+/* --- Parent portal showcase -----------------------------------------
+   The portal is the one thing on this site a competitor in Benue
+   cannot copy this term. It gets a section, not a nav link. */
+.showcase-grid {
+    display: grid;
+    gap: clamp(2rem, 5vw, 3.5rem);
+    align-items: center;
+}
+
+@media (min-width: 900px) {
+    .showcase-grid {
+        grid-template-columns: 1.05fr 0.95fr;
+    }
+}
+
+.showcase-copy .section-badge {
+    margin-bottom: 1rem;
+}
+
+.showcase-copy h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.6rem, 4.5vw, 2.4rem);
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.showcase-copy > p {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    max-width: 52ch;
+}
+
+.ticklist {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.75rem;
+    display: grid;
+    gap: 0.75rem;
+}
+
+.ticklist li {
+    position: relative;
+    padding-left: 2.25rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+}
+
+.ticklist li::before {
+    content: '\f00c';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    font-size: 0.7rem;
+    position: absolute;
+    left: 0;
+    top: 0.15rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: var(--color-emerald-deep);
+    background: hsla(158, 68%, 40%, 0.14);
+}
+
+/* Phone mock — the screenshot inside is a real portal view. */
+.phone-frame {
+    max-width: 300px;
+    margin-inline: auto;
+    border: 9px solid var(--brand-navy-deep);
+    border-radius: 2.25rem;
+    overflow: hidden;
+    background: var(--brand-navy-deep);
+    box-shadow: var(--shadow-xl);
+    transform: rotate(-2.5deg);
+    transition: transform 0.45s var(--ease-out);
+}
+
+.phone-frame:hover {
+    transform: rotate(0deg) translateY(-6px);
+}
+
+.phone-frame img,
+.phone-frame svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* --- Footer trust row ------------------------------------------------
+   Replaces "Designed with <heart> for Excellence". A school proves it
+   is a school here, not with an emoji. */
+.footer-trust {
+    margin-top: 1rem;
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.55);
+}
+
+.footer-trust strong {
+    color: rgba(255, 255, 255, 0.75);
+    font-weight: 600;
+}
+
+.footer-bottom-links {
+    margin-top: 0.35rem;
+}
+
+.footer-bottom-links a {
+    color: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.footer-bottom-links a:hover {
+    color: #fff;
+}
+
+/* --- Map facade ------------------------------------------------------
+   Stands in for the Google Maps embed until the reader asks for it. */
+.map-facade {
+    width: 100%;
+    min-height: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2.5rem 1.5rem;
+    border: 0;
+    cursor: pointer;
+    text-align: center;
+    color: var(--color-primary);
+    background:
+        radial-gradient(60% 60% at 50% 0%, hsla(200, 90%, 55%, 0.10) 0%, transparent 70%),
+        var(--surface-tint);
+    transition: background 0.3s var(--ease-out);
+}
+
+.map-facade:hover {
+    background:
+        radial-gradient(60% 60% at 50% 0%, hsla(200, 90%, 55%, 0.18) 0%, transparent 70%),
+        var(--surface-tint);
+}
+
+.map-facade i {
+    font-size: 1.85rem;
+}
+
+.map-facade-label {
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.map-facade-note {
+    font-size: 0.8125rem;
+    color: var(--text-tertiary);
+}
+
+/* --- Proprietor / leadership block -----------------------------------
+   A named, photographed leader is the highest-trust element a school
+   site can carry. Portrait sits left on desktop, on top on mobile. */
+.leader {
+    display: grid;
+    gap: clamp(1.75rem, 5vw, 3rem);
+    align-items: center;
+    padding: clamp(1.5rem, 4vw, 2.5rem);
+    background: var(--surface-tint);
+    border-radius: var(--radius-lg);
+    border-left: 5px solid var(--color-amber);
+}
+
+@media (min-width: 820px) {
+    .leader {
+        grid-template-columns: minmax(240px, 300px) 1fr;
+    }
+}
+
+.leader-portrait {
+    margin: 0;
+}
+
+.leader-portrait img {
+    display: block;
+    width: 100%;
+    max-width: 300px;
+    margin-inline: auto;
+    aspect-ratio: 4 / 5;
+    object-fit: cover;
+    object-position: 50% 22%;   /* keeps the face centred on the crop */
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
+}
+
+.leader-copy h2 {
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 4vw, 2.1rem);
+    font-weight: 800;
+    line-height: 1.15;
+    margin: 0.75rem 0 1rem;
+    color: var(--text-primary);
+}
+
+.leader-copy p {
+    color: var(--text-secondary);
+    margin-bottom: 1rem;
+    max-width: 56ch;
+}
+
+.leader-vision {
+    font-family: var(--font-display);
+    font-size: clamp(1.15rem, 3vw, 1.45rem);
+    font-weight: 600;
+    line-height: 1.35;
+    color: var(--color-primary) !important;
+    padding-left: 1rem;
+    border-left: 3px solid var(--color-amber);
+}
+
+.leader-sign {
+    font-size: 0.875rem;
+    line-height: 1.5;
+    margin-bottom: 0 !important;
+}
+
+.leader-sign strong {
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: 1rem;
+}
+
+/* ===================================================================
+   12. School life gallery + lightbox
+   Masonry via CSS columns: the photos arrive in mixed portrait and
+   landscape, and cropping them all to one ratio would throw away the
+   part of the frame that makes each shot worth showing.
+   =================================================================== */
+.gallery-wall {
+    columns: 3;
+    column-gap: 1rem;
+    margin-top: clamp(1.75rem, 4vw, 2.75rem);
+}
+
+@media (max-width: 900px) {
+    .gallery-wall { columns: 2; }
+}
+
+@media (max-width: 540px) {
+    .gallery-wall { columns: 1; }
+}
+
+.shot {
+    break-inside: avoid;
+    margin: 0 0 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out);
+}
+
+.shot:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+}
+
+.shot-btn {
+    display: block;
+    position: relative;
+    width: 100%;
+    padding: 0;
+    border: 0;
+    background: none;
+    cursor: zoom-in;
+    line-height: 0;
+}
+
+.shot-btn img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.shot-zoom {
+    position: absolute;
+    right: 0.6rem;
+    bottom: 0.6rem;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    color: #fff;
+    font-size: 0.8rem;
+    background: rgba(var(--brand-navy-rgb), 0.72);
+    backdrop-filter: blur(4px);
+    opacity: 0;
+    transform: scale(0.85);
+    transition: opacity 0.25s var(--ease-out), transform 0.25s var(--ease-spring);
+}
+
+.shot-btn:hover .shot-zoom,
+.shot-btn:focus-visible .shot-zoom {
+    opacity: 1;
+    transform: none;
+}
+
+.shot figcaption {
+    padding: 0.7rem 0.9rem 0.85rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* --- Lightbox --------------------------------------------------------
+   Deliberately not <dialog>: Opera Mini and older UC builds are still
+   common on Nigerian Android, and this degrades to a plain overlay. */
+.lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.25rem, 2vw, 1.5rem);
+    padding: clamp(0.75rem, 3vw, 2rem);
+    background: rgba(8, 12, 28, 0.93);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+}
+
+.lightbox[hidden] {
+    display: none;
+}
+
+.lightbox-figure {
+    margin: 0;
+    max-width: min(100%, 1100px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.lightbox-figure img {
+    max-width: 100%;
+    max-height: 78vh;
+    width: auto;
+    height: auto;
+    border-radius: var(--radius-md);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5);
+}
+
+.lightbox-figure figcaption {
+    color: rgba(255, 255, 255, 0.88);
+    font-size: 0.9375rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.lightbox-close,
+.lightbox-nav {
+    flex: none;
+    width: 46px;
+    height: 46px;
+    border: 0;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    color: #fff;
+    font-size: 1.05rem;
+    background: rgba(255, 255, 255, 0.14);
+    cursor: pointer;
+    transition: background 0.2s var(--ease-out);
+}
+
+.lightbox-close:hover,
+.lightbox-nav:hover {
+    background: rgba(255, 255, 255, 0.28);
+}
+
+.lightbox-close {
+    position: absolute;
+    top: clamp(0.75rem, 3vw, 1.5rem);
+    right: clamp(0.75rem, 3vw, 1.5rem);
+}
+
+/* On a phone the side arrows would crowd the photo off the screen,
+   so they drop to the bottom corners instead. */
+@media (max-width: 640px) {
+    .lightbox-nav {
+        position: absolute;
+        bottom: clamp(0.75rem, 3vw, 1.5rem);
+    }
+
+    .lightbox-prev { left: clamp(0.75rem, 3vw, 1.5rem); }
+    .lightbox-next { right: clamp(0.75rem, 3vw, 1.5rem); }
+    .lightbox-figure img { max-height: 68vh; }
+}
+
+body.lightbox-open {
+    overflow: hidden;
 }
