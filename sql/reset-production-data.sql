@@ -30,6 +30,21 @@
 -- Everything else in the tables listed under "wipe list" goes.
 -- ============================================================================
 
+-- ── Wrong-database guard ────────────────────────────────────────────────────
+-- On 19 August 2026 this file's siblings were run against a different Supabase
+-- project — 70 tables, none of them the portal's. The migration failed loudly
+-- and rolled back, but a destructive script would not have been so kind.
+-- Abort immediately unless this database is the school portal's.
+DO $guard$
+BEGIN
+  IF to_regclass('public.students') IS NULL THEN
+    RAISE EXCEPTION
+      'WRONG DATABASE: public.students does not exist. This is not the school '
+      'portal database. Run sql/diagnose-database.sql to find the right project.';
+  END IF;
+END
+$guard$;
+
 BEGIN;
 
 DO $$
