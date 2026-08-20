@@ -569,11 +569,10 @@ const studentFeesModule = {
         <div class="form-group">
           <label class="form-label">Payment Method *</label>
           <select class="form-select" name="paymentMethod" required onchange="studentFeesModule._onMethodChange(this.value)">
-            <option value="paystack">💳 Pay Online (Paystack)</option>
-            <option value="bank-deposit">🏦 Bank Deposit / Transfer</option>
+            <option value="bank-deposit" selected>🏦 Bank Deposit / Transfer</option>
           </select>
         </div>
-        <div id="bank-deposit-section" style="display:none;">
+        <div id="bank-deposit-section">
           <div style="padding:1rem;background:var(--bg-tertiary);border-radius:0.5rem;margin-bottom:1rem;border-left:4px solid #3b82f6;">
             <h4 style="margin:0 0 0.5rem;font-size:0.875rem;font-weight:600;">🏦 Bank Details</h4>
             <div style="font-size:0.82rem;display:grid;grid-template-columns:auto 1fr;gap:0.2rem 0.75rem;">
@@ -584,18 +583,18 @@ const studentFeesModule = {
           </div>
           <div class="form-group">
             <label class="form-label">Teller / Transaction Reference *</label>
-            <input type="text" class="form-input" name="transactionRef" id="student-txn-ref" placeholder="Enter teller no. or transaction reference">
+            <input type="text" class="form-input" name="transactionRef" id="student-txn-ref" required placeholder="Enter teller no. or transaction reference">
           </div>
           <div class="form-group">
             <label class="form-label">Upload Receipt *</label>
-            <input type="file" class="form-input" name="receiptFile" id="student-receipt-file" accept=".jpg,.jpeg,.png,.pdf">
+            <input type="file" class="form-input" name="receiptFile" id="student-receipt-file" required accept=".jpg,.jpeg,.png,.pdf">
             <p style="font-size:0.72rem;color:var(--text-tertiary);margin-top:0.25rem;">JPG, PNG or PDF · max 5MB</p>
           </div>
         </div>
         <div style="display:flex;gap:0.75rem;margin-top:1.5rem;">
           <button type="button" class="btn btn-ghost" style="flex:1;" onclick="closeModal(this)">Cancel</button>
           <button type="button" class="btn btn-success" style="flex:1;" id="student-pay-btn"
-            onclick="studentFeesModule.initiatePayment()">💳 Pay Now</button>
+            onclick="studentFeesModule.initiatePayment()">📤 Submit for Verification</button>
         </div>
       </form>`;
 
@@ -624,7 +623,7 @@ const studentFeesModule = {
     const payBtn = document.getElementById('student-pay-btn');
     try {
       const itemId = document.querySelector('#student-payment-form select[name="itemId"]')?.value;
-      const method = document.querySelector('#student-payment-form select[name="paymentMethod"]')?.value || 'paystack';
+      const method = document.querySelector('#student-payment-form select[name="paymentMethod"]')?.value || 'bank-deposit';
       const amount = parseFloat(document.getElementById('student-pay-amount')?.value);
       const { student } = this.studentData;
 
@@ -1003,11 +1002,10 @@ const studentFeesModule = {
       <div class="form-group">
         <label class="form-label">Payment Method *</label>
         <select class="form-select" id="pay-all-method" onchange="studentFeesModule._onPayAllMethodChange(this.value)">
-          <option value="paystack">💳 Pay Online (Paystack)</option>
-          <option value="bank-deposit">🏦 Bank Deposit / Transfer</option>
+          <option value="bank-deposit" selected>🏦 Bank Deposit / Transfer</option>
         </select>
       </div>
-      <div id="pay-all-bank-section" style="display:none;">
+      <div id="pay-all-bank-section">
         <div style="padding:1rem;background:var(--bg-tertiary);border-radius:0.5rem;margin-bottom:1rem;border-left:4px solid #3b82f6;">
           <h4 style="margin:0 0 0.5rem;font-size:0.875rem;font-weight:600;">🏦 Bank Details</h4>
           <div style="font-size:0.82rem;display:grid;grid-template-columns:auto 1fr;gap:0.2rem 0.75rem;">
@@ -1047,7 +1045,8 @@ const studentFeesModule = {
   },
 
   async _submitPayAll() {
-    const method = document.getElementById('pay-all-method')?.value || 'paystack';
+    // Online payment is withdrawn; a missing select must not start a charge.
+    const method = document.getElementById('pay-all-method')?.value || 'bank-deposit';
     const { student, feeSchedule } = this.studentData;
     const unpaidItems  = this._payItems || feeSchedule.filter(i => i.balance > 0);
     const totalBalance = unpaidItems.reduce((s, i) => s + i.balance, 0);

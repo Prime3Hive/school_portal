@@ -111,11 +111,14 @@ const feesPaymentsModule = {
 
   _getBankDetails() {
     const s = window.settingsModule?.settings || {};
+    const published = window.feeStructure?.bankDetails || {};
     return {
-      bankName:    s.bankName    || 'First Bank of Nigeria',
-      accountNo:   s.bankAccountNo   || '0123456789',
-      accountName: s.bankAccountName || (window.schoolConfig?.name || 'TBD International Academy'),
-      sortCode:    s.bankSortCode    || '011151003'
+      bankName:    s.bankName        || published.name          || 'Keystone Bank',
+      accountNo:   s.bankAccountNo   || published.accountNumber || '1013525760',
+      accountName: s.bankAccountName || published.accountName
+                                     || window.schoolConfig?.name || 'TBD International Academy',
+      // Absent from every school document. Rendered only when an admin sets it.
+      sortCode:    s.bankSortCode    || ''
     };
   },
 
@@ -1605,9 +1608,7 @@ const feesPaymentsModule = {
           <div class="form-group">
             <label class="form-label">Payment Method *</label>
             <select class="form-select" name="paymentMethod" required id="payment-method-select" onchange="feesPaymentsModule.togglePaymentFields(this.value)">
-              <option value="">Select Method</option>
-              <option value="bank-deposit">🏦 Bank Transfer (Upload Receipt)</option>
-              <option value="paystack">💳 Pay Online (Paystack)</option>
+              <option value="bank-deposit" selected>🏦 Bank Transfer (Upload Receipt)</option>
             </select>
           </div>
 
@@ -1630,24 +1631,24 @@ const feesPaymentsModule = {
             </select>
           </div>
 
-          <div id="bank-deposit-details" style="display: none; grid-column: span 2; padding: var(--space-4); background: var(--bg-tertiary); border-radius: var(--radius-md); border-left: 4px solid var(--color-primary);">
+          <div id="bank-deposit-details" style="display: block; grid-column: span 2; padding: var(--space-4); background: var(--bg-tertiary); border-radius: var(--radius-md); border-left: 4px solid var(--color-primary);">
             <h4 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3);">🏦 School Bank Details</h4>
             ${(() => { const b = this._getBankDetails(); return `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); font-size: var(--font-size-sm);">
               <div><strong>Bank:</strong> ${this._esc(b.bankName)}</div>
               <div><strong>Account No:</strong> ${this._esc(b.accountNo)}</div>
               <div><strong>Account Name:</strong> ${this._esc(b.accountName)}</div>
-              <div><strong>Sort Code:</strong> ${this._esc(b.sortCode)}</div>
+              ${b.sortCode ? `<div><strong>Sort Code:</strong> ${this._esc(b.sortCode)}</div>` : ''}
             </div>`; })()}
           </div>
 
-          <div class="form-group" id="transaction-ref-group" style="display: none;">
+          <div class="form-group" id="transaction-ref-group" style="display: block;">
             <label class="form-label">Transaction Reference / Teller No. *</label>
             <input type="text" class="form-input" name="transactionRef" placeholder="Enter deposit reference or teller number" required>
           </div>
 
-          <div class="form-group" id="receipt-upload-group" style="display: none;">
+          <div class="form-group" id="receipt-upload-group" style="display: block;">
             <label class="form-label">Upload Payment Receipt *</label>
-            <input type="file" class="form-input" name="receiptFile" accept=".jpg,.jpeg,.png,.pdf" id="receipt-file-input">
+            <input type="file" class="form-input" name="receiptFile" accept=".jpg,.jpeg,.png,.pdf" id="receipt-file-input" required>
             <p style="font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: var(--space-1);">
               Accepted: JPG, PNG, PDF (max 5MB). Bank deposit receipts require admin verification.
             </p>
@@ -1710,9 +1711,7 @@ const feesPaymentsModule = {
           <div class="form-group">
             <label class="form-label">Payment Method *</label>
             <select class="form-select" name="paymentMethod" required id="payment-method-select" onchange="feesPaymentsModule.togglePaymentFields(this.value)">
-              <option value="">Select Method</option>
-              <option value="bank-deposit">🏦 Bank Transfer (Upload Receipt)</option>
-              <option value="paystack">💳 Pay Online (Paystack)</option>
+              <option value="bank-deposit" selected>🏦 Bank Transfer (Upload Receipt)</option>
             </select>
           </div>
 
@@ -1735,24 +1734,24 @@ const feesPaymentsModule = {
             </select>
           </div>
 
-          <div id="bank-deposit-details" style="display: none; grid-column: span 2; padding: var(--space-4); background: var(--bg-tertiary); border-radius: var(--radius-md); border-left: 4px solid var(--color-primary);">
+          <div id="bank-deposit-details" style="display: block; grid-column: span 2; padding: var(--space-4); background: var(--bg-tertiary); border-radius: var(--radius-md); border-left: 4px solid var(--color-primary);">
             <h4 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3);">🏦 School Bank Details</h4>
             ${(() => { const b = this._getBankDetails(); return `<div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-2); font-size: var(--font-size-sm);">
               <div><strong>Bank:</strong> ${this._esc(b.bankName)}</div>
               <div><strong>Account No:</strong> ${this._esc(b.accountNo)}</div>
               <div><strong>Account Name:</strong> ${this._esc(b.accountName)}</div>
-              <div><strong>Sort Code:</strong> ${this._esc(b.sortCode)}</div>
+              ${b.sortCode ? `<div><strong>Sort Code:</strong> ${this._esc(b.sortCode)}</div>` : ''}
             </div>`; })()}
           </div>
 
-          <div class="form-group" id="transaction-ref-group" style="display: none; grid-column: span 2;">
+          <div class="form-group" id="transaction-ref-group" style="display: block; grid-column: span 2;">
             <label class="form-label">Transaction Reference / Teller No. *</label>
             <input type="text" class="form-input" name="transactionRef" placeholder="Enter deposit reference or teller number" required>
           </div>
 
-          <div class="form-group" id="receipt-upload-group" style="display: none; grid-column: span 2;">
+          <div class="form-group" id="receipt-upload-group" style="display: block; grid-column: span 2;">
             <label class="form-label">Upload Payment Receipt *</label>
-            <input type="file" class="form-input" name="receiptFile" accept=".jpg,.jpeg,.png,.pdf" id="receipt-file-input">
+            <input type="file" class="form-input" name="receiptFile" accept=".jpg,.jpeg,.png,.pdf" id="receipt-file-input" required>
             <p style="font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: var(--space-1);">
               Accepted: JPG, PNG, PDF (max 5MB). Bank deposit receipts require admin verification.
             </p>
@@ -3477,9 +3476,7 @@ const feesPaymentsModule = {
           <div class="form-group mb-4">
             <label class="form-label">Payment Method *</label>
             <select id="itemPaymentMethod" class="form-control" required>
-              <option value="">Select method</option>
-              <option value="bank-deposit">🏦 Bank Transfer (Upload Receipt)</option>
-              <option value="paystack">💳 Pay Online (Paystack)</option>
+              <option value="bank-deposit" selected>🏦 Bank Transfer (Upload Receipt)</option>
             </select>
           </div>
           <div class="form-group mb-4">

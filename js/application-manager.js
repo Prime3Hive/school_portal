@@ -531,7 +531,7 @@
 
         // Determine selected payment method
         const paymentMethodRadio = form.querySelector('input[name="paymentMethod"]:checked');
-        const paymentMethod = paymentMethodRadio ? paymentMethodRadio.value : 'paystack';
+        const paymentMethod = paymentMethodRadio ? paymentMethodRadio.value : 'bank-transfer';
 
         // Validate required inputs
         if (!studentName || !grade || !parentName || !parentEmail || !parentPhone) {
@@ -697,10 +697,6 @@
             document.querySelectorAll('.file-info').forEach(el => el.style.display = 'none');
             document.querySelectorAll('[id$="Preview"]').forEach(el => el.style.display = 'none');
             if (typeof window.clearApplicationDraft === 'function') window.clearApplicationDraft();
-            // Reset bank transfer section visibility
-            const bankSection = document.getElementById('bankTransferSection');
-            if (bankSection) bankSection.style.display = 'none';
-
             if (paymentMethod === 'bank-transfer') {
                 showBankTransferSuccess(application.application_number);
             } else {

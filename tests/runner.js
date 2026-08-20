@@ -431,8 +431,25 @@ describe('Legacy Brand Value Migration', () => {
   it('is idempotent on the current name', () =>
     assertEqual(upgrade('schoolName', 'TBD International Academy'), 'TBD International Academy'));
 
+  // bankAccountName used to stand in for an unmapped field here. It is mapped
+  // now — the bank block shipped as a First Bank placeholder — so the case
+  // needs a field the map genuinely does not carry.
   it('ignores unknown fields', () =>
-    assertEqual(upgrade('bankAccountName', 'TBD Academy'), 'TBD Academy'));
+    assertEqual(upgrade('currency', 'NGN'), 'NGN'));
+
+  it('upgrades the placeholder bank account', () => {
+    assertEqual(upgrade('bankName', 'First Bank of Nigeria'), 'Keystone Bank');
+    assertEqual(upgrade('bankAccountNo', '0123456789'), '1013525760');
+    assertEqual(upgrade('bankAccountName', 'TBD Academy'), 'TBD International Academy');
+  });
+
+  it('clears the sort code that belonged to the placeholder bank', () =>
+    assertEqual(upgrade('bankSortCode', '011151003'), ''));
+
+  it('leaves a bank account an admin actually set alone', () => {
+    assertEqual(upgrade('bankName', 'Zenith Bank'), 'Zenith Bank');
+    assertEqual(upgrade('bankAccountNo', '2201234567'), '2201234567');
+  });
 
   it('passes through non-string values', () =>
     assertEqual(upgrade('schoolName', undefined), undefined));

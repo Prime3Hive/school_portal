@@ -499,33 +499,16 @@
                                 </p>
                             </div>
 
-                            <!-- Payment Method Selection -->
-                            <fieldset class="pay-methods">
-                                <legend class="pay-methods-legend">How would you like to pay?</legend>
-                                <label class="pay-option is-selected" id="paymentMethodPaystack">
-                                    <input type="radio" name="paymentMethod" value="paystack" checked
-                                        onchange="selectPaymentMethod('paystack')">
-                                    <span class="pay-option-body">
-                                        <span class="pay-option-title">
-                                            <i class="fas fa-bolt"></i> Paystack
-                                        </span>
-                                        <span class="pay-option-sub">Card or transfer, confirmed instantly</span>
-                                    </span>
-                                </label>
-                                <label class="pay-option" id="paymentMethodBank">
-                                    <input type="radio" name="paymentMethod" value="bank-transfer"
-                                        onchange="selectPaymentMethod('bank-transfer')">
-                                    <span class="pay-option-body">
-                                        <span class="pay-option-title">
-                                            <i class="fas fa-building-columns"></i> Bank transfer
-                                        </span>
-                                        <span class="pay-option-sub">Pay into the school account, then upload the receipt</span>
-                                    </span>
-                                </label>
-                            </fieldset>
+                            <!-- Online payment is withdrawn until the school's
+                                 gateway account is live. Transfer is the only method
+                                 the school can settle today, so it is stated rather
+                                 than offered as one choice among several. The radio
+                                 is kept, fixed and hidden, because the submit path
+                                 and the stored record both read paymentMethod. -->
+                            <input type="radio" name="paymentMethod" value="bank-transfer" checked hidden>
 
-                            <!-- Bank Transfer Details (hidden until chosen) -->
-                            <div id="bankTransferSection" hidden>
+                            <!-- Bank transfer details — the only payment route at present. -->
+                            <div id="bankTransferSection">
                                 <div class="pay-bank">
                                     <h4 class="pay-bank-head">
                                         <i class="fas fa-building-columns"></i> Pay into this account
@@ -591,7 +574,7 @@
                             <button type="submit" class="btn btn-primary" id="submitApplicationBtn"
                                 style="width: 100%; justify-content: center; padding: 1rem;">
                                 <i class="fas fa-paper-plane"></i>
-                                <span id="submitBtnText">Pay and submit application</span>
+                                <span id="submitBtnText">Submit application for verification</span>
                             </button>
                         </div>
                     </form>
@@ -1095,25 +1078,10 @@
             document.body.removeChild(ta);
         });
 
-        // Payment method selection handler
-        function selectPaymentMethod(method) {
-            const isBank = method === 'bank-transfer';
-            const bankSection = document.getElementById('bankTransferSection');
-            const btnText = document.getElementById('submitBtnText');
-
-            if (bankSection) bankSection.hidden = !isBank;
-
-            const paystackLabel = document.getElementById('paymentMethodPaystack');
-            const bankLabel = document.getElementById('paymentMethodBank');
-            if (paystackLabel) paystackLabel.classList.toggle('is-selected', !isBank);
-            if (bankLabel) bankLabel.classList.toggle('is-selected', isBank);
-
-            if (btnText) {
-                btnText.textContent = isBank
-                    ? 'Submit application for verification'
-                    : 'Pay and submit application';
-            }
-        }
+        // The method chooser was removed when online payment was withdrawn.
+        // Kept as a no-op so anything still calling it cannot throw, and so
+        // restoring the chooser is a markup change rather than a code one.
+        function selectPaymentMethod() { /* bank transfer is the only route */ }
 
         // Show application fee badge when grade is selected
         function updateGradeFeeTag(grade) {

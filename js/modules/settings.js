@@ -51,16 +51,18 @@ const settingsModule = {
       schoolName: 'TBD International Academy',
       schoolAddress: 'Behind Civil Service Commission, Kertyo, Makurdi',
       schoolEmail: 'support@tbdacademy.org',
-      schoolPhone: '0803 061 4777',
+      schoolPhone: '0707 171 1692',
       academicYear: '2025/2026',
       currentTerm: 'Second Term',
       theme: 'dark',
       sessionTimeout: '24',
       currency: 'NGN',
-      bankName: 'First Bank of Nigeria',
-      bankAccountNo: '0123456789',
-      bankAccountName: 'TBD Academy',
-      bankSortCode: '011151003'
+      // The school's account, as printed on both published fee sheets.
+      // No sort code appears on either, so none is invented here.
+      bankName: 'Keystone Bank',
+      bankAccountNo: '1013525760',
+      bankAccountName: 'TBD International Academy',
+      bankSortCode: ''
     };
   },
 
@@ -81,7 +83,12 @@ const settingsModule = {
     return {
       ...settings,
       schoolName: upgrade('schoolName', settings.schoolName),
-      schoolAddress: upgrade('schoolAddress', settings.schoolAddress)
+      schoolAddress: upgrade('schoolAddress', settings.schoolAddress),
+      schoolPhone: upgrade('schoolPhone', settings.schoolPhone),
+      bankName: upgrade('bankName', settings.bankName),
+      bankAccountNo: upgrade('bankAccountNo', settings.bankAccountNo),
+      bankAccountName: upgrade('bankAccountName', settings.bankAccountName),
+      bankSortCode: upgrade('bankSortCode', settings.bankSortCode)
     };
   },
 

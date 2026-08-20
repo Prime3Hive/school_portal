@@ -88,13 +88,42 @@ const LEGACY_SCHOOL_VALUES = {
   schoolAddress: {
     'Lagos, Nigeria': 'Makurdi, Benue State',
     'Lagos': 'Makurdi, Benue State'
+  },
+  // The bank block shipped as a First Bank placeholder with a demo account
+  // number. The school's real account, printed on both published fee sheets,
+  // is Keystone Bank 1013525760. Changing the defaults alone would not reach
+  // an install that has already saved settings, and the placeholder was being
+  // shown to parents on invoices and deposit slips.
+  bankName: {
+    'First Bank of Nigeria': 'Keystone Bank'
+  },
+  bankAccountNo: {
+    '0123456789': '1013525760'
+  },
+  bankAccountName: {
+    'TBD Academy': 'TBD International Academy'
+  },
+  // First Bank's sort code, meaningless against a Keystone account. No sort
+  // code for the real account appears in any school document, so this clears
+  // rather than substituting one.
+  bankSortCode: {
+    '011151003': ''
+  },
+  // Superseded by the number on both fee sheets' letterhead.
+  schoolPhone: {
+    '0803 061 4777': '0707 171 1692'
   }
 };
 
 window.upgradeLegacySchoolValue = function (field, value) {
   const map = LEGACY_SCHOOL_VALUES[field];
   if (!map || typeof value !== 'string') return value;
-  return map[value.trim()] || value;
+  const key = value.trim();
+  // Presence, not truthiness: a superseded value can legitimately map to the
+  // empty string. bankSortCode does — the placeholder carried First Bank's
+  // code and no sort code for the real account appears in any school
+  // document, so the correct replacement is nothing rather than a guess.
+  return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : value;
 };
 
 if (typeof module !== 'undefined' && module.exports) {
