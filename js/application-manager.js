@@ -8,16 +8,23 @@
     // Display-only fee table. The amount actually charged and recorded is read
     // from `application_fee_schedule` server-side by the submit-application
     // edge function — a price shown here is never trusted by the backend.
+    // Keys are the canonical class names in js/school-config.js — the fourteen
+    // classes the school actually runs, and the same keys js/fee-structure.js
+    // prices against. Kindergarten, Nursery, Pre-Primary and Grade 1-6 used to
+    // be listed here and appear in the admissions dropdown; none of them is a
+    // class this school has ever run.
     const APPLICATION_FEES_FALLBACK = {
-        'Kindergarten': 5000,
-        'Nursery': 5000,
-        'Pre-Primary': 5000,
-        'Grade 1': 5000,
-        'Grade 2': 5000,
-        'Grade 3': 5000,
-        'Grade 4': 5000,
-        'Grade 5': 5000,
-        'Grade 6': 5000,
+        'Creche': 5000,
+        'Pre-nursery': 5000,
+        'Nursery 1': 5000,
+        'Nursery 2': 5000,
+        'Nursery 3': 5000,
+        'Basic 1': 5000,
+        'Basic 2': 5000,
+        'Basic 3': 5000,
+        'Basic 4': 5000,
+        'Basic 5': 5000,
+        'Basic 6': 5000,
         'JSS 1': 7500,
         'JSS 2': 7500,
         'JSS 3': 7500
@@ -529,6 +536,14 @@
         // Validate required inputs
         if (!studentName || !grade || !parentName || !parentEmail || !parentPhone) {
             showNotification('Please fill in all required fields.', 'error');
+            return;
+        }
+
+        // The select only offers the fourteen classes the school runs, but a
+        // hand-edited value would otherwise reach the payment step and be
+        // quoted the generic default. Refuse it here instead.
+        if (!Object.prototype.hasOwnProperty.call(APPLICATION_FEES_FALLBACK, grade)) {
+            showNotification('Please choose a class from the list.', 'error');
             return;
         }
 

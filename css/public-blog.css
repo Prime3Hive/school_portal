@@ -85,6 +85,14 @@
     --gradient-rainbow: linear-gradient(90deg, var(--brand-navy) 0%, var(--color-sky) 25%, var(--color-emerald) 50%, var(--color-amber) 75%, var(--brand-red) 100%);
     --gradient-overlay: linear-gradient(180deg, rgba(9, 14, 34, 0) 0%, rgba(9, 14, 34, 0.55) 100%);
 
+    /* Aliases for tokens the portal stylesheet defines under different
+       names. admissions.html carries inline styles inherited from the
+       portal, and without these its form borders fell back to
+       currentColor — heavy black rules around every input. */
+    --border-primary: var(--border-strong);
+    --bg-primary: var(--surface-muted);
+    --bg-secondary: var(--surface-tint);
+
     /* Default card accent (overridden per card) */
     --accent: var(--brand-navy);
     --accent-soft: hsla(227, 52%, 40%, 0.12);
@@ -3176,4 +3184,697 @@ body.modal-open {
 
 body.lightbox-open {
     overflow: hidden;
+}
+
+/* ===================================================================
+   Fee structure (admissions.html)
+
+   The table is rendered from js/fee-structure.js into #fee-table, one
+   card per published price band. Two things drive the design: a parent
+   comparing bands wants the totals to line up down the page, and a
+   parent checking a single band wants the itemisation readable. So the
+   totals sit on a fixed baseline at the top of every card and the items
+   below them use tabular figures, which keeps the naira columns aligned
+   however wide the amounts get.
+   =================================================================== */
+
+/* Segmented control — returning learners vs new intake. */
+.fee-toggle {
+    display: flex;
+    justify-content: center;
+    gap: 0.25rem;
+    max-width: 26rem;
+    margin: 0 auto 1rem;
+    padding: 0.3rem;
+    background: var(--surface-tint);
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+}
+
+.fee-toggle-btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    padding: 0.6rem 1rem;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.3s var(--ease-out), color 0.3s var(--ease-out),
+                box-shadow 0.3s var(--ease-out);
+}
+
+.fee-toggle-btn:hover {
+    color: var(--text-primary);
+}
+
+.fee-toggle-btn.is-active {
+    background: var(--surface);
+    color: var(--brand-navy);
+    box-shadow: var(--shadow-sm);
+}
+
+.fee-toggle-btn:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.fee-note {
+    max-width: 46rem;
+    margin: 0 auto clamp(1.75rem, 5vw, 2.75rem);
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+/* One card per price band. auto-fit keeps six bands on three columns at
+   desktop width and collapses cleanly without a breakpoint per step. */
+.fee-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr));
+    gap: clamp(1rem, 2.5vw, 1.5rem);
+    align-items: start;
+}
+
+.fee-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: clamp(1.35rem, 3.5vw, 1.75rem);
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    transition: transform 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out),
+                border-color 0.35s var(--ease-out);
+}
+
+/* A permanent accent bar, not a hover reveal: it is the only thing
+   distinguishing one band's card from the next at a glance. */
+.fee-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto;
+    height: 4px;
+    background: var(--accent-grad);
+}
+
+.fee-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-strong);
+}
+
+/* Walk the brand palette across the bands so each is identifiable. */
+.fee-grid > .fee-card:nth-child(6n + 1) { --accent-grad: var(--gradient-violet); }
+.fee-grid > .fee-card:nth-child(6n + 2) { --accent-grad: var(--gradient-amber); }
+.fee-grid > .fee-card:nth-child(6n + 3) { --accent-grad: var(--gradient-sky); }
+.fee-grid > .fee-card:nth-child(6n + 4) { --accent-grad: var(--gradient-primary); }
+.fee-grid > .fee-card:nth-child(6n + 5) { --accent-grad: var(--gradient-emerald); }
+.fee-grid > .fee-card:nth-child(6n + 6) { --accent-grad: var(--gradient-accent); }
+
+.fee-card h3 {
+    margin: 0.35rem 0 0;
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    color: var(--text-tertiary);
+}
+
+.fee-total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.4rem;
+    margin: 0.5rem 0 1.1rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 5vw, 2.125rem);
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--brand-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.fee-total-unit {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-tertiary);
+}
+
+.fee-rows {
+    display: flex;
+    flex-direction: column;
+    padding-top: 0.35rem;
+    border-top: 1px solid var(--border-soft);
+}
+
+.fee-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.5rem 0;
+    font-size: 0.9rem;
+    line-height: 1.4;
+}
+
+.fee-row + .fee-row {
+    border-top: 1px solid var(--border-soft);
+}
+
+.fee-row span {
+    color: var(--text-secondary);
+    min-width: 0;
+}
+
+.fee-row strong {
+    flex: none;
+    color: var(--text-primary);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+/* The uniform set: charged once on admission, not every term. Tinted and
+   tagged so nobody reads it as a recurring line. */
+.fee-row-once {
+    margin: 0.35rem -0.6rem 0;
+    padding: 0.55rem 0.6rem;
+    background: var(--surface-tint);
+    border-top: 0;
+    border-radius: var(--radius-md);
+}
+
+.fee-row-once + .fee-row,
+.fee-row-once {
+    border-top: 1px solid var(--border-soft);
+}
+
+.fee-row-once strong {
+    color: var(--brand-navy);
+}
+
+.fee-row-tag {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.7rem;
+    font-style: normal;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-amber-deep);
+}
+
+/* Supporting panels — items to bring, and where to pay. */
+.fee-extras,
+.fee-bank {
+    margin-top: clamp(1.5rem, 4vw, 2.25rem);
+    padding: clamp(1.35rem, 3.5vw, 1.85rem);
+    background: var(--surface-tint);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+}
+
+.fee-extras h3,
+.fee-bank h3 {
+    margin: 0 0 0.5rem;
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.fee-extras p,
+.fee-bank p {
+    margin: 0 0 1rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.7;
+}
+
+.fee-extras ul {
+    display: grid;
+    gap: 0.65rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.fee-extras li {
+    position: relative;
+    padding-left: 1.5rem;
+    color: var(--text-secondary);
+    font-size: 0.925rem;
+    line-height: 1.65;
+}
+
+.fee-extras li::before {
+    content: '\f00c';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    left: 0;
+    top: 0.1em;
+    font-size: 0.8em;
+    color: var(--color-emerald);
+}
+
+.fee-extras li strong {
+    color: var(--text-primary);
+}
+
+/* Bank details: label above value, so a long account name never
+   squeezes the number onto two lines on a phone. */
+.fee-bank dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+    gap: 1rem;
+    margin: 0;
+}
+
+.fee-bank dt {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-tertiary);
+}
+
+.fee-bank dd {
+    margin: 0.25rem 0 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fee-card,
+    .fee-toggle-btn {
+        transition: none;
+    }
+
+    .fee-card:hover {
+        transform: none;
+    }
+}
+
+/* ===================================================================
+   Application fee payment (admissions.html, step 4)
+
+   The bank account is the part of this form a parent has to copy by
+   hand into a banking app, so it gets the most weight on the page:
+   its own panel, one field per row, tabular figures, and a copy
+   button on the account number.
+   =================================================================== */
+
+/* What is owed, before how to pay it. */
+.pay-due {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.5rem 1.25rem;
+    padding: clamp(1rem, 3vw, 1.35rem);
+    background: var(--surface-tint);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-md);
+}
+
+.pay-due-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-tertiary);
+}
+
+.pay-due-amount {
+    display: block;
+    margin-top: 0.15rem;
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 5vw, 2.125rem);
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--brand-navy);
+    font-variant-numeric: tabular-nums;
+}
+
+.pay-due-hint {
+    flex: 1 1 14rem;
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-secondary);
+}
+
+/* Method chooser — two selectable cards, not bare radios. */
+.pay-methods {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    gap: 0.75rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.pay-methods-legend {
+    padding: 0;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.pay-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    background: var(--surface);
+    border: 2px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: border-color 0.25s var(--ease-out), background 0.25s var(--ease-out),
+                box-shadow 0.25s var(--ease-out);
+}
+
+.pay-option:hover {
+    border-color: var(--border-strong);
+}
+
+.pay-option.is-selected {
+    border-color: var(--color-primary);
+    background: var(--surface-tint);
+    box-shadow: var(--shadow-sm);
+}
+
+/* The radio keeps the accessible semantics; the card carries the styling. */
+.pay-option input[type="radio"] {
+    flex: none;
+    width: 20px;
+    height: 20px;
+    margin-top: 0.15rem;
+    accent-color: var(--color-primary);
+}
+
+.pay-option:focus-within {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.pay-option-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.pay-option-title {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.pay-option-title i {
+    color: var(--color-primary);
+}
+
+.pay-option-sub {
+    font-size: 0.825rem;
+    line-height: 1.5;
+    color: var(--text-tertiary);
+}
+
+/* The account panel. */
+.pay-bank {
+    margin-top: 1.25rem;
+    padding: clamp(1.1rem, 3vw, 1.5rem);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.pay-bank-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--brand-navy);
+}
+
+.pay-bank-list {
+    display: grid;
+    gap: 0.75rem;
+    margin: 0 0 1.15rem;
+}
+
+.pay-bank-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem 1rem;
+    padding-bottom: 0.7rem;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.pay-bank-row:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.pay-bank-row dt {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-tertiary);
+}
+
+.pay-bank-row dd {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+/* The number a parent retypes into a banking app: spaced, monospaced
+   figures so digits cannot be misread or transposed. */
+.pay-bank-acct {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.pay-bank-acct span {
+    font-size: 1.2rem;
+    letter-spacing: 0.08em;
+    font-variant-numeric: tabular-nums;
+}
+
+.pay-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-height: 36px;
+    padding: 0.35rem 0.7rem;
+    background: var(--surface-tint);
+    border: 1px solid var(--border-strong);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.25s var(--ease-out), color 0.25s var(--ease-out),
+                border-color 0.25s var(--ease-out);
+}
+
+.pay-copy:hover {
+    color: var(--brand-navy);
+    border-color: var(--color-primary);
+}
+
+.pay-copy:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+.pay-copy.is-copied {
+    background: hsla(158, 68%, 40%, 0.12);
+    border-color: var(--color-emerald);
+    color: var(--color-emerald-deep);
+}
+
+.pay-steps {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0 0 1rem;
+    padding-left: 1.15rem;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.pay-steps::marker,
+.pay-steps li::marker {
+    color: var(--color-primary);
+    font-weight: 700;
+}
+
+.pay-note {
+    display: flex;
+    gap: 0.55rem;
+    margin: 0;
+    padding: 0.8rem 0.9rem;
+    background: var(--surface-tint);
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.6;
+}
+
+.pay-note i {
+    flex: none;
+    margin-top: 0.15em;
+    color: var(--color-primary);
+}
+
+/* Fields inside the bank-transfer branch. */
+.pay-field {
+    margin-top: 1.25rem;
+}
+
+.pay-label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.pay-req {
+    color: var(--brand-red);
+}
+
+.pay-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: var(--surface);
+    border: 2px solid var(--border-soft);
+    border-radius: var(--radius-md);
+    font-family: inherit;
+    font-size: 1rem;
+    color: var(--text-primary);
+    transition: border-color 0.25s var(--ease-out), box-shadow 0.25s var(--ease-out);
+}
+
+.pay-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 4px hsla(227, 52%, 34%, 0.12);
+}
+
+.pay-input-file {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.pay-hint {
+    margin: 0.4rem 0 0;
+    font-size: 0.78rem;
+    color: var(--text-tertiary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pay-option,
+    .pay-copy,
+    .pay-input {
+        transition: none;
+    }
+}
+
+/* Account strip in the "How to Apply" steps — the same account as the
+   payment panel, shown early for parents who pay before they fill in. */
+.pay-account-strip {
+    display: grid;
+    gap: clamp(1rem, 3vw, 1.75rem);
+    margin-top: clamp(1.75rem, 5vw, 2.5rem);
+    padding: clamp(1.15rem, 3vw, 1.6rem);
+    background: var(--surface-tint);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-lg);
+}
+
+.pay-account-strip-intro {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.pay-account-strip-intro i {
+    flex: none;
+    margin-top: 0.15rem;
+    font-size: 1.35rem;
+    color: var(--color-primary);
+}
+
+.pay-account-strip-intro strong {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+
+.pay-account-strip-intro span {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+}
+
+.pay-account-strip-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+    gap: 1rem;
+    margin: 0;
+}
+
+.pay-account-strip-list dt {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-tertiary);
+}
+
+.pay-account-strip-list dd {
+    margin: 0.3rem 0 0;
+    font-size: 1.02rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    overflow-wrap: anywhere;
+}
+
+@media (min-width: 48rem) {
+    .pay-account-strip {
+        grid-template-columns: minmax(12rem, 0.8fr) 2fr;
+        align-items: center;
+    }
 }

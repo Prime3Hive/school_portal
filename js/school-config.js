@@ -290,10 +290,13 @@ const schoolConfig = {
         return allGrades[currentIndex + 1];
     },
 
+    // Levels are the three carried by the grade entries above. 'Pre-Primary'
+    // used to be accepted here as a fourth name; no grade in this file has
+    // ever had that level, and the school does not run a class by that name.
     getSubjectsForLevel(level) {
-        if (level === 'Early Years' || level === 'Pre-Primary') return this.subjects.nursery;
+        if (level === 'Early Years') return this.subjects.nursery;
         if (level === 'Primary') return this.subjects.primary;
-        if (level === 'Junior Secondary' || level === 'Secondary') return this.subjects.secondary;
+        if (level === 'Junior Secondary') return this.subjects.secondary;
         return [];
     },
 

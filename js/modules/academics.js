@@ -321,9 +321,19 @@ const academicsModule = {
       }).join('')}`;
   },
 
+  /** The classes the school runs, from js/school-config.js. */
+  _gradeNames() {
+    if (window.schoolConfig && typeof window.schoolConfig.getGradeCodes === 'function') {
+      return window.schoolConfig.getGradeCodes();
+    }
+    return ['Creche', 'Pre-nursery', 'Nursery 1', 'Nursery 2', 'Nursery 3',
+            'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
+            'JSS 1', 'JSS 2', 'JSS 3'];
+  },
+
   showAddClassModal() {
     const teachers = this._getStaff();
-    const grades = ['Primary 1','Primary 2','Primary 3','Primary 4','Primary 5','Primary 6','JSS1','JSS2','JSS3','SS1','SS2','SS3'];
+    const grades = this._gradeNames();
     const content = `
       <form id="add-class-form">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
@@ -1136,7 +1146,7 @@ const academicsModule = {
               <div><label class="form-label">Grade *</label>
                 <select class="form-select" name="grade" required>
                   <option value="">Select grade</option>
-                  ${['JSS1','JSS2','JSS3','SS1','SS2','SS3'].map(g => `<option value="${g}" ${plan?.grade === g ? 'selected' : ''}>${g}</option>`).join('')}
+                  ${this._gradeNames().map(g => `<option value="${g}" ${plan?.grade === g ? 'selected' : ''}>${g}</option>`).join('')}
                 </select>
               </div>
               <div><label class="form-label">Week Starting *</label><input class="form-input" type="date" name="weekStarting" required value="${plan?.weekStarting ? plan.weekStarting.split('T')[0] : this._lpWeekFilter}"></div>
@@ -1378,11 +1388,13 @@ const academicsModule = {
   },
 
   _allGradeGroups() {
+    const all = this._gradeNames();
+    const inGroup = (prefixes) => all.filter(g => prefixes.some(p => g.startsWith(p)));
     return [
-      { label: 'Primary',          grades: ['Primary 1','Primary 2','Primary 3','Primary 4','Primary 5','Primary 6'] },
-      { label: 'Junior Secondary', grades: ['JSS1','JSS2','JSS3'] },
-      { label: 'Senior Secondary', grades: ['SS1','SS2','SS3'] },
-    ];
+      { label: 'Early Years',      grades: inGroup(['Creche', 'Pre-nursery', 'Nursery']) },
+      { label: 'Basic',            grades: inGroup(['Basic']) },
+      { label: 'Junior Secondary', grades: inGroup(['JSS']) },
+    ].filter(group => group.grades.length > 0);
   },
 
   _openAddSubjectModal(existing) {
@@ -1468,7 +1480,7 @@ const academicsModule = {
     const rows = categories.map(cat => `
       <tr><td colspan="3" style="background:var(--bg-tertiary);font-size:0.72rem;font-weight:700;color:var(--text-secondary);padding:0.35rem 0.75rem;text-transform:uppercase;">${cat}</td></tr>
       ${std.filter(s => s.category === cat).map(s => { const exists = existing.includes(s.code.toUpperCase()); return `<tr><td style="padding:0.45rem 0.75rem;"><input type="checkbox" name="seed_${s.code}" value="${s.code}" ${exists ? 'disabled' : 'checked'} style="width:15px;height:15px;cursor:pointer;"></td><td style="padding:0.45rem 0.75rem;font-size:0.875rem;">${s.icon} ${this._esc(s.name)}</td><td style="padding:0.45rem 0.75rem;font-size:0.78rem;color:var(--text-secondary);">${exists ? '<span style="color:#10b981;font-weight:600;">✓ Added</span>' : `<code>${s.code}</code>`}</td></tr>`; }).join('')}`).join('');
-    const grades = ['JSS1','JSS2','JSS3','SS1','SS2','SS3','Primary 1','Primary 2','Primary 3','Primary 4','Primary 5','Primary 6'];
+    const grades = this._gradeNames();
     const content = `
       <form id="seed-form">
         <p style="margin-bottom:16px;font-size:0.875rem;color:var(--text-secondary);">Select subjects to import. Already-added subjects are disabled.</p>

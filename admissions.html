@@ -29,6 +29,9 @@
     <!-- Environment Variables Loader -->
     <script src="js/html-escape.js"></script>
     <script src="js/env-loader.js"></script>
+    <!-- Single source of truth for what a term costs. Rendered into #fee-table
+         below, so this page can never disagree with what the portal bills. -->
+    <script src="js/fee-structure.js"></script>
 
     <!-- Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -164,6 +167,39 @@
                     </p>
                 </div>
             </div>
+
+            <!-- The account is repeated inside the payment step of the form.
+                 It is surfaced here too so a parent who wants to pay before
+                 sitting down to the form does not have to hunt for it. -->
+            <div class="pay-account-strip">
+                <div class="pay-account-strip-intro">
+                    <i class="fas fa-building-columns" aria-hidden="true"></i>
+                    <div>
+                        <strong>School account</strong>
+                        <span>For the application fee and school fees alike.</span>
+                    </div>
+                </div>
+                <dl class="pay-account-strip-list">
+                    <div>
+                        <dt>Bank</dt>
+                        <dd id="stripBank">Keystone Bank</dd>
+                    </div>
+                    <div>
+                        <dt>Account name</dt>
+                        <dd id="stripAcctName">TBD International Academy</dd>
+                    </div>
+                    <div>
+                        <dt>Account number</dt>
+                        <dd class="pay-bank-acct">
+                            <span id="stripAcctNo">1013525760</span>
+                            <button type="button" class="pay-copy" data-copy-from="stripAcctNo">
+                                <i class="fas fa-copy" aria-hidden="true"></i>
+                                <span>Copy</span>
+                            </button>
+                        </dd>
+                    </div>
+                </dl>
+            </div>
         </div>
     </section>
 
@@ -275,19 +311,27 @@
                                     onfocus="this.style.borderColor='var(--color-primary)'"
                                     onblur="this.style.borderColor='var(--border-primary)'"
                                     onchange="updateGradeFeeTag(this.value)">
-                                    <option value="">Select Grade</option>
+                                    <!-- The fourteen classes the school runs. Values are the
+                                         canonical names in js/school-config.js, which are also the
+                                         keys js/fee-structure.js prices against. Kindergarten,
+                                         Nursery and Pre-Primary used to sit here and matched
+                                         neither file, so choosing one produced a pupil the fee
+                                         engine valued at zero. -->
+                                    <option value="">Select class</option>
                                     <optgroup label="Early Years">
-                                        <option value="Kindergarten">Kindergarten</option>
-                                        <option value="Nursery">Nursery</option>
-                                        <option value="Pre-Primary">Pre-Primary</option>
+                                        <option value="Creche">Creche</option>
+                                        <option value="Pre-nursery">Pre-Nursery</option>
+                                        <option value="Nursery 1">Nursery 1</option>
+                                        <option value="Nursery 2">Nursery 2</option>
+                                        <option value="Nursery 3">Nursery 3</option>
                                     </optgroup>
-                                    <optgroup label="Primary">
-                                        <option value="Grade 1">Grade 1</option>
-                                        <option value="Grade 2">Grade 2</option>
-                                        <option value="Grade 3">Grade 3</option>
-                                        <option value="Grade 4">Grade 4</option>
-                                        <option value="Grade 5">Grade 5</option>
-                                        <option value="Grade 6">Grade 6</option>
+                                    <optgroup label="Basic">
+                                        <option value="Basic 1">Basic 1</option>
+                                        <option value="Basic 2">Basic 2</option>
+                                        <option value="Basic 3">Basic 3</option>
+                                        <option value="Basic 4">Basic 4</option>
+                                        <option value="Basic 5">Basic 5</option>
+                                        <option value="Basic 6">Basic 6</option>
                                     </optgroup>
                                     <optgroup label="Junior Secondary">
                                         <option value="JSS 1">JSS 1</option>
@@ -442,63 +486,104 @@
                                 <i class="fas fa-credit-card" style="margin-right:0.5rem;"></i>④ Application Fee Payment
                             </div>
 
-                            <!-- Payment Method Selection -->
-                            <div>
-                                <p style="font-size: 0.875rem; color: var(--text-secondary); margin: 0 0 1rem;">
-                                    Application fee: <strong id="applicationFeeDisplay">&#8358;5,000</strong> &#8212; Select your preferred payment method below.
-                                </p>
-                                <div style="display: flex; flex-wrap: wrap; gap: 1rem;">
-                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border: 2px solid var(--color-primary); border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease; background: hsla(220, 70%, 50%, 0.05); flex: 1; min-width: 200px;" id="paymentMethodPaystack" onclick="selectPaymentMethod('paystack')">
-                                        <input type="radio" name="paymentMethod" value="paystack" checked style="accent-color: var(--color-primary); width: 18px; height: 18px;">
-                                        <div>
-                                            <div style="font-weight: 600; color: var(--text-primary);"><i class="fas fa-bolt" style="color: hsl(45, 100%, 45%);"></i> Paystack (Online)</div>
-                                            <div style="font-size: 0.8rem; color: var(--text-tertiary);">Pay instantly with card</div>
-                                        </div>
-                                    </label>
-                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); cursor: pointer; transition: all 0.3s ease; flex: 1; min-width: 200px;" id="paymentMethodBank" onclick="selectPaymentMethod('bank-transfer')">
-                                        <input type="radio" name="paymentMethod" value="bank-transfer" style="accent-color: var(--color-primary); width: 18px; height: 18px;">
-                                        <div>
-                                            <div style="font-weight: 600; color: var(--text-primary);"><i class="fas fa-university" style="color: hsl(220, 70%, 50%);"></i> Bank Transfer</div>
-                                            <div style="font-size: 0.8rem; color: var(--text-tertiary);">Deposit and upload receipt</div>
-                                        </div>
-                                    </label>
+                            <!-- Amount due. The figure is display-only; the amount
+                                 actually charged is read server-side by the
+                                 submit-application edge function. -->
+                            <div class="pay-due">
+                                <div>
+                                    <span class="pay-due-label">Application fee</span>
+                                    <span class="pay-due-amount" id="applicationFeeDisplay">&#8358;5,000</span>
                                 </div>
+                                <p class="pay-due-hint" id="applicationFeeHint">
+                                    Select a class above and the exact fee for that level appears here.
+                                </p>
                             </div>
 
-                            <!-- Bank Transfer Details (hidden by default) -->
-                            <div id="bankTransferSection" style="display: none;">
-                                <div style="padding: 1.25rem; background: linear-gradient(135deg, hsl(220, 70%, 97%), hsl(220, 70%, 93%)); border-radius: var(--radius-md); border-left: 4px solid hsl(220, 70%, 50%); margin-bottom: 1rem;">
-                                    <h4 style="margin: 0 0 0.75rem; color: hsl(220, 70%, 35%); display: flex; align-items: center; gap: 0.5rem;">
-                                        <i class="fas fa-university"></i> School Bank Details
+                            <!-- Payment Method Selection -->
+                            <fieldset class="pay-methods">
+                                <legend class="pay-methods-legend">How would you like to pay?</legend>
+                                <label class="pay-option is-selected" id="paymentMethodPaystack">
+                                    <input type="radio" name="paymentMethod" value="paystack" checked
+                                        onchange="selectPaymentMethod('paystack')">
+                                    <span class="pay-option-body">
+                                        <span class="pay-option-title">
+                                            <i class="fas fa-bolt"></i> Paystack
+                                        </span>
+                                        <span class="pay-option-sub">Card or transfer, confirmed instantly</span>
+                                    </span>
+                                </label>
+                                <label class="pay-option" id="paymentMethodBank">
+                                    <input type="radio" name="paymentMethod" value="bank-transfer"
+                                        onchange="selectPaymentMethod('bank-transfer')">
+                                    <span class="pay-option-body">
+                                        <span class="pay-option-title">
+                                            <i class="fas fa-building-columns"></i> Bank transfer
+                                        </span>
+                                        <span class="pay-option-sub">Pay into the school account, then upload the receipt</span>
+                                    </span>
+                                </label>
+                            </fieldset>
+
+                            <!-- Bank Transfer Details (hidden until chosen) -->
+                            <div id="bankTransferSection" hidden>
+                                <div class="pay-bank">
+                                    <h4 class="pay-bank-head">
+                                        <i class="fas fa-building-columns"></i> Pay into this account
                                     </h4>
-                                    <div id="bankDetailsGrid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.9rem;">
-                                        <div><strong>Bank:</strong> <span id="bdBank">First Bank of Nigeria</span></div>
-                                        <div><strong>Account No:</strong> <span id="bdAcctNo">Contact school office</span></div>
-                                        <div><strong>Account Name:</strong> <span id="bdAcctName">TBD Academy</span></div>
-                                        <div><strong>Branch:</strong> <span id="bdBranch">Makurdi Main</span></div>
-                                    </div>
-                                    <p style="margin: 0.75rem 0 0; font-size: 0.8rem; color: hsl(220, 50%, 40%);">
-                                        <i class="fas fa-info-circle"></i> Make the deposit, then upload the receipt below. Your application will be reviewed after payment verification by admin.
+
+                                    <dl class="pay-bank-list">
+                                        <div class="pay-bank-row">
+                                            <dt>Bank</dt>
+                                            <dd><span id="bdBank">Keystone Bank</span></dd>
+                                        </div>
+                                        <div class="pay-bank-row">
+                                            <dt>Account name</dt>
+                                            <dd><span id="bdAcctName">TBD International Academy</span></dd>
+                                        </div>
+                                        <div class="pay-bank-row">
+                                            <dt>Account number</dt>
+                                            <dd class="pay-bank-acct">
+                                                <span id="bdAcctNo">1013525760</span>
+                                                <button type="button" class="pay-copy" data-copy-from="bdAcctNo">
+                                                    <i class="fas fa-copy" aria-hidden="true"></i>
+                                                    <span>Copy</span>
+                                                </button>
+                                            </dd>
+                                        </div>
+                                    </dl>
+
+                                    <ol class="pay-steps">
+                                        <li>Transfer the application fee shown above into the account.</li>
+                                        <li>Use the applicant&rsquo;s full name as the transfer narration.</li>
+                                        <li>Enter the reference and upload the receipt below.</li>
+                                    </ol>
+
+                                    <p class="pay-note">
+                                        <i class="fas fa-circle-info" aria-hidden="true"></i>
+                                        Your application is reviewed once the bursary has confirmed the payment.
+                                        This is usually the next working day.
                                     </p>
                                 </div>
-                                <div style="margin-bottom: 1rem;">
-                                    <label for="bankTransactionRef" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
-                                        Transaction Reference / Teller Number <span style="color: hsl(0, 80%, 55%);">*</span>
+
+                                <div class="pay-field">
+                                    <label class="pay-label" for="bankTransactionRef">
+                                        Transaction reference or teller number <span class="pay-req">*</span>
                                     </label>
                                     <input type="text" id="bankTransactionRef" name="bankTransactionRef"
-                                        style="width: 100%; padding: 0.75rem 1rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-size: 1rem;"
-                                        placeholder="Enter deposit reference or teller number">
+                                        class="pay-input" placeholder="e.g. FT26081900123456">
+                                    <p class="pay-hint">Copy this from your transfer receipt or bank alert.</p>
                                 </div>
-                                <div>
-                                    <label for="bankReceipt" style="display: block; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-primary);">
-                                        Upload Payment Receipt <span style="color: hsl(0, 80%, 55%);">*</span>
+
+                                <div class="pay-field">
+                                    <label class="pay-label" for="bankReceipt">
+                                        Upload payment receipt <span class="pay-req">*</span>
                                     </label>
                                     <input type="file" id="bankReceipt" name="bankReceipt" accept=".jpg,.jpeg,.png,.pdf"
-                                        style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md);"
+                                        class="pay-input pay-input-file"
                                         onchange="handleFileSelect(this, 'bankReceiptInfo')">
                                     <div id="bankReceiptInfo" class="file-info" style="margin-top: 0.5rem; display: none; font-size: 0.875rem; color: var(--text-secondary);"></div>
                                     <div id="bankReceiptPreview" style="display:none; margin-top: 0.5rem;"></div>
-                                    <p style="font-size: 0.75rem; color: var(--text-tertiary); margin-top: 0.25rem;">Accepted: JPG, PNG, PDF (max 5MB)</p>
+                                    <p class="pay-hint">JPG, PNG or PDF, up to 5MB.</p>
                                 </div>
                             </div>
 
@@ -506,7 +591,7 @@
                             <button type="submit" class="btn btn-primary" id="submitApplicationBtn"
                                 style="width: 100%; justify-content: center; padding: 1rem;">
                                 <i class="fas fa-paper-plane"></i>
-                                <span id="submitBtnText">Pay and Submit Application</span>
+                                <span id="submitBtnText">Pay and submit application</span>
                             </button>
                         </div>
                     </form>
@@ -554,118 +639,155 @@
     <section class="section" id="fees">
         <div class="section-container">
             <div class="section-header">
-                <span class="section-badge">Tuition & Fees</span>
-                <h2 class="section-title">Fee Structure (Per Term)</h2>
+                <span class="section-badge">Tuition &amp; Fees</span>
+                <h2 class="section-title">Fee Structure &mdash; 2026/2027</h2>
                 <p class="section-subtitle">
-                    Transparent pricing for quality education
+                    Every amount below is for <strong>one term</strong>. There are three terms
+                    in a session.
                 </p>
             </div>
 
-            <div class="grid grid-3">
-                <div class="card">
-                    <h3 class="card-title" style="color: hsl(45, 100%, 40%);">Nursery</h3>
-                    <div style="font-size: 2.5rem; font-weight: 700; color: var(--color-primary); margin: 1rem 0;">
-                        ₦185,000
-                    </div>
-                    <div style="display: grid; gap: 0.75rem; color: var(--text-secondary);">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Tuition:</span>
-                            <strong>₦150,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Development:</span>
-                            <strong>₦20,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>PTA:</span>
-                            <strong>₦5,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Uniform (yearly):</span>
-                            <strong>₦15,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Books (yearly):</span>
-                            <strong>₦10,000</strong>
-                        </div>
-                    </div>
-                </div>
+            <div class="fee-toggle" role="tablist" aria-label="Which fees apply">
+                <button type="button" class="fee-toggle-btn is-active" role="tab"
+                    aria-selected="true" data-enrolment="returning">
+                    Returning learners
+                </button>
+                <button type="button" class="fee-toggle-btn" role="tab"
+                    aria-selected="false" data-enrolment="new">
+                    New intake
+                </button>
+            </div>
 
-                <div class="card" style="border: 2px solid var(--color-primary);">
-                    <div
-                        style="background: var(--gradient-primary); color: white; padding: 0.5rem 1rem; border-radius: var(--radius-md); display: inline-block; margin-bottom: 1rem; font-size: 0.875rem; font-weight: 600;">
-                        MOST POPULAR
-                    </div>
-                    <h3 class="card-title" style="color: hsl(200, 90%, 45%);">Primary (1-6)</h3>
-                    <div style="font-size: 2.5rem; font-weight: 700; color: var(--color-primary); margin: 1rem 0;">
-                        ₦218,000
-                    </div>
-                    <div style="display: grid; gap: 0.75rem; color: var(--text-secondary);">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Tuition:</span>
-                            <strong>₦180,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Development:</span>
-                            <strong>₦25,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>PTA:</span>
-                            <strong>₦5,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Exam:</span>
-                            <strong>₦8,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Uniform (yearly):</span>
-                            <strong>₦18,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Books (yearly):</span>
-                            <strong>₦15,000</strong>
-                        </div>
-                    </div>
-                </div>
+            <p class="fee-note" id="fee-note">
+                Fees for learners already with us. New pupils also buy the uniform set
+                &mdash; switch above to see it.
+            </p>
 
-                <div class="card">
-                    <h3 class="card-title" style="color: hsl(150, 70%, 35%);">JSS (1-3)</h3>
-                    <div style="font-size: 2.5rem; font-weight: 700; color: var(--color-primary); margin: 1rem 0;">
-                        ₦285,000
-                    </div>
-                    <div style="display: grid; gap: 0.75rem; color: var(--text-secondary);">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Tuition:</span>
-                            <strong>₦220,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Development:</span>
-                            <strong>₦30,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>PTA:</span>
-                            <strong>₦5,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Exam:</span>
-                            <strong>₦10,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Lab:</span>
-                            <strong>₦15,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Uniform (yearly):</span>
-                            <strong>₦20,000</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>Books (yearly):</span>
-                            <strong>₦20,000</strong>
-                        </div>
-                    </div>
-                </div>
+            <div id="fee-table" class="fee-grid">
+                <!-- rendered from js/fee-structure.js -->
+            </div>
+
+            <div class="fee-extras">
+                <h3>Also required, once per term</h3>
+                <p>
+                    Each learner brings a few items on resumption, by class. These are
+                    collected in the first week.
+                </p>
+                <ul id="fee-extras-list"></ul>
+            </div>
+
+            <div class="fee-bank">
+                <h3>Paying</h3>
+                <p>
+                    Fees can be paid in the parent portal, at the school bursary, or by
+                    transfer to:
+                </p>
+                <dl>
+                    <dt>Bank</dt><dd id="fee-bank-name">&mdash;</dd>
+                    <dt>Account name</dt><dd id="fee-bank-account-name">&mdash;</dd>
+                    <dt>Account number</dt><dd id="fee-bank-account-no">&mdash;</dd>
+                </dl>
             </div>
         </div>
+
+        <script>
+        /* Render the published price list from window.feeStructure.
+           The school publishes six price bands, not one per class, so grades
+           that cost the same are shown together — Nursery 1-3 on one card,
+           Basic 1-3 on another. That grouping comes from the amounts
+           themselves, so it stays correct if a band is ever split. */
+        (function renderFees() {
+            var fee = window.feeStructure;
+            if (!fee) return;
+
+            var ORDER = ['Creche', 'Pre-nursery', 'Nursery 1', 'Nursery 2', 'Nursery 3',
+                         'Basic 1', 'Basic 2', 'Basic 3', 'Basic 4', 'Basic 5', 'Basic 6',
+                         'JSS 1', 'JSS 2', 'JSS 3'];
+            var naira = function (n) { return '\u20A6' + Number(n).toLocaleString('en-NG'); };
+
+            /** Group consecutive grades whose item lists are identical. */
+            function bands(enrolment) {
+                var out = [];
+                ORDER.forEach(function (grade) {
+                    var items = fee.getFeeItems(grade, enrolment);
+                    var key = JSON.stringify(items.map(function (i) { return [i.id, i.amount]; }));
+                    var last = out[out.length - 1];
+                    if (last && last.key === key) last.grades.push(grade);
+                    else out.push({ key: key, grades: [grade], items: items,
+                                    total: fee.getTotalFees(grade, enrolment) });
+                });
+                return out;
+            }
+
+            // The config key is 'Pre-nursery'; the school writes it Pre-Nursery.
+            var DISPLAY = { 'Pre-nursery': 'Pre-Nursery' };
+            function label(grades) {
+                grades = grades.map(function (g) { return DISPLAY[g] || g; });
+                if (grades.length === 1) return grades[0];
+                var a = grades[0], b = grades[grades.length - 1];
+                // "Nursery 1 - Nursery 3" reads better as "Nursery 1-3".
+                var pa = a.split(' '), pb = b.split(' ');
+                if (pa[0] === pb[0] && pa.length === 2) return pa[0] + ' ' + pa[1] + '-' + pb[1];
+                return a + ' \u2013 ' + b;
+            }
+
+            function render(enrolment) {
+                var host = document.getElementById('fee-table');
+                if (!host) return;
+                host.innerHTML = bands(enrolment).map(function (b) {
+                    // The uniform set is the only line that separates new intake
+                    // from returning, and it is charged once rather than termly,
+                    // so it is marked rather than left to be spotted in the list.
+                    var rows = b.items.map(function (i) {
+                        var once = i.oncePerAdmission;
+                        return '<div class="fee-row' + (once ? ' fee-row-once' : '') + '">' +
+                               '<span>' + i.name +
+                                 (once ? '<em class="fee-row-tag">once, on admission</em>' : '') +
+                               '</span><strong>' + naira(i.amount) + '</strong></div>';
+                    }).join('');
+                    return '<article class="fee-card">' +
+                             '<h3>' + label(b.grades) + '</h3>' +
+                             '<p class="fee-total">' + naira(b.total) +
+                               '<span class="fee-total-unit">per term</span></p>' +
+                             '<div class="fee-rows">' + rows + '</div>' +
+                           '</article>';
+                }).join('');
+
+                var note = document.getElementById('fee-note');
+                if (note) {
+                    note.textContent = enrolment === 'new'
+                        ? 'Fees for a learner joining us this session. The uniform set is bought once, on admission, and is not charged again.'
+                        : 'Fees for learners already with us. New pupils also buy the uniform set \u2014 switch above to see it.';
+                }
+            }
+
+            document.querySelectorAll('.fee-toggle-btn').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    document.querySelectorAll('.fee-toggle-btn').forEach(function (b) {
+                        b.classList.toggle('is-active', b === btn);
+                        b.setAttribute('aria-selected', String(b === btn));
+                    });
+                    render(btn.dataset.enrolment);
+                });
+            });
+
+            // Items each learner brings, and the bank details, both from config.
+            var extras = document.getElementById('fee-extras-list');
+            if (extras && fee.additionalItems) {
+                extras.innerHTML =
+                    '<li><strong>Creche:</strong> ' + fee.additionalItems.creche.join(', ') + '</li>' +
+                    '<li><strong>Nursery and above:</strong> ' + fee.additionalItems.preNurToBasic.join(', ') + '</li>';
+            }
+            if (fee.bankDetails) {
+                var set = function (id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+                set('fee-bank-name', fee.bankDetails.name);
+                set('fee-bank-account-name', fee.bankDetails.accountName);
+                set('fee-bank-account-no', fee.bankDetails.accountNumber);
+            }
+
+            render('returning');
+        })();
+        </script>
     </section>
 
     <!-- Payment Confirmation Modal -->
@@ -919,39 +1041,77 @@
         window.clearApplicationDraft = clearDraft;
 
         // Populate bank details from ENV
+        // Order of authority: SCHOOL_BANK_* environment overrides first, then
+        // js/fee-structure.js, which carries the account printed on both fee
+        // sheets. The markup defaults match fee-structure.js so the panel is
+        // still correct if neither source loads.
         function populateBankDetails() {
             const env = window.ENV || {};
-            const set = (id, val, fallback) => {
+            const bank = (window.feeStructure && window.feeStructure.bankDetails) || {};
+            const set = (id, val) => {
                 const el = document.getElementById(id);
-                if (el && val && val !== fallback) el.textContent = val;
+                if (el && val) el.textContent = val;
             };
-            set('bdBank', env.SCHOOL_BANK_NAME, undefined);
-            set('bdAcctNo', env.SCHOOL_BANK_ACCOUNT, undefined);
-            set('bdAcctName', env.SCHOOL_BANK_ACCOUNT_NAME, undefined);
-            set('bdBranch', env.SCHOOL_BANK_BRANCH, undefined);
+            const name = env.SCHOOL_BANK_NAME || bank.name;
+            const acctNo = env.SCHOOL_BANK_ACCOUNT || bank.accountNumber;
+            const acctName = env.SCHOOL_BANK_ACCOUNT_NAME || bank.accountName;
+            set('bdBank', name);
+            set('bdAcctNo', acctNo);
+            set('bdAcctName', acctName);
+            set('stripBank', name);
+            set('stripAcctNo', acctNo);
+            set('stripAcctName', acctName);
         }
+
+        // Copy the account number rather than making a parent transcribe it.
+        document.addEventListener('click', function (event) {
+            const btn = event.target.closest('.pay-copy');
+            if (!btn) return;
+            const src = document.getElementById(btn.dataset.copyFrom);
+            if (!src) return;
+            const label = btn.querySelector('span');
+            const done = () => {
+                btn.classList.add('is-copied');
+                label.textContent = 'Copied';
+                setTimeout(() => {
+                    btn.classList.remove('is-copied');
+                    label.textContent = 'Copy';
+                }, 2000);
+            };
+            const text = src.textContent.trim();
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done).catch(() => {});
+                return;
+            }
+            // Older mobile browsers: fall back to a throwaway selection.
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+            document.body.removeChild(ta);
+        });
 
         // Payment method selection handler
         function selectPaymentMethod(method) {
+            const isBank = method === 'bank-transfer';
             const bankSection = document.getElementById('bankTransferSection');
-            const paystackLabel = document.getElementById('paymentMethodPaystack');
-            const bankLabel = document.getElementById('paymentMethodBank');
             const btnText = document.getElementById('submitBtnText');
 
-            if (method === 'bank-transfer') {
-                bankSection.style.display = 'block';
-                bankLabel.style.borderColor = 'var(--color-primary)';
-                bankLabel.style.background = 'hsla(220, 70%, 50%, 0.05)';
-                paystackLabel.style.borderColor = 'var(--border-primary)';
-                paystackLabel.style.background = 'transparent';
-                btnText.textContent = 'Submit Application (Pending Verification)';
-            } else {
-                bankSection.style.display = 'none';
-                paystackLabel.style.borderColor = 'var(--color-primary)';
-                paystackLabel.style.background = 'hsla(220, 70%, 50%, 0.05)';
-                bankLabel.style.borderColor = 'var(--border-primary)';
-                bankLabel.style.background = 'transparent';
-                btnText.textContent = 'Pay and Submit Application';
+            if (bankSection) bankSection.hidden = !isBank;
+
+            const paystackLabel = document.getElementById('paymentMethodPaystack');
+            const bankLabel = document.getElementById('paymentMethodBank');
+            if (paystackLabel) paystackLabel.classList.toggle('is-selected', !isBank);
+            if (bankLabel) bankLabel.classList.toggle('is-selected', isBank);
+
+            if (btnText) {
+                btnText.textContent = isBank
+                    ? 'Submit application for verification'
+                    : 'Pay and submit application';
             }
         }
 
@@ -963,9 +1123,10 @@
             if (!grade) { tag.style.display = 'none'; return; }
             // Inline fee map as fallback in case appManager hasn't loaded yet
             const FEE_MAP = {
-                'Kindergarten': 5000, 'Nursery': 5000, 'Pre-Primary': 5000,
-                'Grade 1': 5000, 'Grade 2': 5000, 'Grade 3': 5000,
-                'Grade 4': 5000, 'Grade 5': 5000, 'Grade 6': 5000,
+                'Creche': 5000, 'Pre-nursery': 5000,
+                'Nursery 1': 5000, 'Nursery 2': 5000, 'Nursery 3': 5000,
+                'Basic 1': 5000, 'Basic 2': 5000, 'Basic 3': 5000,
+                'Basic 4': 5000, 'Basic 5': 5000, 'Basic 6': 5000,
                 'JSS 1': 7500, 'JSS 2': 7500, 'JSS 3': 7500
             };
             const fee = (window.appManager && window.appManager.getApplicationFee)
@@ -975,7 +1136,13 @@
             amountEl.textContent = formatted;
             tag.style.display = 'inline-flex';
             const feeDisplay = document.getElementById('applicationFeeDisplay');
-            if (feeDisplay) feeDisplay.innerHTML = formatted;
+            if (feeDisplay) feeDisplay.textContent = formatted;
+            const hint = document.getElementById('applicationFeeHint');
+            if (hint) {
+                var shown = grade === 'Pre-nursery' ? 'Pre-Nursery' : grade;
+                hint.textContent = 'One-off application fee for ' + shown +
+                    '. This is separate from school fees, which are published further down this page.';
+            }
         }
         window.updateGradeFeeTag = updateGradeFeeTag;
 

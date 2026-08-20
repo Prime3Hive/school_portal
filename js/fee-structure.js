@@ -245,7 +245,16 @@ const feeStructure = {
     ]
   },
 
-  // Grade aliases for flexibility
+  // One-way translations INTO the fourteen canonical classes. Nothing here is
+  // a class on offer — the pickers (admissions.html, js/modules/academics.js)
+  // and the server-side application_fee_schedule now list only the canonical
+  // names. These entries exist so a value already stored against a student
+  // ('Grade 3', 'Primary 3') or read off a fee sheet column ('BASIC 1-3')
+  // still resolves to a priced class instead of silently costing nothing.
+  //
+  // Retire the 'Primary N' / 'Grade N' rows once the students table is
+  // confirmed free of them; until then removing one turns a legacy record
+  // into a zero-naira bill rather than an error anyone would notice.
   gradeAliases: {
     'Creche': ['Creche', 'creche', 'CRECHE'],
     'Pre-nursery': ['Pre-nursery', 'pre-nursery', 'PRE-NURSERY', 'Pre Nursery'],
