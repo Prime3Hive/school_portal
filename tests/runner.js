@@ -438,6 +438,40 @@ describe('Bank Details Resolution', () => {
     assertEqual(f.getBankDetails().name, 'Admin Bank');
   });
 
+  it('corrects a stored row that still holds the shipped placeholders', () => {
+    // The database row is only corrected by migration 0027. Until that runs,
+    // and on any install that has not run it, the projection must not put a
+    // placeholder account in front of a parent.
+    const cfg = fs.readFileSync(path.join(__dirname, '..', 'js', 'config.js'), 'utf8');
+    const win = {};
+    // eslint-disable-next-line no-new-func
+    new Function('window', 'document', cfg)(win, { addEventListener() {} });
+
+    // eslint-disable-next-line no-new-func
+    const f = new Function('window', 'document', body + '\nreturn f;')(win, { dispatchEvent() {} });
+    f.publishedSettings = f._upgradePublished({
+      bank_name: 'First Bank of Nigeria',
+      bank_account_no: '0123456789',
+      bank_account_name: 'TBD Academy'
+    });
+    const b = f.getBankDetails();
+    assertEqual(b.name, 'Keystone Bank');
+    assertEqual(b.accountNumber, '1013525760');
+    assertEqual(b.accountName, 'TBD International Academy');
+  });
+
+  it('leaves a published account an admin actually set alone', () => {
+    const cfg = fs.readFileSync(path.join(__dirname, '..', 'js', 'config.js'), 'utf8');
+    const win = {};
+    // eslint-disable-next-line no-new-func
+    new Function('window', 'document', cfg)(win, { addEventListener() {} });
+    // eslint-disable-next-line no-new-func
+    const f = new Function('window', 'document', body + '\nreturn f;')(win, { dispatchEvent() {} });
+    const out = f._upgradePublished({ bank_name: 'Zenith Bank', bank_account_no: '2201234567' });
+    assertEqual(out.bank_name, 'Zenith Bank');
+    assertEqual(out.bank_account_no, '2201234567');
+  });
+
   it('ignores blank values instead of showing an empty account', () => {
     const f = make({ settingsModule: { settings: { bankName: '   ', bankAccountNo: '' } } });
     const b = f.getBankDetails();

@@ -333,6 +333,32 @@ const feeStructure = {
   },
 
   /**
+   * The stored settings row can still hold the placeholders the portal
+   * shipped with — First Bank, account 0123456789 — because the browser-side
+   * LEGACY_SCHOOL_VALUES mapping in js/config.js corrects them on display
+   * without ever writing the correction back. Migration 0027 fixes the data;
+   * this makes sure that until it runs, and on any install that has not run
+   * it, a parent is never shown a placeholder account.
+   */
+  _upgradePublished(row) {
+    const upgrade = window.upgradeLegacySchoolValue;
+    if (!upgrade || !row) return row;
+    const fields = {
+      bank_name: 'bankName',
+      bank_account_no: 'bankAccountNo',
+      bank_account_name: 'bankAccountName',
+      school_phone: 'schoolPhone',
+      school_name: 'schoolName',
+      school_address: 'schoolAddress'
+    };
+    const out = { ...row };
+    for (const [col, settingsKey] of Object.entries(fields)) {
+      out[col] = upgrade(settingsKey, out[col]);
+    }
+    return out;
+  },
+
+  /**
    * Read the whitelisted projection an anon visitor is allowed to see
    * (migration 0026) and announce it, so anything already rendered can
    * redraw with the admin's values.
@@ -346,8 +372,10 @@ const feeStructure = {
         .limit(1)
         .maybeSingle();
       if (error || !data) return;
-      this.publishedSettings = data;
-      document.dispatchEvent(new CustomEvent('school-settings-changed', { detail: data }));
+      this.publishedSettings = this._upgradePublished(data);
+      document.dispatchEvent(new CustomEvent('school-settings-changed', {
+        detail: this.publishedSettings
+      }));
     } catch (e) {
       // A public page must still render its built-in account if this fails.
       console.warn('[FeeStructure] Published settings unavailable:', e.message);

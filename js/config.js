@@ -87,7 +87,12 @@ const LEGACY_SCHOOL_VALUES = {
   },
   schoolAddress: {
     'Lagos, Nigeria': 'Makurdi, Benue State',
-    'Lagos': 'Makurdi, Benue State'
+    'Lagos': 'Makurdi, Benue State',
+    // What the saved settings row actually held: the state, but not the school.
+    'Makurdi Benue State, Nigeria': 'Behind Civil Service Commission, Kertyo, Makurdi'
+  },
+  schoolEmail: {
+    'info@tbdacademy.org': 'support@tbdacademy.org'
   },
   // The bank block shipped as a First Bank placeholder with a demo account
   // number. The school's real account, printed on both published fee sheets,
@@ -109,8 +114,10 @@ const LEGACY_SCHOOL_VALUES = {
   bankSortCode: {
     '011151003': ''
   },
-  // Superseded by the number on both fee sheets' letterhead.
+  // Superseded by the number on both fee sheets' letterhead. The dialling
+  // placeholder is what the saved settings row was still holding.
   schoolPhone: {
+    '+234-800-000-0000': '0707 171 1692',
     '0803 061 4777': '0707 171 1692'
   }
 };
