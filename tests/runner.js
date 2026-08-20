@@ -390,6 +390,62 @@ describe('Assignment Grading Logic', () => {
   it('NaN score is invalid', () => assert(!gradeSubmission(NaN, 100).valid));
 });
 
+// -- Bank details resolution --------------------------------------------------
+// One account, shown identically on the public admissions page, the portal's
+// payment forms and a parent's fee modal. The precedence is what makes an
+// admin's edit reach all of them, so it is worth pinning down.
+describe('Bank Details Resolution', () => {
+  // Load only the object literal; the rest of the file talks to Supabase.
+  const src = fs.readFileSync(path.join(__dirname, '..', 'js', 'fee-structure.js'), 'utf8');
+  const start = src.indexOf('const feeStructure = {');
+  const end = src.indexOf('\n};', start);
+  const body = src.slice(start, end + 3).replace('const feeStructure =', 'var f =');
+  // eslint-disable-next-line no-new-func
+  const make = (win) => new Function('window', 'document', body + '\nreturn f;')(
+    win, { dispatchEvent() {} }
+  );
+
+  it('falls back to the account on the fee sheets', () => {
+    const b = make({}).getBankDetails();
+    assertEqual(b.name, 'Keystone Bank');
+    assertEqual(b.accountNumber, '1013525760');
+    assertEqual(b.accountName, 'TBD International Academy');
+  });
+
+  it('prefers what an admin typed into Settings', () => {
+    const b = make({
+      settingsModule: { settings: { bankName: 'Zenith Bank', bankAccountNo: '2201234567' } }
+    }).getBankDetails();
+    assertEqual(b.name, 'Zenith Bank');
+    assertEqual(b.accountNumber, '2201234567');
+    assertEqual(b.accountName, 'TBD International Academy');
+  });
+
+  it('uses published settings where the reader is anon', () => {
+    const f = make({});
+    f.publishedSettings = { bank_name: 'Zenith Bank', bank_account_no: '2201234567' };
+    const b = f.getBankDetails();
+    assertEqual(b.name, 'Zenith Bank');
+    assertEqual(b.accountNumber, '2201234567');
+  });
+
+  it('lets admin settings outrank published and env values', () => {
+    const f = make({
+      settingsModule: { settings: { bankName: 'Admin Bank' } },
+      ENV: { SCHOOL_BANK_NAME: 'Env Bank' }
+    });
+    f.publishedSettings = { bank_name: 'Published Bank' };
+    assertEqual(f.getBankDetails().name, 'Admin Bank');
+  });
+
+  it('ignores blank values instead of showing an empty account', () => {
+    const f = make({ settingsModule: { settings: { bankName: '   ', bankAccountNo: '' } } });
+    const b = f.getBankDetails();
+    assertEqual(b.name, 'Keystone Bank');
+    assertEqual(b.accountNumber, '1013525760');
+  });
+});
+
 describe('Legacy Brand Value Migration', () => {
   // Loads the real js/config.js in a sandbox rather than restating the map, so
   // this fails if the shipped migration table drifts.

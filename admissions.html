@@ -666,9 +666,12 @@
                     transfer to:
                 </p>
                 <dl>
-                    <dt>Bank</dt><dd id="fee-bank-name">&mdash;</dd>
-                    <dt>Account name</dt><dd id="fee-bank-account-name">&mdash;</dd>
-                    <dt>Account number</dt><dd id="fee-bank-account-no">&mdash;</dd>
+                    <!-- Real values, not placeholders: populateBankDetails() replaces
+                         them with the admin's account, but a parent must never be
+                         shown a dash where an account number belongs. -->
+                    <dt>Bank</dt><dd id="fee-bank-name">Keystone Bank</dd>
+                    <dt>Account name</dt><dd id="fee-bank-account-name">TBD International Academy</dd>
+                    <dt>Account number</dt><dd id="fee-bank-account-no">1013525760</dd>
                 </dl>
             </div>
         </div>
@@ -761,12 +764,10 @@
                     '<li><strong>Creche:</strong> ' + fee.additionalItems.creche.join(', ') + '</li>' +
                     '<li><strong>Nursery and above:</strong> ' + fee.additionalItems.preNurToBasic.join(', ') + '</li>';
             }
-            if (fee.bankDetails) {
-                var set = function (id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
-                set('fee-bank-name', fee.bankDetails.name);
-                set('fee-bank-account-name', fee.bankDetails.accountName);
-                set('fee-bank-account-no', fee.bankDetails.accountNumber);
-            }
+            // The account here is filled by populateBankDetails() along with the
+            // other two places this page prints it, so an admin's edit reaches
+            // all three or none.
+
 
             render('returning');
         })();
@@ -1028,23 +1029,30 @@
         // js/fee-structure.js, which carries the account printed on both fee
         // sheets. The markup defaults match fee-structure.js so the panel is
         // still correct if neither source loads.
+        // Every place this page prints the account: the strip in the "How to
+        // Apply" steps, the panel in the payment step, and the fee structure
+        // section. All three are filled from one resolver so they cannot drift.
         function populateBankDetails() {
-            const env = window.ENV || {};
-            const bank = (window.feeStructure && window.feeStructure.bankDetails) || {};
+            const fee = window.feeStructure;
+            const bank = fee && fee.getBankDetails ? fee.getBankDetails() : {};
             const set = (id, val) => {
                 const el = document.getElementById(id);
                 if (el && val) el.textContent = val;
             };
-            const name = env.SCHOOL_BANK_NAME || bank.name;
-            const acctNo = env.SCHOOL_BANK_ACCOUNT || bank.accountNumber;
-            const acctName = env.SCHOOL_BANK_ACCOUNT_NAME || bank.accountName;
-            set('bdBank', name);
-            set('bdAcctNo', acctNo);
-            set('bdAcctName', acctName);
-            set('stripBank', name);
-            set('stripAcctNo', acctNo);
-            set('stripAcctName', acctName);
+            set('bdBank', bank.name);
+            set('bdAcctNo', bank.accountNumber);
+            set('bdAcctName', bank.accountName);
+            set('stripBank', bank.name);
+            set('stripAcctNo', bank.accountNumber);
+            set('stripAcctName', bank.accountName);
+            set('fee-bank-name', bank.name);
+            set('fee-bank-account-no', bank.accountNumber);
+            set('fee-bank-account-name', bank.accountName);
         }
+
+        // The published settings arrive after first paint, so redraw when an
+        // admin's account lands rather than leaving the built-in one showing.
+        document.addEventListener('school-settings-changed', populateBankDetails);
 
         // Copy the account number rather than making a parent transcribe it.
         document.addEventListener('click', function (event) {

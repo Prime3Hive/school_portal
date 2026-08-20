@@ -143,6 +143,10 @@ const settingsModule = {
     this.settings = merged;
     // Then save to Supabase
     const result = await this.saveToSupabase(merged);
+    // Anything already on screen that prints these values — the deposit block
+    // on a payment form, a parent's fee modal — redraws instead of holding the
+    // account the admin has just replaced.
+    document.dispatchEvent(new CustomEvent('school-settings-changed', { detail: merged }));
     return { settings: merged, ok: result.ok, error: result.error };
   },
 

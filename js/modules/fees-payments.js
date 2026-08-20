@@ -111,14 +111,16 @@ const feesPaymentsModule = {
 
   _getBankDetails() {
     const s = window.settingsModule?.settings || {};
-    const published = window.feeStructure?.bankDetails || {};
+    // feeStructure.getBankDetails() already applies the precedence — admin
+    // settings, then published settings, then env, then the fee sheets — so
+    // every surface that shows the account agrees with every other one.
+    const b = window.feeStructure?.getBankDetails?.() || {};
     return {
-      bankName:    s.bankName        || published.name          || 'Keystone Bank',
-      accountNo:   s.bankAccountNo   || published.accountNumber || '1013525760',
-      accountName: s.bankAccountName || published.accountName
-                                     || window.schoolConfig?.name || 'TBD International Academy',
+      bankName:    b.name          || 'Keystone Bank',
+      accountNo:   b.accountNumber || '1013525760',
+      accountName: b.accountName   || window.schoolConfig?.name || 'TBD International Academy',
       // Absent from every school document. Rendered only when an admin sets it.
-      sortCode:    s.bankSortCode    || ''
+      sortCode:    s.bankSortCode  || ''
     };
   },
 

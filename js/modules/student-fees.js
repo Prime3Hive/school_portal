@@ -547,7 +547,7 @@ const studentFeesModule = {
     }
 
     const preselected = preselectedItemId ? feeSchedule.find(i => i.id === preselectedItemId) : null;
-    const bankDetails = (typeof feeStructure !== 'undefined' && feeStructure.bankDetails) || { name: 'Keystone Bank', accountName: 'TBD International Academy', accountNumber: '1013525760' };
+    const bankDetails = this._bankDetails();
 
     const content = `
       <form id="student-payment-form" onsubmit="event.preventDefault(); studentFeesModule.initiatePayment(event)">
@@ -599,6 +599,13 @@ const studentFeesModule = {
       </form>`;
 
     createModal('💳 Make Fee Payment', content);
+  },
+
+  /** The account to display — admin settings first. See feeStructure. */
+  _bankDetails() {
+    const fee = window.feeStructure;
+    return (fee && fee.getBankDetails && fee.getBankDetails())
+      || { name: 'Keystone Bank', accountName: 'TBD International Academy', accountNumber: '1013525760' };
   },
 
   _onItemChange(itemId) {
@@ -981,8 +988,7 @@ const studentFeesModule = {
     this._payItems = items;
     const { student } = this.studentData;
     const totalBalance = items.reduce((s, i) => s + i.balance, 0);
-    const bankDetails  = (typeof feeStructure !== 'undefined' && feeStructure.bankDetails)
-      || { name: 'Keystone Bank', accountName: 'TBD International Academy', accountNumber: '1013525760' };
+    const bankDetails  = this._bankDetails();
 
     const itemList = items.map(i =>
       `<li style="font-size:0.82rem;padding:0.2rem 0;display:flex;justify-content:space-between;"><span style="flex:1;">${i.name}</span> <strong style="color:#f59e0b;">₦${i.balance.toLocaleString()}</strong></li>`

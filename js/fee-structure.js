@@ -290,11 +290,68 @@ const feeStructure = {
     ]
   },
 
-  // Bank details
+  // The account as published on both fee sheets. This is the floor, not the
+  // authority: an admin editing Settings overrides it. Read it through
+  // getBankDetails() rather than directly, or the surface you are writing
+  // will be the one that still shows the old account.
   bankDetails: {
     name: 'Keystone Bank',
     accountName: 'TBD International Academy',
     accountNumber: '1013525760'
+  },
+
+  // Filled by loadPublishedSettings() on public pages, where the visitor is
+  // anon and cannot read school_settings itself.
+  publishedSettings: null,
+
+  /**
+   * The account to display, wherever you are displaying it.
+   *
+   * Precedence: what an admin typed into Settings, then the published
+   * projection of those settings (public pages), then deploy-time
+   * SCHOOL_BANK_* environment values, then the fee sheets above. Admin input
+   * wins because the whole point of the Settings screen is that editing the
+   * account there changes it everywhere it appears.
+   */
+  getBankDetails() {
+    const admin = (window.settingsModule && window.settingsModule.settings) || {};
+    const pub = this.publishedSettings || {};
+    const env = window.ENV || {};
+    const pick = (...vals) => {
+      for (const v of vals) {
+        if (typeof v === 'string' && v.trim()) return v.trim();
+      }
+      return '';
+    };
+    return {
+      name: pick(admin.bankName, pub.bank_name, env.SCHOOL_BANK_NAME, this.bankDetails.name),
+      accountName: pick(admin.bankAccountName, pub.bank_account_name,
+                        env.SCHOOL_BANK_ACCOUNT_NAME, this.bankDetails.accountName),
+      accountNumber: pick(admin.bankAccountNo, pub.bank_account_no,
+                          env.SCHOOL_BANK_ACCOUNT, this.bankDetails.accountNumber)
+    };
+  },
+
+  /**
+   * Read the whitelisted projection an anon visitor is allowed to see
+   * (migration 0026) and announce it, so anything already rendered can
+   * redraw with the admin's values.
+   */
+  async loadPublishedSettings() {
+    try {
+      if (!window.supabaseClient) return;
+      const { data, error } = await window.supabaseClient
+        .from('public_school_settings')
+        .select('*')
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) return;
+      this.publishedSettings = data;
+      document.dispatchEvent(new CustomEvent('school-settings-changed', { detail: data }));
+    } catch (e) {
+      // A public page must still render its built-in account if this fails.
+      console.warn('[FeeStructure] Published settings unavailable:', e.message);
+    }
   },
 
   // Helper methods
@@ -391,8 +448,13 @@ const feeStructure = {
 
   // Load admin-saved fee structure overrides from Supabase school_settings
   async loadFromSupabase() {
-    // Skip load on pages that have no fee UI (login, public pages)
-    if (isPublicPath(window.location.pathname)) return;
+    // A public visitor is anon and cannot read school_settings. They can read
+    // the whitelisted view, which carries the bank account they are being
+    // asked to pay into.
+    if (isPublicPath(window.location.pathname)) {
+      await this.loadPublishedSettings();
+      return;
+    }
 
     try {
       if (!window.supabaseClient) return;
