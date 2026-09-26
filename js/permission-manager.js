@@ -42,6 +42,8 @@ class PermissionManager {
                     'admin-dashboard',
                     'inventory',
                     'fees-payments',
+                    // The bursar's queue; verify_fee_payment already admits staff.
+                    'payment-checks',
                     // Staff share portal.html with admins; they still need their own
                     // profile and the shared calendar for the portal to be usable.
                     'admin-profile',

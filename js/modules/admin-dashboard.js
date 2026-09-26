@@ -221,11 +221,11 @@ const adminDashboardModule = {
       if (Number.isFinite(oldest)) bits.push(`oldest sent ${this.timeAgo(oldest)}`);
       items.push({
         tone: 'urgent',
-        title: `${this.plural(st.waiting.length, 'bank transfer')} waiting to be checked`,
-        meta: bits.join(' · ') + '. Parents get their receipt once you approve.',
+        title: `${this.plural(st.waiting.length, 'payment')} from parents waiting to be checked`,
+        meta: bits.join(' · ') + '. They show as paid once you approve them.',
         action: 'Check now',
-        run: "adminDashboardModule.open('fees-payments', { tab: 'overview' })",
-        module: 'fees-payments'
+        run: "adminDashboardModule.open('payment-checks')",
+        module: 'payment-checks'
       });
     }
 
@@ -436,9 +436,9 @@ const adminDashboardModule = {
           ${kpi('Still owed', this.money(st.outstanding),
                 st.owingCount ? `${this.plural(st.owingCount, 'student')} with a balance` : (st.billed ? 'Every bill is paid' : 'Nothing billed yet'),
                 "adminDashboardModule.open('fees-payments', { tab: 'pending' })")}
-          ${kpi('Transfers to check', String(st.waiting.length),
+          ${kpi('Payments to check', String(st.waiting.length),
                 st.waiting.length ? `${this.money(st.waitingTotal)} sent by parents` : 'None waiting',
-                "adminDashboardModule.open('fees-payments', { tab: 'overview' })")}
+                "adminDashboardModule.open('payment-checks')")}
         </div>
 
         <div class="ui-grid-3">

@@ -13,13 +13,15 @@
   'use strict';
 
   /**
-   * A parent's bank transfer that nobody has checked yet. The same rule the
-   * fees module and the dashboard use, kept here so the badge agrees with
-   * the list it leads to.
+   * A payment a parent says they made that nobody has confirmed: a bank
+   * transfer with its receipt, or a Paystack payment, which migration 0020
+   * holds as pending until staff approve it. The same rule as the Payments
+   * to check screen, so the badge agrees with the list it leads to.
    */
   function isAwaitingVerification(p) {
     if (!p || p.status !== 'pending') return false;
-    return (p.paymentMethod || p.payment_method) === 'bank-deposit';
+    const m = String(p.paymentMethod || p.payment_method || '').toLowerCase();
+    return m === 'bank-deposit' || m === 'paystack';
   }
 
   function counts() {

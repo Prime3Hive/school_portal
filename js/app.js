@@ -211,6 +211,7 @@ class SchoolPortalApp {
             'student-directory': 'Students',
             'staff-management': 'Staff',
             'fees-payments': 'Fees & payments',
+            'payment-checks': 'Payments to check',
             'inventory': 'Inventory',
             'academics': 'Classes & scores',
             'applications': 'Applications',
