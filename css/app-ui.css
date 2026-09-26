@@ -1,0 +1,365 @@
+/* ============================================
+   APP UI — building blocks for redesigned pages
+   ============================================
+
+   Page head, cards, key figures, work lists and bars, shared by every page
+   that has moved to the new design. Everything is prefixed `ui-` so it
+   cannot collide with the older module styles still in use alongside it.
+   Colours come from the tokens in design-system.css and app-shell.css, so
+   the dark theme follows without extra rules except where a brand colour
+   would lose contrast on a dark ground.
+   ============================================ */
+
+:root {
+  --ui-ink: var(--brand-navy);
+  --ui-bar: var(--brand-navy);
+  --ui-radius: 14px;
+  --ui-tone-urgent: var(--brand-red);
+  --ui-tone-warn: #D9920B;
+  --ui-tone-info: var(--brand-navy-light);
+  --ui-tone-quiet: #8990B3;
+  --ui-good-bg: #E3F1E8;
+  --ui-good-ink: #1D6B45;
+  --ui-warn-bg: #FBF0D9;
+  --ui-warn-ink: #7A4F00;
+  --ui-bad-ink: var(--brand-red-deep);
+}
+
+[data-theme="dark"] {
+  --ui-ink: #B7C3F5;
+  --ui-bar: #8FA0E0;
+  --ui-tone-info: #8FA0E0;
+  --ui-good-bg: hsl(150, 35%, 18%);
+  --ui-good-ink: hsl(150, 60%, 65%);
+  --ui-warn-bg: hsl(45, 60%, 14%);
+  --ui-warn-ink: hsl(45, 90%, 65%);
+  --ui-bad-ink: #F08A8A;
+}
+
+/* ── Page ─────────────────────────────── */
+.ui-page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  max-width: 1320px;
+  color: var(--text-primary);
+}
+
+.ui-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.ui-page-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.ui-page-sub {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+}
+
+.ui-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Buttons and links ────────────────── */
+.ui-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  color: var(--ui-ink);
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ui-btn:hover {
+  border-color: var(--ui-ink);
+}
+
+.ui-btn:focus-visible,
+.ui-link:focus-visible,
+.ui-kpi:focus-visible {
+  outline: 2px solid var(--brand-navy-light);
+  outline-offset: 2px;
+}
+
+.ui-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.ui-btn-primary {
+  background: var(--brand-navy);
+  border-color: var(--brand-navy);
+  color: #FFFFFF;
+}
+
+.ui-btn-primary:hover {
+  background: var(--brand-navy-light);
+  border-color: var(--brand-navy-light);
+}
+
+.ui-btn-sm {
+  height: 36px;
+  padding: 0 14px;
+}
+
+.ui-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ui-ink);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.ui-link:hover {
+  text-decoration: underline;
+}
+
+/* ── Layout grids ─────────────────────── */
+.ui-grid-4,
+.ui-grid-3 {
+  display: grid;
+  gap: 16px;
+}
+
+.ui-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ui-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ui-span-2 { grid-column: span 2; }
+
+/* ── Cards ────────────────────────────── */
+.ui-card {
+  min-width: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--ui-radius);
+  padding: 20px 22px;
+}
+
+.ui-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.ui-card-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ui-card-note {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+}
+
+/* ── Key figures ──────────────────────── */
+.ui-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 18px 20px;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.ui-kpi:hover {
+  border-color: var(--ui-ink);
+}
+
+.ui-kpi-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.ui-kpi-value {
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.ui-kpi-sub {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+}
+
+/* ── Work lists ───────────────────────── */
+.ui-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border-secondary);
+}
+
+.ui-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ui-row-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.ui-row-meta {
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+}
+
+.ui-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ui-tone-quiet);
+}
+
+.ui-dot.is-urgent { background: var(--ui-tone-urgent); }
+.ui-dot.is-warn   { background: var(--ui-tone-warn); }
+.ui-dot.is-info   { background: var(--ui-tone-info); }
+
+.ui-empty {
+  padding: 14px 0 6px;
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+}
+
+/* ── Progress bars ────────────────────── */
+.ui-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.ui-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ui-bar);
+}
+
+.ui-bar-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 210px;
+  align-items: center;
+  gap: 16px;
+  font-size: 0.875rem;
+}
+
+.ui-bar-figure {
+  text-align: right;
+  font-size: 0.8125rem;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Dates ────────────────────────────── */
+.ui-date {
+  width: 48px;
+  flex-shrink: 0;
+  padding: 6px 0;
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  text-align: center;
+}
+
+.ui-date-day {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.ui-date-num {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+/* ── Status chips ─────────────────────── */
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.ui-chip.is-good { background: var(--ui-good-bg); color: var(--ui-good-ink); }
+.ui-chip.is-warn { background: var(--ui-warn-bg); color: var(--ui-warn-ink); }
+
+/* ── Narrower screens ─────────────────── */
+@media (max-width: 1180px) {
+  .ui-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ui-grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .ui-span-2 { grid-column: auto; }
+}
+
+@media (max-width: 640px) {
+  .ui-page { gap: 16px; }
+  .ui-page-title { font-size: 1.5rem; }
+  .ui-grid-4 { gap: 10px; }
+  .ui-card { padding: 16px; }
+  .ui-kpi { padding: 14px 16px; }
+  .ui-kpi-value { font-size: 1.25rem; }
+  .ui-row { flex-wrap: wrap; }
+  .ui-row .ui-btn { margin-left: 24px; }
+  .ui-bar-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .ui-bar-figure { text-align: left; }
+}

@@ -1,873 +1,539 @@
 // ============================================
-// ADMIN DASHBOARD MODULE - ENHANCED WITH MODERN DESIGN
-// With Auto-Refresh, Date Filters, Charts, and Modern UI
+// TODAY — the admin home page
+// ============================================
+// What needs someone's attention now, then how the term is going.
+//
+// Every figure comes from the DataManager caches or the calendar table.
+// When a source has nothing in it the page says so plainly; it never draws
+// a placeholder number. (The page this replaced plotted an enrolment trend
+// made from Math.random() — nothing on this one is estimated.)
 // ============================================
 
 const adminDashboardModule = {
   async init(container) {
     this.container = container;
-    this.settings = dashboardSettings?.load() || { autoRefresh: false };
+    this.settings = window.dashboardSettings?.load() || { autoRefresh: false };
     this.refreshManager = null;
-    this.dateRangePicker = null;
-    // Wait for DataManager to finish loading all collections before first render
-    // This ensures stat cards show real live counts, not 0 on cold start
+    this.events = null; // null until the calendar has answered
     if (dataManager?.waitForReady) await dataManager.waitForReady();
     this.render();
-    this.initializeFeatures();
+    this.loadEvents();
+    if (this.settings.autoRefresh) this.startAutoRefresh();
+
     this._onDataChange = (e) => {
-      if (['students', 'staff', 'payments', 'inventory', 'feeItems'].includes(e.detail.collection)) this.render();
+      if (['students', 'staff', 'payments', 'inventory', 'feeItems', 'applications', 'classes'].includes(e.detail?.collection)) {
+        this.render();
+      }
     };
     window.removeEventListener('datamanager:change', this._onDataChange);
     window.addEventListener('datamanager:change', this._onDataChange);
   },
 
-  initializeFeatures() {
-    // Initialize auto-refresh if enabled
-    if (this.settings.autoRefresh) {
-      this.startAutoRefresh();
-    }
-
-    // Initialize date range picker if flatpickr is available
-    if (typeof flatpickr !== 'undefined') {
-      this.initDateRangePicker();
-    }
-
-    // Update notification badge
-    this.updateNotificationBadge();
-  },
-
   cleanup() {
-    // Stop auto-refresh when leaving dashboard
-    if (this.refreshManager) {
-      this.refreshManager.stop();
-    }
+    this.refreshManager?.stop();
+    // Without this the listener outlived the page and redrew the dashboard
+    // over whatever section the user had moved to when data changed.
+    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
   },
+
+  /** True while this page is the one on screen. */
+  _isActive() {
+    return !window.app?.currentModule || window.app.currentModule === 'admin-dashboard';
+  },
+
+  // ── Helpers ───────────────────────────────────────────────
+
+  esc(v) {
+    return window.escapeHtml ? window.escapeHtml(v) : String(v ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+  },
+
+  money(n) {
+    return '₦' + Math.round(Number(n) || 0).toLocaleString('en-NG');
+  },
+
+  plural(n, one, many) {
+    return `${n} ${n === 1 ? one : (many || one + 's')}`;
+  },
+
+  /** Seconds since the epoch for any of the date spellings the tables use. */
+  _ts(...values) {
+    for (const v of values) {
+      if (!v) continue;
+      const t = new Date(v).getTime();
+      if (!Number.isNaN(t)) return t;
+    }
+    return 0;
+  },
+
+  timeAgo(ts) {
+    if (!ts) return '';
+    const mins = Math.floor((Date.now() - ts) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} h ago`;
+    const days = Math.floor(hrs / 24);
+    if (days === 1) return 'yesterday';
+    if (days < 7) return `${days} days ago`;
+    return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  },
+
+  /** The session and term everything on this page is measured against. */
+  termScope() {
+    const term = window.schoolConfig?.getCurrentTerm?.()?.name || '';
+    const year = String(window.schoolConfig?.getCurrentAcademicYear?.() || '').replace('/', '-');
+    return { term, year, yearLabel: year.replace('-', '/') };
+  },
+
+  _isActiveStudent(s) {
+    return String(s?.status || 'active').toLowerCase() === 'active';
+  },
+
+  /** Any phone number the school could reach this pupil's family on. */
+  _hasFamilyPhone(s) {
+    const read = (p) => {
+      if (!p) return '';
+      if (typeof p === 'string') {
+        try { p = JSON.parse(p); } catch { return ''; }
+      }
+      return String(p?.phone || '').trim();
+    };
+    return Boolean(read(s.father) || read(s.mother) || read(s.guardian) || String(s.phone || '').trim());
+  },
+
+  _isAwaitingVerification(p) {
+    return window.portalShell?.isAwaitingVerification
+      ? window.portalShell.isAwaitingVerification(p)
+      : (p?.status === 'pending' && (p.paymentMethod || p.payment_method) === 'bank-deposit');
+  },
+
+  _levelOf(grade) {
+    return window.schoolConfig?.getGradeByCode?.(grade)?.level || 'Other classes';
+  },
+
+  /** Whether the signed-in role may open a module (the rule the sidebar uses). */
+  can(moduleName) {
+    return window.app?.canOpen ? window.app.canOpen(moduleName) : true;
+  },
+
+  open(moduleName, options) {
+    return window.app?.loadModule(moduleName, options);
+  },
+
+  /** Open Fees & payments, then one of its own dialogs (recordPayment, openAssignFeesModal). */
+  async feesAction(method) {
+    await this.open('fees-payments', { tab: 'overview' });
+    window.feesPaymentsModule?.[method]?.();
+  },
+
+  // ── Figures ───────────────────────────────────────────────
+
+  getStats() {
+    const all = (c) => dataManager?.getAll(c) || [];
+    const scope = this.termScope();
+    const students = all('students');
+    const active = students.filter(s => this._isActiveStudent(s));
+    const staff = all('staff');
+    const payments = all('payments');
+    const applications = all('applications');
+    const inventory = all('inventory');
+
+    // This term's bills. Each fee item is one line of one pupil's bill, so
+    // billed, collected and outstanding all come from the same rows and
+    // cannot disagree with each other.
+    const termItems = all('feeItems').filter(i =>
+      String(i.term || '') === scope.term &&
+      String(i.academic_year || i.academicYear || '').replace('/', '-') === scope.year
+    );
+    const paidOf = (i) => parseFloat(i.amount_paid ?? i.amountPaid ?? 0) || 0;
+    const billed = termItems.reduce((a, i) => a + (parseFloat(i.amount) || 0), 0);
+    const collected = termItems.reduce((a, i) => a + paidOf(i), 0);
+
+    const owing = new Map();
+    for (const i of termItems) {
+      const bal = Math.max(0, (parseFloat(i.amount) || 0) - paidOf(i));
+      if (bal > 0) owing.set(i.student_id, (owing.get(i.student_id) || 0) + bal);
+    }
+    const outstanding = [...owing.values()].reduce((a, b) => a + b, 0);
+
+    const byLevel = new Map();
+    for (const i of termItems) {
+      const level = this._levelOf(i.grade);
+      const row = byLevel.get(level) || { level, billed: 0, collected: 0 };
+      row.billed += parseFloat(i.amount) || 0;
+      row.collected += paidOf(i);
+      byLevel.set(level, row);
+    }
+    const levelOrder = ['Early Years', 'Primary', 'Junior Secondary'];
+    const levels = [...byLevel.values()].sort((a, b) => {
+      const ia = levelOrder.indexOf(a.level), ib = levelOrder.indexOf(b.level);
+      return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+    });
+
+    const billedIds = new Set(termItems.map(i => i.student_id));
+    const unbilled = active.filter(s => !billedIds.has(s.id));
+
+    const waiting = payments.filter(p => this._isAwaitingVerification(p));
+    const pendingApps = applications.filter(a => a.status === 'pending');
+    const noPhone = active.filter(s => !this._hasFamilyPhone(s));
+    const lowStock = inventory.filter(i => {
+      const min = Number(i.minStock ?? i.min_stock) || 0;
+      if (min <= 0) return false;
+      return (Number(i.quantity) || 0) - (Number(i.allocated) || 0) <= min;
+    });
+
+    const classKeys = new Set(active.map(s => `${s.grade || ''}|${s.section || ''}`).filter(k => k !== '|'));
+
+    return {
+      scope,
+      totalStudents: active.length,
+      totalStaff: staff.length,
+      classCount: classKeys.size,
+      termItems,
+      billed,
+      collected,
+      outstanding,
+      owingCount: owing.size,
+      rate: billed > 0 ? Math.min(100, Math.round((collected / billed) * 100)) : 0,
+      levels,
+      unbilled,
+      waiting,
+      waitingTotal: waiting.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0),
+      pendingApps,
+      noPhone,
+      lowStock,
+      // Kept under the names the report pack export reads.
+      paidFees: collected,
+      pendingFees: outstanding,
+      pendingApplications: pendingApps.length,
+      pendingVerifications: waiting.length
+    };
+  },
+
+  /** Work waiting on someone, most urgent first. Only rows with something in them. */
+  attentionItems(st) {
+    const items = [];
+    const term = st.scope.term || 'this term';
+
+    if (st.waiting.length) {
+      const oldest = Math.min(...st.waiting.map(p => this._ts(p.paymentDate, p.payment_date, p.createdAt, p.created_at)).filter(Boolean));
+      const bits = [`${this.money(st.waitingTotal)} in total`];
+      if (Number.isFinite(oldest)) bits.push(`oldest sent ${this.timeAgo(oldest)}`);
+      items.push({
+        tone: 'urgent',
+        title: `${this.plural(st.waiting.length, 'bank transfer')} waiting to be checked`,
+        meta: bits.join(' · ') + '. Parents get their receipt once you approve.',
+        action: 'Check now',
+        run: "adminDashboardModule.open('fees-payments', { tab: 'overview' })",
+        module: 'fees-payments'
+      });
+    }
+
+    if (st.pendingApps.length) {
+      const byGrade = {};
+      st.pendingApps.forEach(a => { const g = a.grade || 'no class given'; byGrade[g] = (byGrade[g] || 0) + 1; });
+      const meta = Object.entries(byGrade).map(([g, n]) => `${n} for ${g}`).join(', ');
+      items.push({
+        tone: 'warn',
+        title: `${this.plural(st.pendingApps.length, 'admission application')} to review`,
+        meta,
+        action: 'Review',
+        run: "adminDashboardModule.open('applications')",
+        module: 'applications'
+      });
+    }
+
+    if (st.totalStudents && !st.termItems.length) {
+      items.push({
+        tone: 'info',
+        title: `No fees have been assigned for ${term} yet`,
+        meta: 'Until they are, parents see no balance and nothing can be paid against this term.',
+        action: 'Assign fees',
+        run: "adminDashboardModule.feesAction('openAssignFeesModal')",
+        module: 'fees-payments'
+      });
+    } else if (st.unbilled.length) {
+      items.push({
+        tone: 'info',
+        title: `${this.plural(st.unbilled.length, 'student')} with no ${term} bill`,
+        meta: st.unbilled.slice(0, 3).map(s => s.name).filter(Boolean).join(', ') + (st.unbilled.length > 3 ? ` and ${st.unbilled.length - 3} more` : ''),
+        action: 'Assign fees',
+        run: "adminDashboardModule.feesAction('openAssignFeesModal')",
+        module: 'fees-payments'
+      });
+    }
+
+    if (st.noPhone.length) {
+      items.push({
+        tone: 'quiet',
+        title: `${this.plural(st.noPhone.length, 'student')} with no parent phone number`,
+        meta: 'These families cannot be reached about fees or results.',
+        action: 'Fix records',
+        run: "adminDashboardModule.open('student-directory')",
+        module: 'student-directory'
+      });
+    }
+
+    if (st.lowStock.length) {
+      items.push({
+        tone: 'quiet',
+        title: `${this.plural(st.lowStock.length, 'inventory item')} running low`,
+        meta: st.lowStock.slice(0, 3).map(i => i.name).filter(Boolean).join(', ') + (st.lowStock.length > 3 ? ` and ${st.lowStock.length - 3} more` : ''),
+        action: 'Restock',
+        run: "adminDashboardModule.open('inventory')",
+        module: 'inventory'
+      });
+    }
+
+    // Offer only work this role can open; the module would refuse it anyway.
+    return items.filter(i => this.can(i.module));
+  },
+
+  recentActivity() {
+    const all = (c) => dataManager?.getAll(c) || [];
+    const out = [];
+
+    // Each feed only for a role that can open where it comes from.
+    if (this.can('fees-payments')) all('payments')
+      .filter(p => p.status === 'paid')
+      .forEach(p => out.push({
+        ts: this._ts(p.verifiedAt, p.verified_at, p.paymentDate, p.payment_date, p.createdAt, p.created_at),
+        title: `${this.money(p.amount)} received for ${p.studentName || 'a student'}`,
+        meta: p.receiptNo ? `Receipt ${p.receiptNo}` : 'Payment recorded'
+      }));
+
+    if (this.can('applications')) all('applications').forEach(a => out.push({
+      ts: this._ts(a.created_at, a.createdAt, a.submitted_date),
+      title: `Application for ${a.grade || 'a new pupil'}`,
+      meta: a.student_name || a.studentName || ''
+    }));
+
+    if (this.can('student-directory')) all('students').forEach(s => out.push({
+      ts: this._ts(s.createdAt, s.created_at),
+      title: `${s.name || 'A student'} added`,
+      meta: [s.grade, s.section].filter(Boolean).join(' ')
+    }));
+
+    return out.filter(e => e.ts).sort((a, b) => b.ts - a.ts).slice(0, 5);
+  },
+
+  // ── Calendar ──────────────────────────────────────────────
+
+  async loadEvents() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const until = new Date(today);
+    until.setDate(until.getDate() + 14);
+
+    if (!window.supabaseClient) {
+      this.events = [];
+      this.renderEvents();
+      return;
+    }
+    try {
+      // Fetch from a month back so an event already under way still shows.
+      const from = new Date(today);
+      from.setDate(from.getDate() - 31);
+      const { data, error } = await supabaseClient
+        .from('calendar_events')
+        .select('id, title, start_date, end_date, type')
+        .gte('start_date', from.toISOString())
+        .lte('start_date', until.toISOString())
+        .order('start_date', { ascending: true });
+      if (error) throw error;
+      this.events = (data || [])
+        .filter(e => this._ts(e.end_date, e.start_date) >= today.getTime())
+        .slice(0, 5);
+      this.eventsFailed = false;
+    } catch (err) {
+      console.warn('[Today] Calendar could not be read:', err);
+      this.events = [];
+      this.eventsFailed = true;
+    }
+    this.renderEvents();
+  },
+
+  eventsHTML() {
+    if (this.events === null) return '<p class="ui-empty">Loading the calendar…</p>';
+    if (!this.events.length) {
+      return `<p class="ui-empty">${this.eventsFailed ? 'The calendar could not be loaded just now.' : 'Nothing on the calendar for the next two weeks.'}</p>`;
+    }
+    return this.events.map(e => {
+      const start = new Date(e.start_date);
+      const end = e.end_date ? new Date(e.end_date) : null;
+      const multiDay = end && end.toDateString() !== start.toDateString();
+      const meta = multiDay
+        ? `Until ${end.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`
+        : start.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+      return `
+        <div class="ui-row" style="border-top:0; padding:8px 0; align-items:flex-start;">
+          <div class="ui-date" aria-hidden="true">
+            <div class="ui-date-day">${start.toLocaleDateString('en-GB', { weekday: 'short' })}</div>
+            <div class="ui-date-num">${start.getDate()}</div>
+          </div>
+          <div class="ui-row-main" style="padding-top:4px;">
+            <div class="ui-row-title" style="font-size:0.875rem;">${this.esc(e.title)}</div>
+            <div class="ui-row-meta">${this.esc(meta)}</div>
+          </div>
+        </div>`;
+    }).join('');
+  },
+
+  renderEvents() {
+    const box = document.getElementById('today-events');
+    if (box) box.innerHTML = this.eventsHTML();
+  },
+
+  // ── Page ──────────────────────────────────────────────────
 
   render() {
-    const stats = this.getFilteredStats();
-    const activities = this.getFilteredActivities();
+    if (!this.container || !this._isActive()) return;
+    const st = this.getStats();
     const now = new Date();
-    const dateStr = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const hour = now.getHours();
+    const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    const firstName = (window.authManager?.getSession?.()?.fullName || '').trim().split(/\s+/)[0] || '';
+    const dateLine = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const termLine = [st.scope.yearLabel, st.scope.term].filter(Boolean).join(', ');
+    const attention = this.attentionItems(st);
+    const activity = this.recentActivity();
+
+    // A figure is a link only when this role can open what it leads to.
+    const kpi = (label, value, sub, run) => {
+      const target = (run.match(/open\('([a-z-]+)'/) || [])[1];
+      const inner = `
+        <span class="ui-kpi-label">${label}</span>
+        <span class="ui-kpi-value">${value}</span>
+        <span class="ui-kpi-sub">${sub}</span>`;
+      return target && this.can(target)
+        ? `<button type="button" class="ui-card ui-kpi" onclick="${run}">${inner}</button>`
+        : `<div class="ui-card ui-kpi" style="cursor:default;">${inner}</div>`;
+    };
 
     this.container.innerHTML = `
-      <div class="dashboard-v2">
-
-        <!-- ═══ HERO BANNER ═══ -->
-        <div class="dash-hero">
-          <div class="dash-hero-content">
-            <div class="dash-hero-top-row">
-              <span class="dash-hero-badge">🎓 Admin Portal</span>
-              <span class="dash-hero-date">${dateStr}</span>
-            </div>
-            <div class="dash-hero-brand">
-              <span class="dash-hero-crest">
-                <img src="assets/logo-mark.svg" alt="" width="42" height="42">
-              </span>
-              <div>
-                <h1 class="dash-hero-title">${schoolConfig?.name || 'TBD International Academy'}</h1>
-                <span class="dash-hero-motto">${schoolConfig?.motto || 'Planting Seeds of Knowledge'}</span>
-              </div>
-            </div>
-            <div class="dash-hero-meta-row">
-              <span class="dash-hero-location">📍 ${schoolConfig?.location || 'Makurdi, Benue State'}</span>
-              <span class="dash-hero-divider"></span>
-              <span class="dash-hero-year">${this.getCurrentAcademicYear()}</span>
-              <span class="dash-hero-divider"></span>
-              <span class="dash-hero-term">${this.getCurrentTerm()}</span>
-            </div>
+      <div class="ui-page">
+        <div class="ui-page-head">
+          <div>
+            <h1 class="ui-page-title">${greeting}${firstName ? ', ' + this.esc(firstName) : ''}</h1>
+            <p class="ui-page-sub">${this.esc(dateLine)}${termLine ? ' · ' + this.esc(termLine) : ''}</p>
           </div>
-          <div class="dash-hero-actions">
-            <div class="date-picker-wrap">
-              <input type="text" id="dateRangePicker" placeholder="📅 Filter by date" class="date-filter-input">
-            </div>
-            <button class="dash-btn-refresh" onclick="adminDashboardModule.refreshData()">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-              <span>Refresh</span>
-            </button>
-          </div>
-          <div class="dash-hero-status">
-            <span class="dash-status-item">Last sync: <strong id="lastUpdateTime">${this.getLastUpdateText()}</strong></span>
-            ${this.settings.autoRefresh ? '<span class="dash-live-badge"><span class="pulse-dot"></span>Live</span>' : ''}
-            <span class="dash-status-item">${this.getDateRangeText()}</span>
+          <div class="ui-actions">
+            ${this.can('student-directory') ? `
+              <button type="button" class="ui-btn" onclick="adminDashboardModule.exportMonthlyReportPack()">Monthly report</button>
+              <button type="button" class="ui-btn" onclick="adminDashboardModule.open('student-directory')">Add student</button>` : ''}
+            ${this.can('fees-payments') ? `
+              <button type="button" class="ui-btn ui-btn-primary" onclick="adminDashboardModule.feesAction('recordPayment')">Record payment</button>` : ''}
           </div>
         </div>
 
-        <!-- ═══ KPI CARDS ═══ -->
-        <div class="dash-kpi-grid">
-          ${this.createModernStatCard('Total Students', stats.totalStudents, stats.studentTrend, 'primary', '🎓', 'student-directory')}
-          ${this.createModernStatCard('Total Staff', stats.totalStaff, stats.staffTrend, 'success', '👨‍🏫', 'staff-management')}
-          ${this.createModernStatCard('Fees Collected', this.formatCurrency(stats.paidFees), stats.feesTrend, 'info', '&#x1F4B0;', 'fees-payments')}
-          ${this.createModernStatCard('Outstanding Balance', this.formatCurrency(stats.pendingFees), null, 'danger', '⚠️', 'fees-payments')}
+        <div class="ui-grid-4">
+          ${kpi('Students', st.totalStudents.toLocaleString('en-NG'),
+                st.classCount ? `${this.plural(st.classCount, 'class', 'classes')} · ${this.plural(st.totalStaff, 'member')} of staff` : 'No classes yet',
+                "adminDashboardModule.open('student-directory')")}
+          ${kpi(`Collected${st.scope.term ? ' · ' + this.esc(st.scope.term) : ''}`, this.money(st.collected),
+                st.billed ? `${st.rate}% of ${this.money(st.billed)} billed` : 'No bills for this term yet',
+                "adminDashboardModule.open('fees-payments')")}
+          ${kpi('Still owed', this.money(st.outstanding),
+                st.owingCount ? `${this.plural(st.owingCount, 'student')} with a balance` : (st.billed ? 'Every bill is paid' : 'Nothing billed yet'),
+                "adminDashboardModule.open('fees-payments', { tab: 'pending' })")}
+          ${kpi('Transfers to check', String(st.waiting.length),
+                st.waiting.length ? `${this.money(st.waitingTotal)} sent by parents` : 'None waiting',
+                "adminDashboardModule.open('fees-payments', { tab: 'overview' })")}
         </div>
 
-        <!-- ═══ FEE SUMMARY BAR ═══ -->
-        ${stats.totalBilled > 0 || stats.paidFees > 0 ? `
-        <div class="dash-fee-summary" onclick="window.app.loadModule('fees-payments')">
-          <div class="dash-fee-cell">
-            <div class="dash-fee-label">Total Billed</div>
-            <div class="dash-fee-value">${this.formatCurrency(stats.totalBilled)}</div>
-          </div>
-          <div class="dash-fee-cell">
-            <div class="dash-fee-label">Collection Rate</div>
-            <div class="dash-fee-value" style="color:${stats.collectionRate >= 75 ? '#10b981' : stats.collectionRate >= 40 ? '#f59e0b' : '#ef4444'};">${stats.collectionRate}%</div>
-            <div class="dash-fee-track">
-              <div style="height:100%;width:${stats.collectionRate}%;background:${stats.collectionRate >= 75 ? '#10b981' : stats.collectionRate >= 40 ? '#f59e0b' : '#ef4444'};border-radius:99px;"></div>
+        <div class="ui-grid-3">
+          <section class="ui-card ui-span-2" aria-labelledby="today-attn" style="padding-bottom:8px;">
+            <div class="ui-card-head">
+              <h2 class="ui-card-title" id="today-attn">Needs your attention</h2>
+              ${attention.length ? '<span class="ui-card-note">Most urgent first</span>' : ''}
             </div>
-          </div>
-          <div class="dash-fee-cell">
-            <div class="dash-fee-label">Collected</div>
-            <div class="dash-fee-value" style="color:#10b981;">${this.formatCurrency(stats.paidFees)}</div>
-          </div>
-          <div class="dash-fee-cell">
-            <div class="dash-fee-label">Outstanding</div>
-            <div class="dash-fee-value" style="color:#ef4444;">${this.formatCurrency(stats.pendingFees)}</div>
-          </div>
-        </div>` : ''}
+            ${attention.length ? attention.map(a => `
+              <div class="ui-row">
+                <span class="ui-dot is-${a.tone}" aria-hidden="true"></span>
+                <div class="ui-row-main">
+                  <div class="ui-row-title">${this.esc(a.title)}</div>
+                  <div class="ui-row-meta">${this.esc(a.meta)}</div>
+                </div>
+                <button type="button" class="ui-btn ui-btn-sm" onclick="${a.run}">${this.esc(a.action)}</button>
+              </div>`).join('')
+            : '<p class="ui-empty">Nothing is waiting on you. New transfers, applications and gaps in records will show here.</p>'}
+          </section>
 
-        <!-- ═══ PENDING VERIFICATIONS ALERT ═══ -->
-        ${this.renderPendingVerifications()}
-
-        <!-- ═══ QUICK ACTIONS ═══ -->
-        <div class="card-modern">
-          <div class="card-header-modern">
-            <h3 class="card-title-modern">⚡ Quick Actions</h3>
-          </div>
-          <div class="dash-actions-grid">
-            <button class="dash-action-btn" onclick="window.app.loadModule('student-directory')">
-              <span class="dash-action-icon" style="background: linear-gradient(135deg,#2E3D7D,#1E2A5A);">👤</span>
-              <span>Add Student</span>
-            </button>
-            <button class="dash-action-btn" onclick="window.app.loadModule('staff-management')">
-              <span class="dash-action-icon" style="background: linear-gradient(135deg,#11998e,#38ef7d);">👨‍🏫</span>
-              <span>Add Staff</span>
-            </button>
-            <button class="dash-action-btn" onclick="window.app.loadModule('fees-payments')">
-              <span class="dash-action-icon" style="background: linear-gradient(135deg,#f093fb,#f5576c);">💳</span>
-              <span>Record Payment</span>
-            </button>
-            <button class="dash-action-btn" onclick="window.app.loadModule('academics')">
-              <span class="dash-action-icon" style="background: linear-gradient(135deg,#4facfe,#00f2fe);">&#x1F3EB;</span>
-              <span>Manage Classes</span>
-            </button>
-            <button class="dash-action-btn" onclick="window.app.loadModule('assessments')">
-              <span class="dash-action-icon" style="background: linear-gradient(135deg,#43e97b,#38f9d7);">📝</span>
-              <span>Assessments</span>
-            </button>
-            <button class="dash-action-btn" onclick="window.app.loadModule('inventory')">
-              <span class="dash-action-icon" style="background: linear-gradient(135deg,#fa709a,#fee140);">📦</span>
-              <span>Inventory</span>
-            </button>
-            <button class="dash-action-btn" onclick="adminDashboardModule.exportMonthlyReportPack()">
-              <span class="dash-action-icon" style="background: linear-gradient(135deg,#1f2937,#475569);">📄</span>
-              <span>Monthly Report</span>
-            </button>
-          </div>
+          <section class="ui-card" aria-labelledby="today-week">
+            <div class="ui-card-head">
+              <h2 class="ui-card-title" id="today-week">Coming up</h2>
+              <button type="button" class="ui-link" onclick="adminDashboardModule.open('calendar')">Calendar</button>
+            </div>
+            <div id="today-events">${this.eventsHTML()}</div>
+          </section>
         </div>
 
-        <!-- ═══ CHARTS + ACTIVITIES ═══ -->
-        <div class="dash-main-grid">
-
-          <!-- Charts column -->
-          <div class="dash-charts-col">
-            <div class="card-modern" onclick="window.app.loadModule('student-directory')" style="cursor:pointer;margin-bottom:var(--space-5);">
-              <div class="card-header-modern">
-                <h3 class="card-title-modern">📈 Student Enrollment Trend</h3>
-                <span class="dash-chart-label">Last 6 months</span>
-              </div>
-              <div class="dash-chart-box"><canvas id="enrollmentChart"></canvas></div>
+        <div class="ui-grid-3">
+          <section class="ui-card ui-span-2" aria-labelledby="today-coll">
+            <div class="ui-card-head">
+              <h2 class="ui-card-title" id="today-coll">${this.esc(st.scope.term || 'Term')} fee collection</h2>
+              <button type="button" class="ui-link" onclick="adminDashboardModule.open('fees-payments', { tab: 'pending' })">Who still owes</button>
             </div>
-            <div class="card-modern" onclick="window.app.loadModule('fees-payments')" style="cursor:pointer;">
-              <div class="card-header-modern">
-                <h3 class="card-title-modern">💵 Revenue Overview</h3>
-                <span class="dash-chart-label">Last 6 months</span>
+            ${st.billed ? `
+              <div style="display:flex; align-items:baseline; gap:10px; margin:6px 0 16px;">
+                <span style="font-family:var(--font-display); font-size:1.625rem; font-weight:600;">${st.rate}%</span>
+                <span class="ui-card-note">${this.money(st.collected)} collected of ${this.money(st.billed)} billed</span>
               </div>
-              <div class="dash-chart-box"><canvas id="revenueChart"></canvas></div>
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                ${st.levels.map(l => {
+                  const pct = l.billed ? Math.min(100, Math.round((l.collected / l.billed) * 100)) : 0;
+                  return `
+                  <div class="ui-bar-row">
+                    <span style="font-weight:500;">${this.esc(l.level)}</span>
+                    <div class="ui-bar" role="img" aria-label="${this.esc(l.level)}: ${pct}% collected"><span style="width:${pct}%"></span></div>
+                    <span class="ui-bar-figure">${pct}% · ${this.money(l.collected)} of ${this.money(l.billed)}</span>
+                  </div>`;
+                }).join('')}
+              </div>`
+            : `<p class="ui-empty">No bills have been raised for ${this.esc(st.scope.term || 'this term')} yet, so there is nothing to measure. Once fees are assigned, collection by class level shows here.</p>
+               <button type="button" class="ui-btn ui-btn-sm" onclick="adminDashboardModule.open('fees-payments')">Go to fees</button>`}
+          </section>
+
+          <section class="ui-card" aria-labelledby="today-act">
+            <div class="ui-card-head">
+              <h2 class="ui-card-title" id="today-act">Recent activity</h2>
             </div>
-          </div>
-
-          <!-- Activities + Quick stats column -->
-          <div class="dash-activity-col">
-            <div class="card-modern" style="margin-bottom:var(--space-5);">
-              <div class="card-header-modern">
-                <h3 class="card-title-modern">🔔 Recent Activity</h3>
-                <span class="activity-count">${activities.length} events</span>
-              </div>
-              <div class="activities-list-modern">
-                ${activities.length > 0
-                  ? activities.map(a => this.createActivityItem(a)).join('')
-                  : '<div class="empty-state-modern">No recent activities</div>'}
-              </div>
-            </div>
-
-            <!-- Inline stat chips -->
-            <div class="dash-chip-grid">
-              <div class="dash-chip" onclick="window.app.loadModule('academics')" style="cursor:pointer;">
-                <span class="dash-chip-icon">🏫</span>
-                <div><div class="dash-chip-label">Active Classes</div><div class="dash-chip-value">${stats.activeClasses}</div></div>
-              </div>
-              <div class="dash-chip" onclick="window.app.loadModule('assessments')" style="cursor:pointer;">
-                <span class="dash-chip-icon">📋</span>
-                <div><div class="dash-chip-label">Upcoming Exams</div><div class="dash-chip-value">${stats.upcomingExams}</div></div>
-              </div>
-              <div class="dash-chip" onclick="window.app.loadModule('applications')" style="cursor:pointer;">
-                <span class="dash-chip-icon">📨</span>
-                <div><div class="dash-chip-label">Applications</div><div class="dash-chip-value">${stats.pendingApplications}</div></div>
-              </div>
-              <div class="dash-chip" onclick="window.app.loadModule('inventory')" style="cursor:pointer;">
-                <span class="dash-chip-icon">📦</span>
-                <div><div class="dash-chip-label">Inventory Items</div><div class="dash-chip-value">${(dataManager?.getAll('inventory') || []).length}</div></div>
-              </div>
-            </div>
-
-            <!-- Expenses breakdown -->
-            <div class="card-modern" onclick="window.app.loadModule('fees-payments')" style="cursor:pointer;margin-top:var(--space-5);">
-              <div class="card-header-modern">
-                <h3 class="card-title-modern">💰 Inventory by Category</h3>
-                <button class="btn-ghost-modern" onclick="event.stopPropagation(); adminDashboardModule.viewExpensesDetails()">Details →</button>
-              </div>
-              ${this.renderExpensesWidget(stats.expenses)}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Initialize charts if Chart.js is available
-    if (typeof Chart !== 'undefined') {
-      setTimeout(() => this.initializeCharts(), 100);
-    }
-  },
-
-  createModernStatCard(label, value, trend, type, icon, moduleLink) {
-    const gradients = {
-      primary: { bg: 'linear-gradient(135deg,#2E3D7D 0%,#1E2A5A 100%)', shadow: 'rgba(30,42,90,0.35)' },
-      success: { bg: 'linear-gradient(135deg,#10b981 0%,#059669 100%)', shadow: 'rgba(16,185,129,0.3)' },
-      warning: { bg: 'linear-gradient(135deg,#f59e0b 0%,#ea580c 100%)', shadow: 'rgba(245,158,11,0.3)' },
-      danger: { bg: 'linear-gradient(135deg,#ef4444 0%,#dc2626 100%)', shadow: 'rgba(239,68,68,0.3)' },
-      info: { bg: 'linear-gradient(135deg,#06b6d4 0%,#0891b2 100%)', shadow: 'rgba(6,182,212,0.3)' }
-    };
-
-    const g = gradients[type] || gradients.primary;
-    const onclick = moduleLink ? `onclick="window.app.loadModule('${moduleLink}')"` : '';
-
-    return `
-      <div class="stat-card-modern" ${onclick}
-           style="--kpi-bg:${g.bg}; --kpi-shadow:${g.shadow}; background:${g.bg}; box-shadow:0 4px 20px ${g.shadow};">
-        <div class="stat-header-modern">
-          <span class="stat-icon-modern">${icon}</span>
-          ${trend ? `<span class="stat-trend-modern">${trend}</span>` : ''}
-        </div>
-        <p class="stat-label-modern">${label}</p>
-        <p class="stat-value-modern">${value}</p>
-      </div>
-    `;
-  },
-
-  renderExpensesWidget(expenses) {
-    if (!expenses || expenses.length === 0) {
-      return '<div class="empty-state-modern">No expense data available</div>';
-    }
-
-    const colors = ['#137fec', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
-
-    return `
-      <div class="expenses-grid-modern">
-        ${expenses.map((expense, i) => `
-          <div class="expense-item-modern" style="--expense-color: ${colors[i % colors.length]};">
-            <div class="expense-category-modern">${expense.category}</div>
-            <div class="expense-amount-modern">${this.formatCurrency(expense.amount)}</div>
-          </div>
-        `).join('')}
-      </div>
-    `;
-  },
-
-  createActivityItem(activity) {
-    const colors = {
-      student: '#137fec',
-      staff: '#10b981',
-      payment: '#f59e0b',
-      system: '#3b82f6'
-    };
-
-    return `
-      <div class="activity-item-modern" style="--activity-color: ${colors[activity.type] || '#137fec'};">
-        <span class="activity-icon-modern">${activity.icon}</span>
-        <div class="activity-content-modern">
-          <p class="activity-text-modern">${activity.text}</p>
-          <span class="activity-time-modern">${activity.time}</span>
+            ${activity.length ? activity.map((e, i) => `
+              <div class="ui-row" style="${i === 0 ? 'border-top:0;' : ''} padding:10px 0;">
+                <div class="ui-row-main">
+                  <div class="ui-row-title" style="font-size:0.875rem; font-weight:500;">${this.esc(e.title)}</div>
+                  <div class="ui-row-meta">${this.esc([e.meta, this.timeAgo(e.ts)].filter(Boolean).join(' · '))}</div>
+                </div>
+              </div>`).join('')
+            : '<p class="ui-empty">Payments, applications and new students will show here as they happen.</p>'}
+          </section>
         </div>
       </div>
     `;
   },
 
-  initializeCharts() {
-    const stats = this.getFilteredStats();
-
-    // Enrollment Chart
-    const enrollmentCtx = document.getElementById('enrollmentChart');
-    if (enrollmentCtx) {
-      const existingEnrollmentChart = Chart.getChart(enrollmentCtx);
-      if (existingEnrollmentChart) existingEnrollmentChart.destroy();
-
-      // Generate enrollment trend based on current student count
-      const currentStudents = stats.totalStudents;
-      const enrollmentData = [];
-      for (let i = 5; i >= 0; i--) {
-        const variance = 0.95 + (Math.random() * 0.05); // Slight growth trend
-        enrollmentData.push(Math.round(currentStudents * Math.pow(variance, i)));
-      }
-
-      new Chart(enrollmentCtx, {
-        type: 'line',
-        data: {
-          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-          datasets: [{
-            label: 'Students',
-            data: enrollmentData,
-            borderColor: '#137fec',
-            backgroundColor: 'rgba(19, 127, 236, 0.1)',
-            tension: 0.4
-          }]
-        },
-        options: {
-          responsive: true,
-          // The wrapper (.dash-chart-box) owns the height.
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
-    }
-
-    // Revenue Chart
-    const revenueCtx = document.getElementById('revenueChart');
-    if (revenueCtx) {
-      const existingRevenueChart = Chart.getChart(revenueCtx);
-      if (existingRevenueChart) existingRevenueChart.destroy();
-
-      const financialData = stats.financialData;
-
-      new Chart(revenueCtx, {
-        type: 'bar',
-        data: {
-          labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-          datasets: [
-            {
-              label: 'Revenue',
-              data: financialData.map(d => d.income),
-              backgroundColor: '#137fec'
-            },
-            {
-              label: 'Expenses',
-              data: financialData.map(d => d.expense),
-              backgroundColor: '#e2e8f0'
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: {
-              // Free up vertical space on a phone; the bars stay labelled.
-              labels: { boxWidth: 12, font: { size: 11 } }
-            }
-          }
-        }
-      });
-    }
-  },
-
-  // Data Methods
-  getFilteredStats() {
-    const dataStudents = dataManager?.getAll('students') || [];
-    const staffList = dataManager?.getAll('staff') || [];
-    const classes = dataManager?.getAll('classes') || [];
-    let payments = dataManager?.getAll('payments') || [];
-    const assessments = dataManager?.getAll('assessments') || [];
-    const inventory = dataManager?.getAll('inventory') || [];
-    const feeItems = dataManager?.getAll('feeItems') || [];
-
-    // Apply date range filter to payments when a range is selected
-    if (this.dateRange?.start && this.dateRange?.end) {
-      const rangeStart = this.dateRange.start;
-      const rangeEnd = new Date(this.dateRange.end);
-      rangeEnd.setHours(23, 59, 59, 999);
-      payments = payments.filter(p => {
-        const d = new Date(p.paymentDate || p.payment_date || p.created_at || p.createdAt || 0);
-        return d >= rangeStart && d <= rangeEnd;
-      });
-    }
-
-    const totalStudents = dataStudents.length;
-    const activeStudents = dataStudents.filter(s => s.status === 'active').length;
-    const totalStaff = staffList.length;
-
-    // ── Fees Collected: confirmed payment transactions (status=paid) ──
-    const paidFees = payments
-      .filter(p => p.status === 'paid' && !this._isPendingVerification(p))
-      .reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-
-    // ── Total Billed: from feeItems ledger (formally assigned fee bills) ──
-    const totalBilled = feeItems.reduce((a, i) => a + parseFloat(i.amount || 0), 0);
-
-    // ── Outstanding Balance: per-bill balances from feeItems (most accurate) ──
-    // Falls back to pending/partial payment records when no feeItems assigned yet
-    const pendingFees = totalBilled > 0
-      ? feeItems.reduce((a, i) => {
-          const bal = parseFloat(i.amount || 0) - parseFloat(i.amount_paid || 0);
-          return a + Math.max(0, bal);
-        }, 0)
-      : payments.filter(p =>
-          (p.status === 'pending' || p.status === 'partial' || p.status === 'overdue')
-          && !this._isPendingVerification(p)
-          && !(p.status === 'overdue' && (p.rejectionReason || p.rejection_reason))
-        ).reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-
-    const totalFees = paidFees + pendingFees;
-
-    // Inventory value as proxy for expenses
-    const inventoryValue = inventory.reduce((a, item) => a + ((parseFloat(item.unitPrice) || 0) * (item.quantity || 0)), 0);
-    const totalExpenses = inventoryValue > 0 ? inventoryValue : 0;
-
-    // Expense breakdown from inventory categories
-    const categoryMap = {};
-    inventory.forEach(item => {
-      const cat = item.category || 'Other';
-      categoryMap[cat] = (categoryMap[cat] || 0) + ((parseFloat(item.unitPrice) || 0) * (item.quantity || 0));
-    });
-    const expenses = Object.entries(categoryMap).map(([category, amount]) => ({ category, amount }));
-
-    // Active classes
-    const activeClasses = classes.length;
-
-    // Upcoming exams from assessments
-    const today = new Date().toISOString().split('T')[0];
-    const upcomingExams = assessments.filter(a => a.date >= today && a.status !== 'completed').length;
-
-    // Calculate trends based on historical data (last 30 days comparison)
-    const trends = this.calculateTrends(dataStudents, staffList, payments, inventory);
-
-    const collectionRate = totalBilled > 0 ? Math.min(100, Math.round((paidFees / totalBilled) * 100)) : 0;
-
-    return {
-      totalStudents,
-      activeStudents,
-      totalStaff,
-      paidFees,
-      pendingFees,
-      totalBilled,
-      collectionRate,
-      totalFees,
-      totalExpenses,
-      expenses,
-      activeClasses,
-      upcomingExams,
-      pendingApplications: (dataManager?.getAll('applications') || []).filter(a => a.status === 'pending').length,
-      pendingVerifications: this.getPendingVerifications().length,
-      financialData: this.generateFinancialData(paidFees, pendingFees),
-      studentTrend: trends.studentTrend,
-      staffTrend: trends.staffTrend,
-      feesTrend: trends.feesTrend,
-      expensesTrend: trends.expensesTrend
-    };
-  },
-
-  calculateTrends(students, staff, payments, inventory) {
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-
-    // Student trend: count students added in last 30 days
-    const recentStudents = students.filter(s => {
-      const createdAt = new Date(s.created_at || s.createdAt || 0);
-      return createdAt >= thirtyDaysAgo;
-    }).length;
-    const studentTrend = recentStudents > 0 ? `+${recentStudents}` : null;
-
-    // Staff trend: count staff added in last 30 days
-    const recentStaff = staff.filter(s => {
-      const createdAt = new Date(s.created_at || s.createdAt || s.hire_date || 0);
-      return createdAt >= thirtyDaysAgo;
-    }).length;
-    const staffTrend = recentStaff > 0 ? `+${recentStaff}` : null;
-
-    // Fees trend: compare pending fees this month vs last month
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, '0')}`;
-    
-    const thisMonthPending = payments.filter(p => 
-      (p.status === 'pending' || p.status === 'overdue') && 
-      (p.created_at || p.createdAt || '').startsWith(thisMonth)
-    ).reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-    
-    const lastMonthPending = payments.filter(p => 
-      (p.status === 'pending' || p.status === 'overdue') && 
-      (p.created_at || p.createdAt || '').startsWith(lastMonth)
-    ).reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-
-    let feesTrend = null;
-    if (lastMonthPending > 0) {
-      const diff = ((thisMonthPending - lastMonthPending) / lastMonthPending) * 100;
-      if (Math.abs(diff) >= 5) {
-        feesTrend = diff > 0 ? `+${diff.toFixed(0)}%` : `${diff.toFixed(0)}%`;
-      }
-    }
-
-    // Expenses trend: compare this month vs last month inventory value changes
-    const thisMonthInventory = inventory.filter(i => 
-      (i.created_at || i.createdAt || '').startsWith(thisMonth)
-    ).reduce((a, item) => a + ((parseFloat(item.unitPrice) || 0) * (item.quantity || 0)), 0);
-    
-    const lastMonthInventory = inventory.filter(i => 
-      (i.created_at || i.createdAt || '').startsWith(lastMonth)
-    ).reduce((a, item) => a + ((parseFloat(item.unitPrice) || 0) * (item.quantity || 0)), 0);
-
-    let expensesTrend = null;
-    if (lastMonthInventory > 0) {
-      const diff = ((thisMonthInventory - lastMonthInventory) / lastMonthInventory) * 100;
-      if (Math.abs(diff) >= 5) {
-        expensesTrend = diff > 0 ? `+${diff.toFixed(0)}%` : `${diff.toFixed(0)}%`;
-      }
-    }
-
-    return {
-      studentTrend,
-      staffTrend,
-      feesTrend,
-      expensesTrend
-    };
-  },
-
-  generateFinancialData(paidFees, pendingFees) {
-    // Build monthly data from actual payments
-    const payments = dataManager?.getAll('payments') || [];
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const now = new Date();
-    const months = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      const monthPayments = payments.filter(p => (p.paymentDate || p.payment_date || '').startsWith(monthKey));
-      const income = monthPayments.filter(p => p.status === 'paid').reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
-      months.push({ income, expense: 0, label: monthNames[d.getMonth()] });
-    }
-    return months;
-  },
-
-  getFilteredActivities() {
-    const activities = [];
-    const now = Date.now();
-    const formatTime = (dateStr) => {
-      if (!dateStr) return '';
-      const diff = now - new Date(dateStr).getTime();
-      const mins = Math.floor(diff / 60000);
-      if (mins < 60) return `${mins}m ago`;
-      const hrs = Math.floor(mins / 60);
-      if (hrs < 24) return `${hrs}h ago`;
-      const days = Math.floor(hrs / 24);
-      return `${days}d ago`;
-    };
-
-    // Recent students
-    const students = dataManager?.getAll('students') || [];
-    students.slice(-3).reverse().forEach(s => {
-      activities.push({ icon: '🎓', text: `Student: ${s.name} (Grade ${s.grade}${s.section || ''})`, time: formatTime(s.createdAt || s.created_at), type: 'student' });
-    });
-
-    // Recent payments — sort by date before slicing
-    const payments = dataManager?.getAll('payments') || [];
-    [...payments]
-      .filter(p => p.status === 'paid')
-      .sort((a, b) => new Date(b.paymentDate || b.payment_date || b.createdAt || 0) - new Date(a.paymentDate || a.payment_date || a.createdAt || 0))
-      .slice(0, 3)
-      .forEach(p => {
-        activities.push({ icon: '💰', text: `Payment received: ₦${(parseFloat(p.amount) || 0).toLocaleString()} from ${p.studentName || 'Student'}`, time: formatTime(p.paymentDate || p.payment_date || p.createdAt), type: 'payment' });
-      });
-
-    // Recent staff
-    const staffList = dataManager?.getAll('staff') || [];
-    staffList.slice(-2).reverse().forEach(s => {
-      activities.push({ icon: '👨‍🏫', text: `Staff: ${s.name} (${s.role || s.type || ''})`, time: formatTime(s.createdAt || s.created_at), type: 'staff' });
-    });
-
-    // Sort by most recent
-    activities.sort((a, b) => {
-      const parseTime = (t) => {
-        if (!t) return 0;
-        const num = parseInt(t);
-        if (t.includes('m')) return num;
-        if (t.includes('h')) return num * 60;
-        if (t.includes('d')) return num * 1440;
-        return 9999;
-      };
-      return parseTime(a.time) - parseTime(b.time);
-    });
-
-    return activities.slice(0, 8);
-  },
-
-  // Utility Methods
-  getCurrentAcademicYear() {
-    return schoolConfig?.getCurrentAcademicYear() || '2024/2025';
-  },
-
-  getCurrentTerm() {
-    return schoolConfig?.getCurrentTerm()?.name || 'First Term';
-  },
-
-  getLastUpdateText() {
-    return new Date().toLocaleTimeString();
-  },
-
-  getDateRangeText() {
-    if (!this.dateRange) return 'Showing all time data';
-    
-    const formatDate = (date) => {
-      return new Date(date).toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric' 
-      });
-    };
-    
-    return `Filtered: ${formatDate(this.dateRange.start)} - ${formatDate(this.dateRange.end)}`;
-  },
-
-  formatCurrency(amount) {
-    return '₦' + amount.toLocaleString();
-  },
-
-  // ── Pending Bank Deposit Verification ──
-  _isPendingVerification(payment) {
-    return payment && payment.status === 'pending'
-      && (payment.paymentMethod === 'bank-deposit' || payment.payment_method === 'bank-deposit');
-  },
-
-  getPendingVerifications() {
-    const payments = dataManager?.getAll('payments') || [];
-    return payments.filter(p => this._isPendingVerification(p));
-  },
-
-  renderPendingVerifications() {
-    const pending = this.getPendingVerifications();
-    if (pending.length === 0) return '';
-
-    return `
-      <div class="card-modern pending-verifications-widget" style="border-left: 4px solid var(--color-warning);">
-        <div class="card-header-modern">
-          <h3 class="card-title-modern">⏳ Pending Bank Deposit Verifications</h3>
-          <span class="badge badge-warning" style="font-size: 0.875rem; padding: 4px 12px;">${pending.length} pending</span>
-        </div>
-        <div class="pending-list">
-          ${pending.map(p => {
-      const receiptUrl = p.receiptUrl || p.receipt_url || '';
-      const isImage = receiptUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-      return `
-            <div class="pending-item" style="display: flex; gap: var(--space-4); padding: var(--space-4); background: var(--bg-primary); border-radius: var(--radius-lg); margin-bottom: var(--space-3); border: 1px solid var(--border-primary); align-items: center; flex-wrap: wrap;">
-              <!-- Receipt Thumbnail -->
-              <div style="flex-shrink: 0; width: 64px; height: 64px; border-radius: var(--radius-md); overflow: hidden; background: var(--bg-tertiary); display: flex; align-items: center; justify-content: center; border: 1px solid var(--border-primary);">
-                ${isImage
-          ? '<img src="' + receiptUrl + '" alt="Receipt" style="width: 100%; height: 100%; object-fit: cover;">'
-          : '<span style="font-size: 1.5rem;">📄</span>'
-        }
-              </div>
-
-              <!-- Payment Info -->
-              <div style="flex: 1; min-width: 180px;">
-                <p style="font-weight: 600; margin-bottom: 2px; color: var(--text-primary);">${p.studentName || 'Unknown Student'}</p>
-                <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: 2px;">
-                  ${p.feeType || 'Fee Payment'} &bull; ${p.paymentMethod?.replace(/-/g, ' ') || 'Bank Deposit'}
-                </p>
-                <p style="font-size: var(--font-size-sm); color: var(--text-tertiary);">
-                  Ref: ${p.transactionRef || '-'} &bull; ${formatDate?.(p.paymentDate || p.payment_date) || ''}
-                </p>
-              </div>
-
-              <!-- Amount -->
-              <div style="text-align: right; min-width: 100px;">
-                <p style="font-size: 1.25rem; font-weight: 700; color: var(--color-success); margin-bottom: 4px;">₦${(parseFloat(p.amount) || 0).toLocaleString()}</p>
-                <p style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Receipt #${p.receiptNo || '-'}</p>
-              </div>
-
-              <!-- Actions -->
-              <div style="display: flex; gap: var(--space-2); flex-shrink: 0;">
-                ${receiptUrl ? '<a href="' + receiptUrl + '" target="_blank" class="btn btn-secondary btn-sm" title="View Receipt" style="padding: 6px 10px;">📎 View</a>' : ''}
-                <button class="btn btn-primary btn-sm" onclick="adminDashboardModule.approvePayment('${p.id}')" style="padding: 6px 12px;">✅ Approve</button>
-                <button class="btn btn-sm" onclick="adminDashboardModule.rejectPayment('${p.id}')" style="padding: 6px 12px; background: var(--color-danger); color: white; border: none; border-radius: var(--radius-md); cursor: pointer;">❌ Reject</button>
-              </div>
-            </div>
-            `;
-    }).join('')}
-        </div>
-      </div>
-    `;
-  },
-
-  _getRecordedBy() {
-    try {
-      const session = JSON.parse(localStorage.getItem('sb_session') || '{}');
-      return session.supabaseId || null;
-    } catch { return null; }
-  },
-
-  async _updatePaymentDirect(id, updateData) {
-    // Verify supabase session is active
-    const { data: sessionData } = await supabaseClient.auth.getSession();
-    if (!sessionData?.session) {
-      showToast('You must be logged in to perform this action. Please refresh and log in again.', 'error');
-      console.error('[Dashboard] No active Supabase auth session');
-      return false;
-    }
-    console.log('[Dashboard] Auth session active, user:', sessionData.session.user?.id);
-
-    const row = { updated_at: new Date().toISOString(), ...updateData };
-    console.log('[Dashboard] Updating payment', id, 'with:', row);
-    // NOTE: We do NOT use .select() here because Supabase RLS policies may allow UPDATE
-    // but restrict SELECT, causing 0 rows returned even on a successful write.
-    // The only reliable failure signal is a non-null error.
-    const { error } = await supabaseClient.from('fees_payments').update(row).eq('id', id);
-    if (error) {
-      console.error('[Dashboard] Update payment failed:', error);
-      showToast('Failed to update payment: ' + error.message, 'error');
-      return false;
-    }
-    console.log('[Dashboard] Payment update sent successfully for id:', id);
-    return true;
-  },
-
-  async _updateStudentFeesAfterVerification(studentId) {
-    await dataManager.refresh('payments');
-    const allPayments = dataManager.getAll('payments') || [];
-    const studentPayments = allPayments.filter(p => (p.studentId || p.student_id) === studentId);
-    const relevantPayments = studentPayments.filter(p => !this._isPendingVerification(p) && !(p.status === 'overdue' && (p.rejectionReason || p.rejection_reason)));
-    let newFeeStatus = 'pending';
-    if (relevantPayments.length > 0) {
-      const allPaid = relevantPayments.every(p => p.status === 'paid');
-      const hasOverdue = relevantPayments.some(p => p.status === 'overdue');
-      const hasPartial = relevantPayments.some(p => p.status === 'partial');
-      if (allPaid) newFeeStatus = 'paid';
-      else if (hasOverdue) newFeeStatus = 'overdue';
-      else if (hasPartial) newFeeStatus = 'partial';
-    }
-    const { error } = await supabaseClient.from('students').update({ fees: newFeeStatus, updated_at: new Date().toISOString() }).eq('id', studentId);
-    if (error) console.warn('[Dashboard] Update student fees status failed:', error.message);
-  },
-
-  approvePayment(paymentId) {
-    const payment = dataManager.getById('payments', paymentId);
-    if (!payment) { showToast('Payment not found', 'error'); return; }
-    const studentName = payment.studentName || payment.student_name || 'student';
-    const amount = parseFloat(payment.amount) || 0;
-
-    createModal('Approve Payment', `
-      <div>
-        <p style="margin-bottom:var(--space-3);">Approve bank deposit of <strong>&#x20A6;${amount.toLocaleString()}</strong> from <strong>${studentName}</strong>?</p>
-        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:var(--space-6);">This will mark the fee as <strong>PAID</strong>. Cannot be undone without voiding.</p>
-        <div class="flex gap-3">
-          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
-          <button class="btn btn-primary flex-1" id="dash-approve-btn">&#x2705; Approve Payment</button>
-        </div>
-      </div>
-    `);
-    setTimeout(() => {
-      const btn = document.getElementById('dash-approve-btn');
-      if (btn) btn.onclick = () => adminDashboardModule._confirmApprovePayment(paymentId);
-    }, 0);
-  },
-
-  async _confirmApprovePayment(paymentId) {
-    const btn = document.getElementById('dash-approve-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Approving…'; }
-    try {
-      const { data: rpc, error: rpcErr } = await supabaseClient.rpc('verify_fee_payment', {
-        p_payment_id:  paymentId,
-        p_verified_by: this._getRecordedBy()
-      });
-      if (rpcErr || !rpc?.success) {
-        const msg = rpc?.error || rpcErr?.message || 'Failed to approve payment.';
-        showToast(msg.replace(/^[A-Z_]+:/, '').trim(), 'error');
-        if (btn) { btn.disabled = false; btn.textContent = '✅ Approve Payment'; }
-        return;
-      }
-      document.querySelector('.modal-backdrop')?.remove();
-      await Promise.all([dataManager.refresh('payments'), dataManager.refresh('students'), dataManager.refresh('feeItems')]);
-      showToast('Payment verified and approved!', 'success');
-      this.render();
-    } catch (err) {
-      console.error('Approve payment error:', err);
-      showToast('Failed to approve: ' + (err.message || 'Unknown error'), 'error');
-      if (btn) { btn.disabled = false; btn.textContent = '✅ Approve Payment'; }
-    }
-  },
-
-  rejectPayment(paymentId) {
-    const payment = dataManager.getById('payments', paymentId);
-    if (!payment) { showToast('Payment not found', 'error'); return; }
-    const studentName = payment.studentName || payment.student_name || 'student';
-
-    createModal('Reject Payment', `
-      <div>
-        <p style="margin-bottom:var(--space-4);color:var(--text-secondary);">Reject bank deposit from <strong>${studentName}</strong>?</p>
-        <div class="form-group">
-          <label class="form-label">Rejection Reason <span style="color:var(--color-danger);">*</span></label>
-          <textarea id="dash-reject-reason" class="form-input" rows="3" placeholder="e.g. Receipt not legible..." style="resize:vertical;"></textarea>
-        </div>
-        <div class="flex gap-3 mt-4">
-          <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
-          <button class="btn flex-1" id="dash-reject-btn" style="background:var(--color-danger);color:white;border:none;">&#x274C; Confirm Rejection</button>
-        </div>
-      </div>
-    `);
-    setTimeout(() => {
-      const btn = document.getElementById('dash-reject-btn');
-      if (btn) btn.onclick = () => adminDashboardModule._confirmRejectPayment(paymentId);
-    }, 0);
-  },
-
-  async _confirmRejectPayment(paymentId) {
-    const reasonEl = document.getElementById('dash-reject-reason');
-    const reason = reasonEl ? reasonEl.value.trim() : '';
-    if (!reason) { reasonEl?.focus(); showToast('Please enter a rejection reason.', 'warning'); return; }
-    const btn = document.getElementById('dash-reject-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Rejecting…'; }
-    try {
-      const { data: rpc, error: rpcErr } = await supabaseClient.rpc('reject_fee_payment', {
-        p_payment_id:  paymentId,
-        p_verified_by: this._getRecordedBy(),
-        p_reason:      reason
-      });
-      if (rpcErr || !rpc?.success) {
-        const msg = rpc?.error || rpcErr?.message || 'Failed to reject payment.';
-        showToast(msg.replace(/^[A-Z_]+:/, '').trim(), 'error');
-        if (btn) { btn.disabled = false; btn.textContent = '❌ Confirm Rejection'; }
-        return;
-      }
-      document.querySelector('.modal-backdrop')?.remove();
-      await Promise.all([dataManager.refresh('payments'), dataManager.refresh('students')]);
-      showToast('Payment rejected.', 'warning');
-      this.render();
-    } catch (err) {
-      console.error('Reject payment error:', err);
-      showToast('Failed to reject: ' + (err.message || 'Unknown error'), 'error');
-      if (btn) { btn.disabled = false; btn.textContent = '❌ Confirm Rejection'; }
-    }
-  },
-
-  // Action Methods
   async refreshData() {
-    showToast('Refreshing data from server...', 'info');
+    showToast('Refreshing…', 'info');
     try {
-      if (window.supabaseReady) {
-        await dataManager.refreshAll();
-      }
+      if (window.supabaseReady) await dataManager.refreshAll();
       this.render();
-      showToast('Dashboard refreshed with latest data!', 'success');
+      this.loadEvents();
     } catch (e) {
       console.error('Refresh failed:', e);
-      showToast('Refresh failed. Using cached data.', 'warning');
+      showToast('Could not refresh. Showing the last data loaded.', 'warning');
       this.render();
     }
+  },
+
+  startAutoRefresh() {
+    if (this.refreshManager) this.refreshManager.stop();
+    const INTERVAL_MS = 60_000;
+    let timerId = setInterval(() => {
+      if (window.supabaseReady && dataManager?.refreshAll) {
+        dataManager.refreshAll().then(() => this.render()).catch(() => {});
+      }
+    }, INTERVAL_MS);
+    this.refreshManager = { stop() { clearInterval(timerId); timerId = null; } };
   },
 
   async exportMonthlyReportPack() {
@@ -882,7 +548,7 @@ const adminDashboardModule = {
     const staff = dataManager?.getAll('staff') || [];
     const payments = dataManager?.getAll('payments') || [];
     const applications = dataManager?.getAll('applications') || [];
-    const stats = this.getFilteredStats();
+    const stats = this.getStats();
 
     const monthStart = new Date();
     monthStart.setDate(1);
@@ -960,101 +626,6 @@ const adminDashboardModule = {
     XLSX.writeFile(wb, `school_report_pack_${fileDate}.xlsx`);
     showToast('Monthly report pack exported successfully!', 'success');
   },
-
-  viewExpensesDetails() {
-    if (window.app) {
-      window.app.loadModule('fees-payments');
-    }
-  },
-
-  startAutoRefresh() {
-    if (this.refreshManager) this.refreshManager.stop();
-    const INTERVAL_MS = 60_000; // 60 seconds
-    let timerId = setInterval(() => {
-      if (window.supabaseReady && dataManager?.refreshAll) {
-        dataManager.refreshAll().then(() => this.render()).catch(() => {});
-      }
-    }, INTERVAL_MS);
-    this.refreshManager = { stop() { clearInterval(timerId); timerId = null; } };
-  },
-
-  initDateRangePicker() {
-    const input = document.getElementById('dateRangePicker');
-    if (!input || typeof flatpickr === 'undefined') return;
-
-    this.dateRangePicker = flatpickr(input, {
-      mode: 'range',
-      dateFormat: 'Y-m-d',
-      maxDate: 'today',
-      locale: {
-        rangeSeparator: ' to '
-      },
-      onChange: (selectedDates) => {
-        if (selectedDates.length === 2) {
-          this.dateRange = {
-            start: selectedDates[0],
-            end: selectedDates[1]
-          };
-          this.render();
-        }
-      },
-      onClose: (selectedDates) => {
-        // If user only selected one date, clear the filter
-        if (selectedDates.length === 1) {
-          this.dateRangePicker.clear();
-          this.dateRange = null;
-          this.render();
-        }
-      }
-    });
-
-    // Add clear button functionality
-    const clearBtn = document.createElement('button');
-    clearBtn.innerHTML = '✕';
-    clearBtn.className = 'date-clear-btn';
-    clearBtn.title = 'Clear date filter';
-    clearBtn.style.cssText = `
-      position: absolute;
-      right: 40px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: transparent;
-      border: none;
-      color: var(--text-secondary);
-      cursor: pointer;
-      font-size: 1.2rem;
-      padding: 0 8px;
-      display: none;
-    `;
-    clearBtn.onclick = (e) => {
-      e.stopPropagation();
-      this.dateRangePicker.clear();
-      this.dateRange = null;
-      this.render();
-    };
-
-    // Show clear button when date is selected
-    input.addEventListener('change', () => {
-      clearBtn.style.display = input.value ? 'block' : 'none';
-    });
-
-    // Insert clear button
-    const wrapper = input.parentElement;
-    if (wrapper) {
-      wrapper.style.position = 'relative';
-      wrapper.appendChild(clearBtn);
-    }
-  },
-
-  updateNotificationBadge() {
-    const pending = (dataManager?.getAll('applications') || []).filter(a => a.status === 'pending').length
-      + this.getPendingVerifications().length;
-    const badges = document.querySelectorAll('[data-notification-badge]');
-    badges.forEach(el => {
-      el.textContent = pending > 0 ? pending : '';
-      el.style.display = pending > 0 ? 'inline-flex' : 'none';
-    });
-  }
 };
 
 // Expose to window

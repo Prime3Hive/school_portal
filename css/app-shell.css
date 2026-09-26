@@ -1,0 +1,361 @@
+/* ============================================
+   APP SHELL — the frame every signed-in page sits in
+   ============================================
+
+   Sidebar, top bar and the neutral ground behind the page. It is linked
+   after each portal's own <style> block so it wins at equal specificity,
+   and it carries its own mobile rules for the same reason.
+
+   The light-theme token overrides below are what move every existing
+   module onto the warmer ground and darker secondary text without editing
+   each one: modules already paint with --bg-*, --border-* and --text-*.
+   ============================================ */
+
+:root:not([data-theme="dark"]) {
+  --bg-primary: #F6F5F1;
+  --bg-secondary: #FFFFFF;
+  --bg-tertiary: #F1F2F6;
+  --bg-elevated: #FFFFFF;
+  --border-primary: #E6E3DA;
+  --border-secondary: #EFEDE6;
+  --text-primary: #141C3E;
+  --text-secondary: #474D6B;
+  /* Was hsl(227 24% 50%), which fails 4.5:1 on the new ground at small sizes. */
+  --text-tertiary: #5A607A;
+}
+
+:root {
+  --shell-sidebar-w: 256px;
+  --shell-sidebar-bg: var(--brand-navy-deep);
+  --shell-sidebar-active: #2A376E;
+  --shell-sidebar-text: #C9CDE0;
+  --shell-sidebar-muted: #A9AFCB;
+  --shell-sidebar-label: #8990B3;
+  --shell-sidebar-line: rgba(255, 255, 255, 0.08);
+}
+
+/* ── Sidebar ─────────────────────────────── */
+/* `nav.` because accessibility.css sets nav[aria-label] { position: relative },
+   which outranks a bare class and would put the sidebar back in the flow. */
+nav.nav-sidebar {
+  position: fixed;
+  width: var(--shell-sidebar-w);
+  background: var(--shell-sidebar-bg);
+}
+
+.main-wrapper {
+  margin-left: var(--shell-sidebar-w);
+}
+
+.nav-logo {
+  gap: 12px;
+  padding: 20px 18px 16px;
+  border-bottom: 1px solid var(--shell-sidebar-line);
+  margin-bottom: 4px;
+}
+
+/* The crest is drawn in white here, so it needs no plate behind it. */
+.nav-logo-icon {
+  width: 30px;
+  height: 34px;
+  min-width: 30px;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.nav-logo-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.nav-logo-text > div:first-child {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 600;
+  white-space: normal;
+  line-height: 1.2;
+}
+
+.nav-logo-text > div:last-child {
+  font-size: 0.75rem;
+  color: var(--shell-sidebar-muted);
+  margin-top: 2px;
+}
+
+.nav-menu {
+  padding: 4px 12px 12px;
+}
+
+.nav-item[hidden],
+.nav-section-label[hidden] {
+  display: none;
+}
+
+.nav-section-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--shell-sidebar-label);
+  padding: 16px 10px 6px;
+}
+
+.nav-link {
+  gap: 10px;
+  padding: 0 10px;
+  min-height: 40px;
+  border-radius: 9px;
+  color: var(--shell-sidebar-text);
+}
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #FFFFFF;
+}
+
+.nav-link:focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: 2px;
+}
+
+.nav-link.active {
+  background: var(--shell-sidebar-active);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.nav-link.active::before {
+  display: none;
+}
+
+.nav-link-icon,
+.nav-link.active .nav-link-icon,
+.nav-link:hover .nav-link-icon {
+  width: 18px;
+  min-width: 18px;
+  color: inherit;
+  transform: none;
+}
+
+.nav-link-icon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.nav-link.active .nav-link-text {
+  font-weight: 600;
+}
+
+.nav-badge {
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 20px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: var(--brand-red-deep);
+  color: #FFFFFF;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-badge[hidden] {
+  display: none;
+}
+
+.nav-footer {
+  padding: 12px;
+  border-top: 1px solid var(--shell-sidebar-line);
+}
+
+.nav-user-card {
+  cursor: default;
+  background: none;
+  border: 0;
+  padding: 6px 4px;
+}
+
+.nav-user-card:hover {
+  background: none;
+}
+
+.nav-user-avatar {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  background: var(--brand-red);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.nav-user-name {
+  font-size: 0.875rem;
+  color: #FFFFFF;
+}
+
+.nav-user-role {
+  font-size: 0.75rem;
+  color: var(--shell-sidebar-muted);
+}
+
+.nav-signout {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--shell-sidebar-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.nav-signout:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #FFFFFF;
+}
+
+.nav-signout:focus-visible {
+  outline: 2px solid #FFFFFF;
+  outline-offset: 2px;
+}
+
+/* ── Top bar ─────────────────────────────── */
+.top-header {
+  height: 64px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-primary);
+  box-shadow: none;
+  padding: 0 28px;
+  gap: 16px;
+}
+
+.header-left {
+  min-width: 0;
+  gap: 14px;
+}
+
+.header-right {
+  gap: 10px;
+}
+
+/* Two classes: accessibility.css hides `[aria-expanded="false"] + *`, which is
+   exactly this element — it follows the closed menu button. */
+.top-header .shell-page-title {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+
+.term-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.term-chip-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand-red);
+  flex-shrink: 0;
+}
+
+/* Global search injects its own inline-styled box; give it room and the
+   shell's height and radius. */
+#gs-input-wrap {
+  min-width: 300px !important;
+  max-width: 420px !important;
+  height: 40px;
+  box-sizing: border-box;
+  background: var(--bg-primary) !important;
+}
+
+.notification-btn,
+.user-profile {
+  background: var(--bg-secondary);
+}
+
+.notification-btn {
+  width: 40px;
+  height: 40px;
+  color: var(--text-primary);
+}
+
+.notification-btn svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.user-avatar {
+  background: var(--brand-navy);
+}
+
+.user-profile:hover,
+.notification-btn:hover {
+  border-color: var(--brand-navy-light);
+}
+
+/* ── Page ground ─────────────────────────── */
+.main-content {
+  background: var(--bg-primary);
+  padding: 28px 32px;
+}
+
+/* ── Phones and small tablets ───────────── */
+@media (max-width: 1024px) {
+  .main-wrapper {
+    margin-left: 0;
+  }
+
+  .nav-link {
+    min-height: 46px;
+  }
+
+  nav.nav-sidebar {
+    width: min(var(--shell-sidebar-w), 86vw);
+  }
+}
+
+@media (max-width: 768px) {
+  .top-header {
+    padding: 0 12px;
+    gap: 8px;
+  }
+
+  .term-chip {
+    display: none;
+  }
+
+  #gs-input-wrap {
+    min-width: 0 !important;
+  }
+}
+

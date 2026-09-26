@@ -169,7 +169,7 @@
    ============================================ */
 @media (max-width: 768px) {
   .main-content {
-    padding: var(--space-4) var(--space-3) var(--space-8) !important;
+    padding: var(--space-4) var(--space-4) var(--space-8) !important;
   }
 
   .page-title,
@@ -199,7 +199,8 @@
 
 @media (max-width: 480px) {
   .main-content {
-    padding: var(--space-3) var(--space-2) var(--space-8) !important;
+    /* 16px sides: anything less and cards touch the screen edge on a phone. */
+    padding: var(--space-3) var(--space-4) var(--space-8) !important;
   }
 }
 

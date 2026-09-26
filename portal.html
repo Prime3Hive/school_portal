@@ -334,6 +334,9 @@
       margin: var(--space-2) 0;
     }
   </style>
+  <!-- Shell after the page styles above, so the new frame wins at equal specificity -->
+  <link rel="stylesheet" href="css/app-shell.css">
+  <link rel="stylesheet" href="css/app-ui.css">
 
   <!-- Flatpickr CSS (stylesheet only — JS loaded in body) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
@@ -351,18 +354,19 @@
 
   <div class="app-container">
     <!-- Sidebar Navigation -->
-    <nav class="nav-sidebar" id="sidebar">
+    <nav class="nav-sidebar" id="sidebar" aria-label="Main">
       <!-- Close button (mobile only) -->
       <div class="nav-mobile-close">
         <button onclick="closeSidebar()" title="Close menu" aria-label="Close menu">✕</button>
       </div>
 
       <div class="nav-logo">
-        <div class="nav-logo-icon"><img src="assets/logo-mark.svg" alt="TBD International Academy crest" width="32"
-            height="32"></div>
+        <div class="nav-logo-icon">
+          <svg viewBox="0 0 200 224" aria-hidden="true"><path d="M100 4 192 34v82c0 54-42 88-92 100C50 204 8 170 8 116V34Z" fill="#fff"/><path d="M100 42 164 70l-64 28-64-28Z" fill="#1E2A5A"/><path d="M72 84v16c0 10 56 10 56 0V84l-28 12Z" fill="#1E2A5A"/><path d="M100 124c-13-11-36-15-58-13v54c22-2 45 2 58 13Z" fill="#1E2A5A"/><path d="M100 124c13-11 36-15 58-13v54c-22-2-45 2-58 13Z" fill="#1E2A5A"/></svg>
+        </div>
         <div class="nav-logo-text">
-          <div id="sidebar-school-name" style="font-size: var(--font-size-lg); font-weight: var(--font-weight-bold);">TBD International Academy</div>
-          <div id="sidebar-school-location" style="font-size: var(--font-size-xs); color: var(--text-tertiary);">Makurdi, Benue State</div>
+          <div id="sidebar-school-name">TBD International Academy</div>
+          <div>Staff portal</div>
         </div>
       </div>
       <script>
@@ -381,8 +385,7 @@
             });
             if (migrated) localStorage.setItem('tbd_academy_settings', JSON.stringify(s));
 
-            if (s.schoolName)    document.getElementById('sidebar-school-name').textContent    = s.schoolName;
-            if (s.schoolAddress) document.getElementById('sidebar-school-location').textContent = s.schoolAddress;
+            if (s.schoolName) document.getElementById('sidebar-school-name').textContent = s.schoolName;
             if (s.theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
             else document.documentElement.removeAttribute('data-theme');
           } catch(e) {}
@@ -390,98 +393,126 @@
       </script>
 
       <ul class="nav-menu">
-        <!-- Overview -->
         <li class="nav-item">
           <a href="#admin-dashboard" class="nav-link" data-module="admin-dashboard">
-            <span class="nav-link-icon">📊</span>
-            <span class="nav-link-text">Dashboard</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg></span>
+            <span class="nav-link-text">Today</span>
           </a>
         </li>
 
-        <!-- Management -->
-        <li class="nav-section-label">Management</li>
+        <li class="nav-section-label">People</li>
         <li class="nav-item">
           <a href="#student-directory" class="nav-link" data-module="student-directory">
-            <span class="nav-link-icon">👥</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 19v-1a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v1M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6M22 19v-1a4 4 0 0 0-3-3.9M16 4.1a3 3 0 0 1 0 5.8"/></svg></span>
             <span class="nav-link-text">Students</span>
           </a>
         </li>
         <li class="nav-item">
           <a href="#staff-management" class="nav-link" data-module="staff-management">
-            <span class="nav-link-icon">👨‍🏫</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h16v11H4zM9 8V5h6v3M4 13h16"/></svg></span>
             <span class="nav-link-text">Staff</span>
           </a>
         </li>
+
+        <li class="nav-section-label">Academics</li>
         <li class="nav-item">
           <a href="#academics" class="nav-link" data-module="academics">
-            <span class="nav-link-icon">🎓</span>
-            <span class="nav-link-text">Academic Hub</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19V6a2 2 0 0 1 2-2h14v14H6a2 2 0 0 0-2 2zM4 19a2 2 0 0 0 2 2h14"/></svg></span>
+            <span class="nav-link-text">Classes &amp; scores</span>
           </a>
         </li>
         <li class="nav-item">
           <a href="#teacher-tasks" class="nav-link" data-module="teacher-tasks">
-            <span class="nav-link-icon">📋</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16zM13 7l4 4"/></svg></span>
             <span class="nav-link-text">Assignments</span>
           </a>
         </li>
         <li class="nav-item">
           <a href="#report-cards" class="nav-link" data-module="report-cards">
-            <span class="nav-link-icon">📄</span>
-            <span class="nav-link-text">Report Cards</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h5"/></svg></span>
+            <span class="nav-link-text">Report cards</span>
           </a>
         </li>
 
-        <!-- Finance -->
-        <li class="nav-section-label">Finance</li>
+        <li class="nav-section-label">Money</li>
         <li class="nav-item">
           <a href="#fees-payments" class="nav-link" data-module="fees-payments">
-            <span class="nav-link-icon">&#x1F4B0;</span>
-            <span class="nav-link-text">Fees & Payments</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h16v12H3zM3 7l12-3v3M15 13h2"/></svg></span>
+            <span class="nav-link-text">Fees &amp; payments</span>
+            <span class="nav-badge" data-nav-badge="verifications" title="Bank transfers waiting to be checked" hidden></span>
           </a>
         </li>
         <li class="nav-item">
           <a href="#inventory" class="nav-link" data-module="inventory">
-            <span class="nav-link-icon">&#x1F4E6;</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4zM3 7l9 4 9-4M12 11v10"/></svg></span>
             <span class="nav-link-text">Inventory</span>
           </a>
         </li>
 
-        <!-- Administration -->
-        <li class="nav-section-label">Administration</li>
+        <li class="nav-section-label">Admissions</li>
         <li class="nav-item">
           <a href="#applications" class="nav-link" data-module="applications">
-            <span class="nav-link-icon">📋</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 13h5l2 3h4l2-3h5M5 5h14l2 8v6H3v-6z"/></svg></span>
             <span class="nav-link-text">Applications</span>
+            <span class="nav-badge" data-nav-badge="applications" title="Applications waiting for review" hidden></span>
+          </a>
+        </li>
+
+        <li class="nav-section-label">School</li>
+        <li class="nav-item">
+          <a href="#calendar" class="nav-link" data-module="calendar">
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v15H4zM4 10h16M9 3v4M15 3v4"/></svg></span>
+            <span class="nav-link-text">Calendar &amp; events</span>
           </a>
         </li>
         <li class="nav-item">
           <a href="#user-management" class="nav-link" data-module="user-management">
-            <span class="nav-link-icon">🔐</span>
-            <span class="nav-link-text">User Management</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/></svg></span>
+            <span class="nav-link-text">Users &amp; access</span>
           </a>
         </li>
-        <li class="nav-item">
-          <a href="#calendar" class="nav-link" data-module="calendar">
-            <span class="nav-link-icon">📆</span>
-            <span class="nav-link-text">Calendar</span>
-          </a>
-        </li>
-
-        <!-- System -->
-        <li class="nav-section-label">System</li>
         <li class="nav-item">
           <a href="#settings" class="nav-link" data-module="settings">
-            <span class="nav-link-icon">⚙️</span>
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M14 4v4M8 10v4M16 16v4"/></svg></span>
             <span class="nav-link-text">Settings</span>
           </a>
         </li>
         <li class="nav-item">
-          <a href="/" class="nav-link" target="_blank">
-            <span class="nav-link-icon">📰</span>
-            <span class="nav-link-text">Public Blog</span>
+          <a href="/" class="nav-link" target="_blank" rel="noopener">
+            <span class="nav-link-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span>
+            <span class="nav-link-text">Public website</span>
           </a>
         </li>
       </ul>
+
+      <div class="nav-footer" style="position:relative;">
+        <div class="nav-user-card">
+          <div class="nav-user-avatar" id="nav-user-avatar" aria-hidden="true">?</div>
+          <div class="nav-user-info">
+            <div class="nav-user-name" id="nav-user-name">Signed in</div>
+            <div class="nav-user-role" id="nav-user-role"></div>
+          </div>
+          <button type="button" class="nav-signout" id="signout-btn" onclick="showSignOutConfirm()" aria-label="Sign out" title="Sign out">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg>
+          </button>
+        </div>
+        <!-- Inline confirmation rather than confirm(): Chrome blocks confirm()
+             after a popup such as Paystack's has been shown. -->
+        <div id="signout-confirm" role="dialog" aria-label="Sign out"
+          style="display:none; position:absolute; left:12px; right:12px; bottom:calc(100% + 6px);
+                 padding:14px; background:var(--bg-secondary); border:1px solid var(--border-primary);
+                 border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,0.28); text-align:center;">
+          <p style="margin:0 0 10px; font-size:0.875rem; color:var(--text-primary);">Sign out of the portal?</p>
+          <div style="display:flex; gap:8px;">
+            <button onclick="confirmSignOut()"
+              style="flex:1; height:38px; background:var(--brand-red-deep); border:none; border-radius:9px;
+                     color:#fff; font-size:0.875rem; font-weight:600; cursor:pointer;">Sign out</button>
+            <button onclick="cancelSignOut()"
+              style="flex:1; height:38px; background:var(--bg-tertiary); border:1px solid var(--border-primary);
+                     border-radius:9px; color:var(--text-primary); font-size:0.875rem; font-weight:600; cursor:pointer;">Cancel</button>
+          </div>
+        </div>
+      </div>
     </nav>
 
     <!-- Main Content Area -->
@@ -489,44 +520,15 @@
       <header class="top-header">
         <div class="header-left">
           <button class="mobile-menu-btn" onclick="toggleSidebar()" aria-label="Open menu" aria-controls="sidebar"
-            aria-expanded="false">☰</button>
-          <div class="breadcrumbs" style="margin-bottom:0;">
-            <span style="font-size:13px; color:var(--text-tertiary); font-weight:500;">Admin Portal</span>
-            <span style="color:var(--text-tertiary); margin:0 6px; font-size:11px;">›</span>
-            <span style="font-size:13px; font-weight:600; color:var(--text-primary);" id="breadcrumb-current">Dashboard</span>
-          </div>
+            aria-expanded="false"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+          <div class="shell-page-title" id="breadcrumb-current">Today</div>
+          <span class="term-chip" title="Current session and term"><span class="term-chip-dot" aria-hidden="true"></span><span id="term-chip-label"></span></span>
         </div>
         <div class="header-right">
-          <!-- Sign Out button + inline confirmation -->
-          <div style="position:relative;">
-            <button id="signout-btn" onclick="showSignOutConfirm()"
-              style="display:flex; align-items:center; gap:7px; padding:7px 14px;
-                     background:rgba(239,68,68,0.09); border:1px solid rgba(239,68,68,0.25);
-                     border-radius:8px; color:#ef4444; cursor:pointer;
-                     font-size:0.82rem; font-weight:600; transition:all 0.15s; white-space:nowrap;"
-              onmouseover="this.style.background='rgba(239,68,68,0.18)'" onmouseout="this.style.background='rgba(239,68,68,0.09)'">
-              <span style="font-size:15px; line-height:1;">🚪</span>
-              <span>Sign Out</span>
-            </button>
-            <div id="signout-confirm"
-              style="display:none; position:absolute; top:calc(100% + 8px); right:0; z-index:999;
-                     padding:14px; min-width:180px; background:var(--bg-secondary);
-                     border:1px solid rgba(239,68,68,0.3); border-radius:10px;
-                     box-shadow:0 8px 24px rgba(0,0,0,0.18); text-align:center;">
-              <p style="margin:0 0 10px; font-size:0.8rem; color:var(--text-secondary);">Sign out of the portal?</p>
-              <div style="display:flex; gap:6px;">
-                <button onclick="confirmSignOut()"
-                  style="flex:1; padding:7px; background:#ef4444; border:none; border-radius:7px;
-                         color:#fff; font-size:0.8rem; font-weight:600; cursor:pointer;">Yes</button>
-                <button onclick="cancelSignOut()"
-                  style="flex:1; padding:7px; background:var(--bg-tertiary); border:1px solid var(--border-primary);
-                         border-radius:7px; color:var(--text-secondary); font-size:0.8rem; font-weight:600; cursor:pointer;">Cancel</button>
-              </div>
-            </div>
-          </div>
-          <button class="notification-btn" title="Notifications">
-            🔔
-            <span class="notification-badge"></span>
+          <button class="notification-btn" id="shell-bell" type="button" aria-label="See what needs attention"
+            onclick="window.app && window.app.loadModule('admin-dashboard')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4zM10 21h4"/></svg>
+            <span class="notification-badge" id="shell-bell-dot" hidden></span>
           </button>
           <div class="user-profile" onclick="toggleProfileDropdown(event)">
             <div class="user-avatar" id="header-avatar">A</div>
@@ -544,38 +546,34 @@
 
               <div class="dropdown-menu">
                 <a href="#admin-profile" class="dropdown-item" onclick="navigateToProfile(event)">
-                  <span class="dropdown-item-icon">👤</span>
                   <div class="dropdown-item-content">
-                    <div class="dropdown-item-title">My Profile</div>
-                    <div class="dropdown-item-desc">View and edit profile</div>
+                    <div class="dropdown-item-title">My profile</div>
+                    <div class="dropdown-item-desc">View and edit your details</div>
                   </div>
                 </a>
 
                 <div class="dropdown-divider"></div>
 
                 <a href="teacher-portal.html" class="dropdown-item" target="_blank">
-                  <span class="dropdown-item-icon">👨‍🏫</span>
                   <div class="dropdown-item-content">
-                    <div class="dropdown-item-title">Staff Portal</div>
-                    <div class="dropdown-item-desc">Access teacher dashboard</div>
+                    <div class="dropdown-item-title">Teacher portal</div>
+                    <div class="dropdown-item-desc">Opens in a new tab</div>
                   </div>
                 </a>
 
                 <a href="student-portal.html" class="dropdown-item" target="_blank">
-                  <span class="dropdown-item-icon">🎓</span>
                   <div class="dropdown-item-content">
-                    <div class="dropdown-item-title">Student Portal</div>
-                    <div class="dropdown-item-desc">View student dashboard</div>
+                    <div class="dropdown-item-title">Student &amp; parent portal</div>
+                    <div class="dropdown-item-desc">Opens in a new tab</div>
                   </div>
                 </a>
 
                 <div class="dropdown-divider"></div>
 
                 <a href="#settings" class="dropdown-item" onclick="navigateToSettings(event)">
-                  <span class="dropdown-item-icon">⚙️</span>
                   <div class="dropdown-item-content">
                     <div class="dropdown-item-title">Settings</div>
-                    <div class="dropdown-item-desc">Account preferences</div>
+                    <div class="dropdown-item-desc">School and account preferences</div>
                   </div>
                 </a>
               </div>
@@ -609,6 +607,7 @@
 
   <!-- ③ Auth — synchronous (guards portal before DOMContentLoaded) -->
   <script src="js/auth-manager.js"></script>
+  <script src="js/portal-shell.js"></script>
 
   <!-- ④ Data & feature managers — deferred (don't block first paint) -->
   <script defer src="js/data-manager.js"></script>

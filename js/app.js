@@ -32,8 +32,20 @@ class SchoolPortalApp {
 
         document.querySelectorAll('.nav-link[data-module]').forEach(link => {
             if (!permissionManager.canAccessModule(role, link.dataset.module)) {
+                link.closest('.nav-item')?.setAttribute('hidden', '');
                 link.style.display = 'none';
             }
+        });
+
+        // A group heading with every link under it hidden is just noise.
+        document.querySelectorAll('.nav-section-label').forEach(label => {
+            let el = label.nextElementSibling;
+            let visible = false;
+            while (el && !el.classList.contains('nav-section-label')) {
+                if (!el.hidden) { visible = true; break; }
+                el = el.nextElementSibling;
+            }
+            label.hidden = !visible;
         });
     }
 
@@ -138,7 +150,13 @@ class SchoolPortalApp {
         }
     }
 
-    async loadModule(moduleName) {
+    /**
+     * @param {string} moduleName
+     * @param {{ tab?: string }} [options] open the module on one of its tabs.
+     *   Modules keep their tab in `currentTab` or `_tab`; it is set before
+     *   init() so the first render is already the right one.
+     */
+    async loadModule(moduleName, options = {}) {
         const contentArea = document.getElementById('main-content');
         const breadcrumb = document.getElementById('breadcrumb-current');
 
@@ -177,21 +195,31 @@ class SchoolPortalApp {
         window.location.hash = moduleName;
         this.currentModule = moduleName;
 
+        // Keep the sidebar in step however the module was opened — a link on
+        // the dashboard, the bell, or the sidebar itself.
+        document.querySelectorAll('.nav-link[data-module]').forEach(l => {
+            const on = l.dataset.module === moduleName;
+            l.classList.toggle('active', on);
+            if (on) l.setAttribute('aria-current', 'page');
+            else l.removeAttribute('aria-current');
+        });
+
         // Module titles
+        // Match the sidebar labels, so the title always names the link just clicked.
         const moduleTitles = {
-            'admin-dashboard': 'Admin Dashboard',
-            'student-directory': 'Student Directory',
-            'staff-management': 'Staff Management',
-            'fees-payments': 'Fees & Payments',
-            'inventory': 'Inventory Management',
-            'academics': 'Academic Hub',
+            'admin-dashboard': 'Today',
+            'student-directory': 'Students',
+            'staff-management': 'Staff',
+            'fees-payments': 'Fees & payments',
+            'inventory': 'Inventory',
+            'academics': 'Classes & scores',
             'applications': 'Applications',
-            'user-management': 'User Management',
-            'admin-profile': 'My Profile',
+            'user-management': 'Users & access',
+            'admin-profile': 'My profile',
             'settings': 'Settings',
-            'calendar': 'School Calendar',
+            'calendar': 'Calendar & events',
             'teacher-tasks': 'Assignments',
-            'report-cards': 'Report Cards'
+            'report-cards': 'Report cards'
         };
 
         // Update breadcrumb
@@ -209,6 +237,10 @@ class SchoolPortalApp {
             // Initialize module
             const moduleFunction = window[`${this.camelCase(moduleName)}Module`];
             if (moduleFunction) {
+                if (options.tab) {
+                    if ('currentTab' in moduleFunction) moduleFunction.currentTab = options.tab;
+                    else if ('_tab' in moduleFunction) moduleFunction._tab = options.tab;
+                }
                 await moduleFunction.init(contentArea);
             } else {
                 contentArea.innerHTML = `
