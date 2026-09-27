@@ -9,327 +9,126 @@ const feeManager = {
    * @param {string} grade - Student's grade/class
    * @param {string} academicYear - Academic year (default: 2025/2026)
    */
-  async initializeFeeItems(studentId, grade, academicYear = '2025-2026', term = null, skipIfExists = true) {
-    if (!studentId || !grade) {
-      console.error('[FeeManager] Missing studentId or grade');
-      return { success: false, error: 'Missing required parameters' };
-    }
+  /** The term and session to bill when a caller does not name one. */
+  currentBillingPeriod() {
+    return {
+      term: window.schoolConfig?.getCurrentTerm?.()?.name || 'First Term',
+      academicYear: String(window.schoolConfig?.getCurrentAcademicYear?.() || feeStructure.academicYear || '').replace('/', '-')
+    };
+  },
+
+  /**
+   * Bill a pupil for one term: add the fee lines their class owes that they
+   * do not already have. Never deletes or changes a line.
+   *
+   * This replaced a version with two ways to lose or double money:
+   *   - "skip existing" deleted every line for the term (paid ones included)
+   *     whenever the count differed from the structure, then re-created them
+   *     unpaid, so money already paid stopped counting against the bill;
+   *   - "overwrite" deleted nothing and inserted the whole structure again,
+   *     billing every item twice.
+   * Adding only what is missing makes running it twice harmless, and 0023
+   * gives the browser no UPDATE on fee_items anyway.
+   *
+   * @param {object} opts { term, academicYear, enrolment: 'new' | 'returning' }
+   *   A pupil's first term is 'new' (adds the one-off uniform set).
+   * @returns {Promise<{success:boolean, added?:number, alreadyBilled?:boolean, error?:string}>}
+   */
+  async billStudentForTerm(studentId, grade, opts = {}) {
+    if (!studentId || !grade) return { success: false, error: 'Missing student or class' };
+    const period = this.currentBillingPeriod();
+    const term = opts.term || period.term;
+    const academicYear = String(opts.academicYear || period.academicYear).replace('/', '-');
+    const breakdown = feeStructure.calculateFeeBreakdown(grade, opts.enrolment || 'returning');
+    if (!breakdown?.items?.length) return { success: false, error: `No fee structure for ${grade}` };
 
     try {
-      // FIX #2: Normalize academic year to YYYY-YYYY format
-      const normalizedYear = academicYear.replace('/', '-');
+      const { data: existing, error: readError } = await supabaseClient
+        .from('fee_items')
+        .select('id, item_id, item_name')
+        .eq('student_id', studentId)
+        .eq('academic_year', academicYear)
+        .eq('term', term);
+      if (readError) return { success: false, error: readError.message };
 
-      // Get fee structure for the grade
-      const feeBreakdown = feeStructure.calculateFeeBreakdown(grade);
+      const haveIds = new Set((existing || []).map(e => e.item_id).filter(Boolean));
+      const haveNames = new Set((existing || []).map(e => String(e.item_name || '').toLowerCase()));
+      const missing = breakdown.items.filter(i => !haveIds.has(i.id) && !haveNames.has(String(i.name).toLowerCase()));
+      if (!missing.length) return { success: true, added: 0, alreadyBilled: true };
 
-      if (!feeBreakdown || !feeBreakdown.items || feeBreakdown.items.length === 0) {
-        console.warn('[FeeManager] No fee items found for grade:', grade);
-        return { success: false, error: 'No fee structure found for this grade' };
-      }
-
-      if (skipIfExists) {
-        // Check if fee items already exist for this student + year (+ term if provided)
-        let checkQuery = supabaseClient
-          .from('fee_items')
-          .select('*')
-          .eq('student_id', studentId)
-          .eq('academic_year', normalizedYear);
-        if (term) checkQuery = checkQuery.eq('term', term);
-        const { data: existing, error: checkError } = await checkQuery;
-
-        if (checkError) {
-          console.error('[FeeManager] Error checking existing fee items:', checkError);
-          return { success: false, error: checkError.message };
-        }
-
-        if (existing && existing.length > 0) {
-          // FIX #6: Check if ALL items already exist to prevent duplicates
-          if (existing.length === (feeBreakdown.items?.length || 0)) {
-            console.log('[FeeManager] Fee items already exist for this student/term');
-            return { success: true, message: 'Fee items already initialized', existing: true, count: 0 };
-          }
-
-          // If partially exist, delete stale ones before re-creating
-          const staleIds = existing.map(e => e.id);
-          const { error: deleteError } = await supabaseClient.from('fee_items').delete().in('id', staleIds);
-          if (deleteError) {
-            console.error('[FeeManager] Error cleaning up stale items:', deleteError);
-          }
-        }
-      }
-
-      // Create fee items — one row per fee structure item
-      const feeItems = feeBreakdown.items.map(item => ({
+      const rows = missing.map(item => ({
         student_id: studentId,
-        academic_year: normalizedYear,
-        grade: feeBreakdown.grade,
+        academic_year: academicYear,
+        grade: breakdown.grade,
         item_id: item.id,
         item_name: item.name,
         amount: item.amount,
         item_type: item.type,
-        term: term || null,
+        term,
         status: 'pending',
         amount_paid: 0
       }));
-
-      const { data, error } = await supabaseClient
-        .from('fee_items')
-        .insert(feeItems)
-        .select();
-
-      if (error) {
-        console.error('[FeeManager] Error creating fee items:', error);
-        return { success: false, error: error.message };
-      }
-
-      console.log('[FeeManager] Successfully initialized', data.length, 'fee items for student (term:', term, ')');
-      return { success: true, data, count: data.length };
-
+      const { data, error } = await supabaseClient.from('fee_items').insert(rows).select();
+      if (error) return { success: false, error: error.message };
+      return { success: true, added: data?.length || rows.length, alreadyBilled: false };
     } catch (err) {
-      console.error('[FeeManager] Exception in initializeFeeItems:', err);
+      console.error('[FeeManager] billStudentForTerm:', err);
       return { success: false, error: err.message };
     }
   },
 
   /**
-   * Get all fee items for a student
-   * @param {string} studentId - Student UUID
-   * @param {string} academicYear - Academic year (optional)
+   * A pupil moved class during the term: this term's old-class lines that
+   * nothing has been paid against are removed, then the new class's lines are
+   * added. A line with money against it is kept, so a payment is never lost.
    */
-  async getFeeItems(studentId, academicYear = null, term = null) {
+  async moveStudentToGrade(studentId, newGrade, opts = {}) {
+    const period = this.currentBillingPeriod();
+    const term = opts.term || period.term;
+    const academicYear = String(opts.academicYear || period.academicYear).replace('/', '-');
+    const target = feeStructure.normalizeGrade(newGrade);
     try {
-      let query = supabaseClient
+      const { data: lines, error } = await supabaseClient
         .from('fee_items')
-        .select('*')
+        .select('id, grade, amount_paid')
         .eq('student_id', studentId)
-        .order('created_at', { ascending: true });
-
-      if (academicYear) {
-        query = query.eq('academic_year', academicYear);
+        .eq('academic_year', academicYear)
+        .eq('term', term);
+      if (error) return { success: false, error: error.message };
+      const untouchedOld = (lines || [])
+        .filter(l => feeStructure.normalizeGrade(l.grade) !== target && !(parseFloat(l.amount_paid) > 0))
+        .map(l => l.id);
+      if (untouchedOld.length) {
+        const { error: delError } = await supabaseClient.from('fee_items').delete().in('id', untouchedOld);
+        if (delError) return { success: false, error: delError.message };
       }
-      if (term) {
-        query = query.eq('term', term);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('[FeeManager] Error fetching fee items:', error);
-        return { success: false, error: error.message };
-      }
-
-      return { success: true, data: data || [] };
-
+      return this.billStudentForTerm(studentId, newGrade, { term, academicYear, enrolment: 'returning' });
     } catch (err) {
-      console.error('[FeeManager] Exception in getFeeItems:', err);
+      console.error('[FeeManager] moveStudentToGrade:', err);
       return { success: false, error: err.message };
     }
   },
 
-  /**
-   * Calculate fee summary for a student
-   * @param {string} studentId - Student UUID
-   * @param {string} academicYear - Academic year (optional)
-   */
-  async getFeeSummary(studentId, academicYear = '2025/2026') {
-    const result = await this.getFeeItems(studentId, academicYear);
-    
-    if (!result.success) {
-      return result;
-    }
-
-    const items = result.data;
-    const totalAmount = items.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
-    const totalPaid = items.reduce((sum, item) => sum + parseFloat(item.amount_paid || 0), 0);
-    const totalBalance = totalAmount - totalPaid;
-
-    const paidItems = items.filter(item => item.status === 'paid').length;
-    const pendingItems = items.filter(item => item.status === 'pending').length;
-    const partialItems = items.filter(item => item.status === 'partial').length;
-
-    return {
-      success: true,
-      summary: {
-        totalAmount,
-        totalPaid,
-        totalBalance,
-        totalItems: items.length,
-        paidItems,
-        pendingItems,
-        partialItems,
-        percentagePaid: totalAmount > 0 ? Math.round((totalPaid / totalAmount) * 100) : 0
-      },
-      items
-    };
-  },
-
-  // ── Removed: allocatePayment() and updateFeeItem() ────────────────────────
-  //
-  // Both wrote fee_items.amount_paid and .status straight from the browser with
-  // a plain .update() — no RPC, no role check. Nothing called either one; the
-  // live path allocates inside the record_fee_payment / verify_fee_payment RPCs,
-  // which are SECURITY DEFINER and check the caller. They stayed callable from
-  // the console, and read as the obvious way to allocate a payment to anyone
-  // reading this file next.
-  //
-  // Balance changes belong to the database. See migration 0023, which revokes
-  // client UPDATE on fee_items so this cannot come back by accident.
-
-  /**
-   * Get overall fee status for a student
-   * @param {string} studentId - Student UUID
-   */
-  async getOverallFeeStatus(studentId) {
-    const summary = await this.getFeeSummary(studentId);
-    
-    if (!summary.success) {
-      return 'pending';
-    }
-
-    const { totalBalance, pendingItems, partialItems } = summary.summary;
-
-    if (totalBalance <= 0) {
-      return 'paid';
-    } else if (partialItems > 0) {
-      return 'partial';
-    } else if (pendingItems > 0) {
-      return 'pending';
-    }
-
-    return 'pending';
+  /** Kept for older callers; always additive now. */
+  async initializeFeeItems(studentId, grade, academicYear, term = null) {
+    const r = await this.billStudentForTerm(studentId, grade, { academicYear, term });
+    return r.success ? { ...r, existing: r.alreadyBilled, count: r.added } : r;
   },
 
   /**
-   * Render fee breakdown HTML for a student
-   * @param {string} studentId - Student UUID
-   */
-  async renderFeeBreakdown(studentId) {
-    const result = await this.getFeeSummary(studentId);
-    
-    if (!result.success) {
-      return `<div class="alert alert-warning">Unable to load fee breakdown: ${result.error}</div>`;
-    }
-
-    const { summary, items } = result;
-
-    return `
-      <div class="fee-breakdown-container">
-        <!-- Summary Card -->
-        <div class="card mb-4" style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);">
-          <div class="card-body">
-            <h4 class="mb-3" style="display: flex; align-items: center; gap: 8px;">
-              <span>💰</span> Fee Summary
-            </h4>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <div class="text-sm text-secondary mb-1">Total Fees</div>
-                <div class="text-xl font-bold">₦${summary.totalAmount.toLocaleString()}</div>
-              </div>
-              <div>
-                <div class="text-sm text-secondary mb-1">Amount Paid</div>
-                <div class="text-xl font-bold text-success">₦${summary.totalPaid.toLocaleString()}</div>
-              </div>
-              <div>
-                <div class="text-sm text-secondary mb-1">Balance</div>
-                <div class="text-xl font-bold text-danger">₦${summary.totalBalance.toLocaleString()}</div>
-              </div>
-              <div>
-                <div class="text-sm text-secondary mb-1">Progress</div>
-                <div class="text-xl font-bold">${summary.percentagePaid}%</div>
-              </div>
-            </div>
-            <div class="mt-3">
-              <div class="progress" style="height: 8px;">
-                <div class="progress-bar bg-success" style="width: ${summary.percentagePaid}%"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Fee Items Table -->
-        <div class="card">
-          <div class="card-header">
-            <h4 class="mb-0">Fee Items Breakdown</h4>
-          </div>
-          <div class="card-body p-0">
-            <div class="table-responsive">
-              <table class="table table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th>Item</th>
-                    <th>Type</th>
-                    <th class="text-right">Amount</th>
-                    <th class="text-right">Paid</th>
-                    <th class="text-right">Balance</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  ${items.map(item => {
-                    const balance = parseFloat(item.amount) - parseFloat(item.amount_paid || 0);
-                    const statusBadge = item.status === 'paid' ? 'badge-success' : 
-                                       item.status === 'partial' ? 'badge-warning' : 'badge-secondary';
-                    return `
-                      <tr>
-                        <td><strong>${item.item_name}</strong></td>
-                        <td><span class="badge badge-light">${item.item_type}</span></td>
-                        <td class="text-right">₦${parseFloat(item.amount).toLocaleString()}</td>
-                        <td class="text-right text-success">₦${parseFloat(item.amount_paid || 0).toLocaleString()}</td>
-                        <td class="text-right ${balance > 0 ? 'text-danger' : 'text-success'}">₦${balance.toLocaleString()}</td>
-                        <td><span class="badge ${statusBadge}">${item.status}</span></td>
-                        <td>
-                          ${item.status !== 'paid' ? `
-                            <button class="btn btn-sm btn-primary" onclick="feeManager.showPaymentModal('${item.id}', '${item.item_name}', ${balance})">
-                              Pay
-                            </button>
-                          ` : '<span class="text-success">✓ Paid</span>'}
-                        </td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-                <tfoot>
-                  <tr class="font-bold">
-                    <td colspan="2"><strong>TOTAL</strong></td>
-                    <td class="text-right"><strong>₦${summary.totalAmount.toLocaleString()}</strong></td>
-                    <td class="text-right text-success"><strong>₦${summary.totalPaid.toLocaleString()}</strong></td>
-                    <td class="text-right text-danger"><strong>₦${summary.totalBalance.toLocaleString()}</strong></td>
-                    <td colspan="2"></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  /**
-   * Apply (or re-apply) fee structure for a student's grade.
-   * Always clears existing fee_items first, then creates fresh rows.
-   * Use for new admissions AND grade changes.
-   * @param {string} studentId - Student UUID
-   * @param {string} grade - Grade name matching feeStructure keys
-   * @param {object} options - { academicYear, term }
+   * Bill a pupil for the current term.
+   *   { admission: true }   a new pupil: includes the one-off uniform set.
+   *   { gradeChange: true } moved class: see moveStudentToGrade.
+   * Used to bill with no term at all (so no term-scoped page saw the bill),
+   * and to add a second full set on every class change.
    */
   async applyFeeStructure(studentId, grade, options = {}) {
-    const academicYear = options.academicYear || feeStructure.academicYear || '2025-2026';
-    const term = options.term || null;
-    return this.initializeFeeItems(studentId, grade, academicYear, term, false);
-  },
-
-  /**
-   * Show payment modal for a specific fee item
-   */
-  showPaymentModal(itemId, itemName, balance) {
-    // This will be implemented in the fees-payments module
-    if (window.feesPaymentsModule && window.feesPaymentsModule.recordPaymentForItem) {
-      window.feesPaymentsModule.recordPaymentForItem(itemId, itemName, balance);
-    } else {
-      showToast('Payment feature not available', 'error');
-    }
+    if (options.gradeChange) return this.moveStudentToGrade(studentId, grade, options);
+    return this.billStudentForTerm(studentId, grade, {
+      term: options.term,
+      academicYear: options.academicYear,
+      enrolment: options.admission ? 'new' : 'returning'
+    });
   }
 };
 

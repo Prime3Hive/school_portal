@@ -297,9 +297,7 @@
      * term once one is paid, so each transfer in a term gets its own label.
      */
     feeType(kid, term) {
-      const n = pupilData.fees(kid.id).payments
-        .filter(p => String(p.term || '') === term && pupilData.paymentState(p).key !== 'rejected').length;
-      return n ? `Term fees (payment ${n + 1})` : 'Term fees';
+      return pupilData.nextFeeTypeLabel(kid.id, term);
     },
 
     onFile(input) {

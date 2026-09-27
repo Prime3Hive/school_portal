@@ -1211,3 +1211,79 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
 }
+
+/* ============================================
+   FEES & PAYMENTS
+   ============================================ */
+.fp-period {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 14px 18px;
+}
+
+.fp-period label { display: flex; flex-direction: column; gap: 4px; font-size: 0.75rem; color: var(--text-tertiary); }
+.fp-recon { margin: -6px 2px 0; line-height: 1.5; }
+
+.fp-table th:not(:first-child),
+.fp-table td:not(:first-child) { text-align: right; }
+.fp-table tfoot td { padding-top: 10px; font-weight: 700; border-bottom: 0; }
+.fp-table td.fp-actions, .fp-table th.fp-actions-h { text-align: right; }
+
+.fp-rate { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.fp-rate .ui-bar { width: 70px; height: 6px; }
+
+.fp-clickable tbody tr { cursor: pointer; }
+.fp-clickable tbody tr:hover { background: var(--bg-primary); }
+.fp-clickable tbody tr:focus-visible { outline: 2px solid var(--brand-navy-light); outline-offset: -2px; }
+
+.fp-months { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; align-items: end; height: 190px; margin-top: 8px; }
+.fp-month { display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; min-width: 0; }
+.fp-month-bar { width: 100%; max-width: 34px; flex: 1; display: flex; align-items: flex-end; background: var(--bg-tertiary); border-radius: 8px; overflow: hidden; }
+.fp-month-bar span { display: block; width: 100%; background: var(--ui-bar); border-radius: 8px 8px 0 0; min-height: 2px; }
+.fp-month-amt { font-size: 0.6875rem; color: var(--text-tertiary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.fp-pager { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 14px; }
+
+.fp-form { display: flex; flex-direction: column; gap: 14px; }
+.fp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fp-form .sd-select { width: 100%; height: 48px; }
+.fp-who { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--bg-tertiary); }
+
+.fp-owes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.fp-owes > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--border-primary); border-radius: 10px; }
+.fp-owes strong { font-size: 1.0625rem; font-variant-numeric: tabular-nums; }
+
+.fp-structure-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.fp-structure { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.fp-fee-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 110px auto; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border-secondary); }
+
+.fp-in {
+  height: 38px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+
+.fp-in:focus { outline: none; border-color: var(--brand-navy-light); box-shadow: 0 0 0 3px rgba(var(--brand-navy-rgb), 0.15); }
+.fp-amt { text-align: right; font-variant-numeric: tabular-nums; }
+.fp-naira { color: var(--text-tertiary); font-size: 0.875rem; }
+
+@media (max-width: 640px) {
+  .fp-grid, .fp-owes { grid-template-columns: minmax(0, 1fr); }
+  .fp-structure { grid-template-columns: minmax(0, 1fr); }
+  #main-content table.fp-table { display: block; overflow-x: auto; }
+  .fp-months { height: 150px; }
+  .fp-month-amt { display: none; }
+}
+
+/* Text columns stay left in the lists; only money and counts go right. */
+.fp-list th, .fp-list td { text-align: left !important; }
+.fp-list th:nth-child(5), .fp-list td:nth-child(5), .fp-list th:last-child, .fp-list td:last-child { text-align: right !important; }
+.fp-owing th:nth-child(2), .fp-owing td:nth-child(2) { text-align: left; }

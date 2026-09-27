@@ -33,8 +33,9 @@ Files are numbered sequentially: `NNNN_description.sql`
 | 0028 | `0028_guardians_see_and_pay_for_their_children.sql` | Guardians read a linked child's bills, payments and grades, and may send a (pending) payment for them |
 | 0029 | `0029_let_teachers_correct_their_marks.sql` | UPDATE policy on grades: admins any grade, teachers the grades they entered |
 | 0030 | `0030_merge_duplicate_grades_and_stamp_terms.sql` | Backs up, then removes duplicate grades, fills missing term/session, regrades on the school scale |
+| 0031 | `0031_stamp_terms_on_fee_items.sql` | Backs up, then gives every term-less bill line the term it was created in |
 
-Apply 0028–0030 in order in the SQL Editor, after running `sql/check-grades-before-cleanup.sql` (read-only) and saving its output.
+Apply 0028–0031 in order in the SQL Editor, after running `sql/check-grades-before-cleanup.sql` (read-only) and saving its output.
 
 `archive/` holds superseded files that must never be run — see `archive/README.md`.
 

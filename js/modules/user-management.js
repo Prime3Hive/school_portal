@@ -1613,6 +1613,9 @@ const userManagementModule = {
       if (typeof feeManager !== 'undefined' && result.authId && data.grade) {
         supabaseClient.from('students').select('id').eq('auth_id', result.authId).single()
           .then(({ data: rec }) => {
+            // This term's fees only. The one-off uniform set is billed from Add student
+            // ("New to the school this term") and from approved applications, where the
+            // office says whether the pupil is new; this form does not ask.
             if (rec?.id) feeManager.applyFeeStructure(rec.id, data.grade)
               .then(r => { if (!r.success) console.warn('[UserMgmt] Fee structure apply:', r.error); });
           });

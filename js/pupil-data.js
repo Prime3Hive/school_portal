@@ -104,6 +104,44 @@
       .sort((a, b) => (b.year.localeCompare(a.year)) || ((termRank[b.term] || 0) - (termRank[a.term] || 0)));
   }
 
+  /**
+   * What approving (or recording) a payment of `amount` will do to a pupil's
+   * bills — the same walk as _allocate_payment_to_fee_items in the database:
+   * unpaid lines, oldest first, any term. Money beyond what is owed is not
+   * applied to anything, so it is reported separately.
+   */
+  function allocationPreview(studentId, amount) {
+    const paidOf = (i) => parseFloat(i.amount_paid ?? i.amountPaid ?? 0) || 0;
+    const items = all('feeItems')
+      .filter(i => idOf(i) === studentId && i.status !== 'paid')
+      .map(i => ({ ...i, balance: Math.max(0, (parseFloat(i.amount) || 0) - paidOf(i)) }))
+      .filter(i => i.balance > 0)
+      .sort((a, b) => new Date(a.created_at || a.createdAt || 0) - new Date(b.created_at || b.createdAt || 0));
+    const owed = items.reduce((a, i) => a + i.balance, 0);
+    let left = parseFloat(amount) || 0;
+    const lines = [];
+    for (const i of items) {
+      if (left <= 0) break;
+      const take = Math.min(left, i.balance);
+      lines.push({ name: i.item_name || i.itemName || 'Fee', term: i.term || '', amount: take, clears: take >= i.balance });
+      left -= take;
+    }
+    const paying = parseFloat(amount) || 0;
+    return { owed, lines, unapplied: Math.max(0, left), remaining: Math.max(0, owed - paying) };
+  }
+
+  /**
+   * The fee_type to record a payment under. record_fee_payment refuses a
+   * second payment with the same fee type and term once one is paid (or a
+   * transfer is waiting), so each payment in a term gets its own label.
+   * A rejected one does not count.
+   */
+  function nextFeeTypeLabel(studentId, term) {
+    const n = all('payments')
+      .filter(p => idOf(p) === studentId && String(p.term || '') === term && paymentState(p).key !== 'rejected').length;
+    return n ? `Term fees (payment ${n + 1})` : 'Term fees';
+  }
+
   /** Today's lessons for the pupil's class, from the school timetable. */
   function lessonsToday(student) {
     const day = new Date().toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase();
@@ -113,5 +151,5 @@
       .sort((a, b) => String(a.start_time || a.startTime || '').localeCompare(String(b.start_time || b.startTime || '')));
   }
 
-  window.pupilData = { termScope, gradeFor, fees, paymentState, results, lessonsToday };
+  window.pupilData = { termScope, gradeFor, fees, paymentState, results, lessonsToday, allocationPreview, nextFeeTypeLabel };
 })();

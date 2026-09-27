@@ -805,7 +805,8 @@ const applicationsModule = {
             // Auto-apply grade fee structure
             if (typeof feeManager !== 'undefined' && result.studentId && app.grade) {
                 try {
-                    const feeResult = await feeManager.applyFeeStructure(result.studentId, app.grade);
+                    // An approved application is a new pupil: bill the one-off uniform set too.
+                    const feeResult = await feeManager.applyFeeStructure(result.studentId, app.grade, { admission: true });
                     if (!feeResult?.success) console.warn('[Applications] Fee structure apply:', feeResult?.error);
                 } catch (feeErr) {
                     console.warn('[Applications] Fee structure apply threw:', feeErr);

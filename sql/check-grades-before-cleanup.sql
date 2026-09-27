@@ -1,5 +1,6 @@
 -- ============================================================
 -- READ-ONLY. Run before migrations 0028–0030 and keep the output.
+-- Blocks 5 and 6 are about fees, not grades: see their notes.
 -- ============================================================
 -- Paste into the Supabase SQL Editor for the TBD project (check the project
 -- name in the top bar first — see BACKEND_RUNBOOK.md, 19 August 2026).
@@ -63,3 +64,30 @@ WHERE total_marks > 0
         WHEN score::numeric / total_marks::numeric * 100 >= 60 THEN 'D'
         WHEN score::numeric / total_marks::numeric * 100 >= 50 THEN 'E'
         ELSE 'F' END;
+
+-- ============================================================
+-- 5. FEES: "payments" that were really charges
+-- ============================================================
+-- "Bulk assign fee" used to call record_fee_payment with method
+-- 'bulk-assign'. The database treats that as money staff received: each row
+-- is marked paid and applied to the pupil's bills. So assigning a fee to a
+-- class told the system every pupil had PAID it — balances went down and
+-- "collected" went up by money that never arrived.
+--
+-- Each row below is one of those. Void them from the portal (Fees &
+-- payments → Payments → open the row → Void), which reverses what was
+-- applied to the bills; void_fee_payment needs a signed-in admin, so it
+-- cannot be run from this editor. Then add the fee as a charge with the
+-- new "Add a fee to many pupils", which bills it instead.
+SELECT id, student_name, fee_type, amount, term, academic_year, payment_date, receipt_no
+FROM public.fees_payments
+WHERE payment_method = 'bulk-assign'
+ORDER BY payment_date DESC, student_name;
+
+-- 6. FEES: bills with no term (created on admission or a class change
+--    before this fix). Term pages cannot count them. Note the pupils; the
+--    office can see and settle them from the pupil's record, Fees tab.
+SELECT COUNT(*) AS bill_lines_without_a_term,
+       COUNT(DISTINCT student_id) AS pupils
+FROM public.fee_items
+WHERE COALESCE(term, '') = '';

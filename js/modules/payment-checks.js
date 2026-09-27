@@ -102,24 +102,8 @@ const paymentChecksModule = {
    * walk _allocate_payment_to_fee_items makes in the database.
    */
   allocation(p) {
-    const sid = p.studentId || p.student_id;
-    const paidOf = (i) => parseFloat(i.amount_paid ?? i.amountPaid ?? 0) || 0;
-    const items = (dataManager.getAll('feeItems') || [])
-      .filter(i => (i.student_id || i.studentId) === sid && i.status !== 'paid')
-      .map(i => ({ ...i, balance: Math.max(0, (parseFloat(i.amount) || 0) - paidOf(i)) }))
-      .filter(i => i.balance > 0)
-      .sort((a, b) => new Date(a.created_at || a.createdAt || 0) - new Date(b.created_at || b.createdAt || 0));
-
-    const owed = items.reduce((a, i) => a + i.balance, 0);
-    let left = parseFloat(p.amount) || 0;
-    const lines = [];
-    for (const i of items) {
-      if (left <= 0) break;
-      const take = Math.min(left, i.balance);
-      lines.push({ name: i.item_name || i.itemName || 'Fee', term: i.term || '', amount: take, clears: take >= i.balance });
-      left -= take;
-    }
-    return { owed, lines, unapplied: Math.max(0, left), remaining: Math.max(0, owed - (parseFloat(p.amount) || 0)) };
+    // Shared with the Record payment form (js/pupil-data.js), so both say the same.
+    return window.pupilData.allocationPreview(p.studentId || p.student_id, p.amount);
   },
 
   /** One short verdict per payment, for the list and the detail. */

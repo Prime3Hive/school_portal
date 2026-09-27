@@ -51,6 +51,7 @@ function sandbox(isoNow, data = {}, files = []) {
     Date: FixedDate,
     console: { log() {}, warn() {}, error() {} },
     setTimeout, clearTimeout, setInterval, clearInterval,
+    location: { pathname: '/portal.html', origin: 'https://tbdacademy.org' },
     localStorage: { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); }, removeItem: k => { delete store[k]; } },
     // Answers school-config's start-up read with "nothing saved", so it keeps its defaults.
     supabaseClient: { from: () => ({ select: () => ({ limit: () => ({ single: async () => ({ data: null, error: { message: 'none' } }) }) }) }) },
@@ -214,7 +215,7 @@ describe('Payments to check: how a payment will be applied', () => {
       { id: 'F0', student_id: 'S1', item_name: 'Exam', amount: 1500, amount_paid: 0, status: 'pending', created_at: '2026-04-01', term: 'Third Term' }
     ]
   };
-  const w = sandbox('2026-09-26T09:00:00', data, ['js/modules/payment-checks.js']);
+  const w = sandbox('2026-09-26T09:00:00', data, ['js/score-book.js', 'js/pupil-data.js', 'js/modules/payment-checks.js']);
   const m = w.paymentChecksModule;
 
   it('oldest first, skipping what is paid', () => {
@@ -256,6 +257,84 @@ describe('Family pages: sending a payment', () => {
   it('the database\'s refusals become words a parent can act on', () => {
     eq(/pay at the office/.test(f.explain('FORBIDDEN:No student record is linked to this account.')), true);
     eq(/already have a transfer/.test(f.explain('PENDING:A bank deposit…')), true);
+  });
+});
+
+// ── Fees & payments: one term's figures ─────────────────────
+describe('Fees page: a term\'s figures always add up', () => {
+  const data = {
+    students: [
+      { id: 'S1', name: 'A', grade: 'Nursery 2', section: 'A', status: 'active' },
+      { id: 'S2', name: 'B', grade: 'Basic 1', section: 'A', status: 'active' },
+      { id: 'S3', name: 'C', grade: 'Basic 1', section: 'A', status: 'active' }
+    ],
+    feeItems: [
+      { student_id: 'S1', grade: 'Nursery 2', term: 'First Term', academic_year: '2026-2027', amount: 50000, amount_paid: 50000 },
+      { student_id: 'S2', grade: 'Basic 1', term: 'First Term', academic_year: '2026/2027', amount: 60000, amount_paid: 15000 },
+      { student_id: 'S2', grade: 'Basic 1', term: 'Third Term', academic_year: '2025-2026', amount: 9000, amount_paid: 0 }
+    ],
+    payments: [
+      { studentId: 'S1', amount: 50000, status: 'paid', paymentMethod: 'bank-deposit', term: 'First Term', academicYear: '2026-2027' },
+      { studentId: 'S2', amount: 5000, status: 'paid', paymentMethod: 'bulk-assign', term: 'First Term', academicYear: '2026-2027' }
+    ]
+  };
+  const w = sandbox('2026-09-26T09:00:00', data, ['js/score-book.js', 'js/pupil-data.js', 'js/modules/fees-payments.js']);
+  const m = w.feesPaymentsModule;
+  m.period = m.currentPeriod();
+  const f = m.figures();
+  it('billed = collected + still owed', () => eq([f.billed, f.collected, f.owed, f.billed - f.collected - f.owed], [110000, 65000, 45000, 0]));
+  it('a session written 2026/2027 is the same session as 2026-2027', () => eq(f.items.length, 2));
+  it('last term\'s unpaid line stays out of this term but counts across all terms', () => eq(f.allBalance.get('S2'), 54000));
+  it('the pupil with no bill is listed as not billed', () => eq(f.notBilled.map(s => s.id), ['S3']));
+  it('a charge the old bulk-assign saved as paid is flagged, and not counted as money received', () => {
+    eq([f.fakeCharges.length, f.received], [1, 50000]);
+  });
+});
+
+describe('Billing a term adds only what is missing', () => {
+  const run = async (existing, grade, opts) => {
+    const w = sandbox('2026-09-26T09:00:00', {}, ['js/fee-structure.js', 'js/fee-manager.js']);
+    const inserted = [], deleted = [];
+    w.supabaseClient = {
+      from: () => ({
+        select: () => { const q = { eq: () => q, then: (r) => r({ data: existing, error: null }) }; return q; },
+        insert: (rows) => { inserted.push(...rows); return { select: async () => ({ data: rows, error: null }) }; },
+        delete: () => ({ in: async (_, ids) => { deleted.push(...ids); return { error: null }; } })
+      })
+    };
+    const r = await w.feeManager.applyFeeStructure('S1', grade, opts);
+    return { r, inserted, deleted, w };
+  };
+
+  it('a pupil with nothing billed gets every line, with the term and session', async () => {
+    const { inserted, w } = await run([], 'Nursery 2', {});
+    eq(inserted.length, w.feeStructure.getFeeItems('Nursery 2').length);
+    eq([inserted[0].term, inserted[0].academic_year, inserted[0].amount_paid], ['First Term', '2026-2027', 0]);
+  });
+  it('a pupil already billed in full gets nothing — running it twice is harmless', async () => {
+    const w0 = sandbox('2026-09-26T09:00:00', {}, ['js/fee-structure.js']);
+    const have = w0.feeStructure.getFeeItems('Nursery 2').map((i, k) => ({ id: 'L' + k, item_id: i.id, item_name: i.name }));
+    const { r, inserted, deleted } = await run(have, 'Nursery 2', {});
+    eq([r.added, r.alreadyBilled, inserted.length, deleted.length], [0, true, 0, 0]);
+  });
+  it('a pupil missing one line gets only that line; nothing is deleted', async () => {
+    const w0 = sandbox('2026-09-26T09:00:00', {}, ['js/fee-structure.js']);
+    const have = w0.feeStructure.getFeeItems('Nursery 2').slice(1).map((i, k) => ({ id: 'L' + k, item_id: i.id, item_name: i.name }));
+    const { inserted, deleted } = await run(have, 'Nursery 2', {});
+    eq([inserted.length, deleted.length], [1, 0]);
+  });
+  it('a new admission also owes the one-off uniform set', async () => {
+    const { inserted, w } = await run([], 'Nursery 2', { admission: true });
+    eq(inserted.length, w.feeStructure.getFeeItems('Nursery 2', 'new').length);
+    eq(inserted.some(i => i.item_id === 'uniform_set'), true);
+  });
+  it('a class change removes only untouched old-class lines; paid ones stay', async () => {
+    const lines = [
+      { id: 'OLD_UNPAID', grade: 'Nursery 2', amount_paid: 0 },
+      { id: 'OLD_PAID', grade: 'Nursery 2', amount_paid: 5000 }
+    ];
+    const { deleted } = await run(lines, 'Basic 1', { gradeChange: true });
+    eq(deleted, ['OLD_UNPAID']);
   });
 });
 

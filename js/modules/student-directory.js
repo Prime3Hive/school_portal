@@ -387,6 +387,10 @@ const studentDirectoryModule = {
               <input type="text" class="form-input" name="rollNo" placeholder="e.g., 1001">
             </div>
           </div>
+          <label class="pc-confirm" style="margin-bottom: var(--space-4);">
+            <input type="checkbox" name="newAdmission" checked>
+            <span><strong>New to the school this term.</strong> Bills this term's fees plus the one-off uniform set. Untick for a pupil who was already here, so they are billed this term's fees only.</span>
+          </label>
           <div class="grid grid-cols-2 gap-4">
             <div class="form-group">
               <label class="form-label">Gender</label>
@@ -581,7 +585,7 @@ const studentDirectoryModule = {
 
     // Auto-apply grade fee structure
     if (typeof feeManager !== 'undefined' && newStudent.id && studentData.grade) {
-      feeManager.applyFeeStructure(newStudent.id, studentData.grade)
+      feeManager.applyFeeStructure(newStudent.id, studentData.grade, { admission: formData.get('newAdmission') === 'on' })
         .then(r => { if (!r.success) console.warn('[StudentDir] Fee structure apply:', r.error); });
     }
 
@@ -1217,9 +1221,9 @@ const studentDirectoryModule = {
 
     // Re-apply fee structure if grade changed
     if (gradeChanged && typeof feeManager !== 'undefined' && updatedData.grade) {
-      feeManager.applyFeeStructure(studentId, updatedData.grade)
+      feeManager.applyFeeStructure(studentId, updatedData.grade, { gradeChange: true })
         .then(r => {
-          if (r.success) showToast(`Fee structure updated for ${updatedData.grade}`, 'info');
+          if (r.success) showToast(`This term's bill now follows ${updatedData.grade}. Anything already paid is kept.`, 'info');
           else console.warn('[StudentDir] Fee re-apply on grade change:', r.error);
         });
     }
