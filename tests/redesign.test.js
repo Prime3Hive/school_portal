@@ -338,6 +338,45 @@ describe('Billing a term adds only what is missing', () => {
   });
 });
 
+// ── Report cards ────────────────────────────────────────────
+describe('Report cards: averages, positions and class figures', () => {
+  const T = 'First Term', Y = '2026/2027';
+  const g = (sid, subject, score, total, term = T, year = Y) => ({ studentId: sid, subject, score, totalMarks: total, term, academicYear: year });
+  const students = ['A', 'B', 'C', 'D', 'E'].map(id => ({ id, name: id, grade: 'JSS 1', section: 'A', status: 'active' }));
+  const data = {
+    students,
+    grades: [
+      // A: Maths (18+54)/(20+60) = 90, English 40/50 = 80 → 85
+      g('A', 'Maths', 18, 20), g('A', 'Maths', 54, 60), g('A', 'English', 40, 50),
+      // B: Maths 45/50 = 90, English 80/100 = 80 → 85 (ties with A)
+      g('B', 'Maths', 45, 50), g('B', 'English', 80, 100),
+      // C: Maths 30/100 = 30, English 20/50 = 40 → 35
+      g('C', 'Maths', 30, 100), g('C', 'English', 20, 50),
+      // D: 60/100 → 60
+      g('D', 'Maths', 60, 100),
+      // E: marks only for last term — no result this term
+      g('E', 'Maths', 99, 100, 'Third Term', '2025-2026')
+    ]
+  };
+  const w = sandbox('2026-09-26T09:00:00', data, ['js/score-book.js', 'js/pupil-data.js']);
+  const cr = w.pupilData.classResults(students, T, '2026-2027');
+  const pos = Object.fromEntries(cr.rows.map(r => [r.student.id, r.position]));
+
+  it('marks are weighed by what each test is out of, not averaged raw', () => {
+    eq(cr.rows.find(r => r.student.id === 'A').result.subjects.find(s => s.subject === 'Maths').pct, 90);
+  });
+  it('equal averages share a place and the next is skipped: 1, 1, 3, 4', () => eq([pos.A, pos.B, pos.D, pos.C], [1, 1, 3, 4]));
+  it('a pupil with no marks this term has no position and is not counted', () => eq([pos.E, cr.ranked], [null, 4]));
+  it('class average is the mean of pupil averages: (85 + 85 + 35 + 60) / 4 = 66.3', () => eq(cr.average, 66.3));
+  it('highest, lowest, and passed at 50%', () => eq([cr.highest, cr.lowest, cr.passed], [85, 35, 3]));
+  it('subject figures: Maths average (90 + 90 + 30 + 60) / 4 = 67.5, highest 90', () => {
+    const m = cr.subjects.get('Maths');
+    eq([m.average, m.highest, m.lowest], [67.5, 90, 30]);
+  });
+  it('a session written 2026/2027 matches 2026-2027', () => eq(w.pupilData.termResult('A', T, '2026/2027').average, 85));
+  it('ordinals', () => eq([1, 2, 3, 4, 11, 12, 13, 21, 22, 101, 111].map(w.pupilData.ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st', '111th']));
+});
+
 // ── Label tidying ───────────────────────────────────────────
 describe('Older pages lose leading emoji, not words', () => {
   const src = read('js/portal-shell.js');

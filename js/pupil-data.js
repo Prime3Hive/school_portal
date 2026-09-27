@@ -104,6 +104,58 @@
       .sort((a, b) => (b.year.localeCompare(a.year)) || ((termRank[b.term] || 0) - (termRank[a.term] || 0)));
   }
 
+  /** One pupil's results for one term and session, or null if none are recorded. */
+  function termResult(studentId, term, year) {
+    const y = String(year || '').replace('/', '-');
+    return results(studentId).find(r => r.term === term && r.year === y) || null;
+  }
+
+  /**
+   * A class's results for one term: each pupil's average and position, and
+   * the class figures a report card quotes. Positions rank pupils with
+   * results by average (as shown, to one decimal place); equal averages share
+   * a position and the next is skipped (1st, 2nd, 2nd, 4th). A pupil with no
+   * results for the term has no position.
+   */
+  function classResults(students, term, year) {
+    const pass = window.schoolConfig?.promotion?.minimumAverage ?? 50;
+    const rows = students.map(s => ({ student: s, result: termResult(s.id, term, year), position: null }));
+    const ranked = rows.filter(r => r.result).sort((a, b) => b.result.average - a.result.average);
+    ranked.forEach((r, i) => {
+      r.position = i && r.result.average === ranked[i - 1].result.average ? ranked[i - 1].position : i + 1;
+    });
+    const avgs = ranked.map(r => r.result.average);
+    const round1 = (n) => Math.round(n * 10) / 10;
+
+    const subjects = new Map();
+    ranked.forEach(r => r.result.subjects.forEach(sub => {
+      const x = subjects.get(sub.subject) || { subject: sub.subject, pcts: [] };
+      x.pcts.push(sub.pct);
+      subjects.set(sub.subject, x);
+    }));
+
+    return {
+      rows,
+      ranked: ranked.length,
+      average: avgs.length ? round1(avgs.reduce((a, n) => a + n, 0) / avgs.length) : null,
+      highest: avgs.length ? Math.max(...avgs) : null,
+      lowest: avgs.length ? Math.min(...avgs) : null,
+      passed: avgs.filter(n => n >= pass).length,
+      passMark: pass,
+      subjects: new Map([...subjects].map(([k, x]) => [k, {
+        average: round1(x.pcts.reduce((a, n) => a + n, 0) / x.pcts.length),
+        highest: Math.max(...x.pcts),
+        lowest: Math.min(...x.pcts)
+      }]))
+    };
+  }
+
+  /** 1 → "1st", 2 → "2nd", 11 → "11th", 22 → "22nd". */
+  function ordinal(n) {
+    const v = n % 100;
+    return n + (v >= 11 && v <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] || 'th'));
+  }
+
   /**
    * What approving (or recording) a payment of `amount` will do to a pupil's
    * bills — the same walk as _allocate_payment_to_fee_items in the database:
@@ -151,5 +203,5 @@
       .sort((a, b) => String(a.start_time || a.startTime || '').localeCompare(String(b.start_time || b.startTime || '')));
   }
 
-  window.pupilData = { termScope, gradeFor, fees, paymentState, results, lessonsToday, allocationPreview, nextFeeTypeLabel };
+  window.pupilData = { termScope, gradeFor, fees, paymentState, results, termResult, classResults, ordinal, lessonsToday, allocationPreview, nextFeeTypeLabel };
 })();

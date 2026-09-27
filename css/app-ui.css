@@ -1287,3 +1287,31 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
 .fp-list th, .fp-list td { text-align: left !important; }
 .fp-list th:nth-child(5), .fp-list td:nth-child(5), .fp-list th:last-child, .fp-list td:last-child { text-align: right !important; }
 .fp-owing th:nth-child(2), .fp-owing td:nth-child(2) { text-align: left; }
+
+/* ============================================
+   REPORT CARDS
+   ============================================ */
+.rc-table td:nth-child(2), .rc-table th:nth-child(2) { font-weight: 600; }
+.rc-table .ui-link { text-align: left; }
+.rc-card { display: flex; flex-direction: column; gap: 14px; }
+.rc-head { display: flex; align-items: center; gap: 12px; padding-bottom: 12px; border-bottom: 3px solid var(--brand-navy); }
+.rc-school { font-family: var(--font-display); font-size: 1.125rem; font-weight: 700; color: var(--text-primary); }
+.rc-title { font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand-red); }
+.rc-who { padding: 12px 14px; border-radius: 12px; background: var(--bg-tertiary); }
+.rc-subjects td:first-child { text-align: left; }
+.rc-subjects th:nth-child(4), .rc-subjects td:nth-child(4) { text-align: center; }
+.rc-subjects th:nth-child(5), .rc-subjects td:nth-child(5) { text-align: left; padding-left: 16px; }
+.rc-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.rc-summary > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--border-primary); border-radius: 10px; }
+.rc-summary span { font-size: 0.75rem; color: var(--text-tertiary); }
+.rc-summary strong { font-size: 1rem; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  .rc-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rc-subjects { display: block; overflow-x: auto; }
+  #main-content .rc-table th:nth-child(3), #main-content .rc-table td:nth-child(3) { display: none; }
+  #main-content .rc-table th:first-child, #main-content .rc-table td:first-child { text-align: left; }
+  #main-content .rc-table th, #main-content .rc-table td { padding-left: 6px; padding-right: 6px; }
+  #main-content table.rc-table { display: table; width: 100%; }
+  .rc-table .fp-actions .ui-btn + .ui-btn { display: none; }
+}
