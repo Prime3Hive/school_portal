@@ -336,7 +336,7 @@ class DataManager {
     const totalStudents = students.length;
     const activeStudents = students.filter(s => s.status === 'active').length;
     const totalStaff = staff.length;
-    const teachingStaff = staff.filter(s => s.type === 'teaching').length;
+    const teachingStaff = staff.filter(s => window.isTeachingStaff ? window.isTeachingStaff(s) : s.type === 'teaching').length;
     const totalFees = payments.reduce((a, p) => a + (p.amount || 0), 0);
     const paidFees = payments.filter(p => p.status === 'paid')
       .reduce((a, p) => a + (p.amount || 0), 0);
@@ -619,7 +619,7 @@ class DataManager {
   // ─────────────────────────────────────────
   _tableColumns = {
     students: ['id', 'name', 'grade', 'section', 'roll_no', 'status', 'attendance', 'fees', 'photo', 'date_of_birth', 'gender', 'blood_group', 'admission_date', 'previous_school', 'email', 'phone', 'address', 'father', 'mother', 'guardian', 'emergency_contacts', 'created_at', 'updated_at', 'auth_id', 'guardian_auth_id'],
-    staff: ['id', 'name', 'role', 'type', 'subjects', 'classes', 'attendance', 'photo', 'email', 'phone', 'address', 'status', 'hire_date', 'salary', 'created_at', 'updated_at', 'auth_id'],
+    staff: ['id', 'name', 'role', 'type', 'department', 'subjects', 'classes', 'attendance', 'photo', 'email', 'phone', 'address', 'status', 'hire_date', 'salary', 'created_at', 'updated_at', 'auth_id'],
     classes: ['id', 'grade', 'section', 'class_teacher', 'student_count', 'room', 'academic_year', 'created_at', 'updated_at'],
     subject_catalog: ['id', 'name', 'code', 'grade', 'grades', 'icon', 'teacher_id', 'description', 'created_at', 'updated_at'],
     student_subjects: ['id', 'student_id', 'student_name', 'grade', 'section', 'academic_year', 'subjects', 'created_at', 'updated_at'],

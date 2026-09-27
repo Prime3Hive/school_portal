@@ -377,7 +377,7 @@ const userManagementModule = {
       if (email && seenEmails.has(email)) continue;
       if (s.id && seenIds.has(s.id)) continue;
       const uid = s.id || ('stf-' + (s.email?.split('@')[0] || s.name?.replace(/\s+/g, '-').toLowerCase() || crypto.randomUUID()));
-      const role = s.type === 'teaching' ? 'teacher' : 'staff';
+      const role = isTeachingStaff(s) ? 'teacher' : 'staff';
       this._users.push({
         id: uid,
         fullName: s.name || 'Unknown Staff',

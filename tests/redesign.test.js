@@ -377,6 +377,31 @@ describe('Report cards: averages, positions and class figures', () => {
   it('ordinals', () => eq([1, 2, 3, 4, 11, 12, 13, 21, 22, 101, 111].map(w.pupilData.ordinal), ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '22nd', '101st', '111th']));
 });
 
+// ── Staff ───────────────────────────────────────────────────
+describe('Staff: who counts as a teacher', () => {
+  const data = {
+    staff: [
+      { id: 'A', name: 'Typed teacher', type: 'teaching', status: 'active' },
+      // create-account's row: portal role in `role`, no type
+      { id: 'B', name: 'Login teacher', role: 'teacher', authId: 'x', status: 'active' },
+      { id: 'C', name: 'Login staff', role: 'staff', authId: 'y', status: 'active' },
+      { id: 'D', name: 'Bursar', role: 'Bursar', type: 'non-teaching', status: 'active' },
+      { id: 'E', name: 'Head', role: 'Head teacher', type: 'admin', status: 'active' },
+      { id: 'F', name: 'Left', type: 'teaching', status: 'inactive' }
+    ]
+  };
+  const w = sandbox('2026-09-26T09:00:00', data, ['js/modules/staff-management.js']);
+  vm.runInContext(read('js/components.js').match(/function isTeachingStaff[\s\S]*?\n}/)[0] + '\nwindow.isTeachingStaff = isTeachingStaff;', w);
+  const m = w.staffManagementModule;
+  const f = m.figures();
+
+  it('a teacher added with a login (role teacher, no type) is a teacher', () => eq(w.isTeachingStaff(data.staff[1]), true));
+  it('a stated type wins over the job title ("Head teacher", admin)', () => eq(w.isTeachingStaff(data.staff[4]), false));
+  it('active counts leave out people who have left', () => eq([f.active.length, f.teaching, f.other, f.inactive], [5, 2, 3, 1]));
+  it('the portal role is not shown as a job', () => eq(data.staff.slice(0, 3).map(s => m.jobTitle(s)), ['', 'Teacher', '']));
+  it('people without a login are counted', () => eq(f.noLogin, 3));
+});
+
 // ── Label tidying ───────────────────────────────────────────
 describe('Older pages lose leading emoji, not words', () => {
   const src = read('js/portal-shell.js');

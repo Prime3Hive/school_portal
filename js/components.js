@@ -42,6 +42,18 @@ function showToast(message, type = 'info') {
   }, 3000);
 }
 
+
+/**
+ * Is this staff record a teacher? Staff added with a portal login get their
+ * row from the database with role 'teacher' and no type, so both are read.
+ */
+function isTeachingStaff(s) {
+  const type = String(s?.type || '').toLowerCase();
+  if (type) return type === 'teaching';
+  return /teacher/i.test(String(s?.role || ''));
+}
+window.isTeachingStaff = isTeachingStaff;
+
 // Modal Component
 function createModal(title, content, actions = []) {
   // Support createModal(title, content, 'large') — treat string as size hint

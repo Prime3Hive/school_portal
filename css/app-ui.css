@@ -1315,3 +1315,22 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
   #main-content table.rc-table { display: table; width: 100%; }
   .rc-table .fp-actions .ui-btn + .ui-btn { display: none; }
 }
+
+/* ============================================
+   STAFF
+   ============================================ */
+.st-table tbody tr { cursor: pointer; }
+.st-table tbody tr:hover { background: var(--bg-primary); }
+.st-table tbody tr:focus-visible { outline: 2px solid var(--brand-navy-light); outline-offset: -2px; }
+.st-table .ui-row-meta { display: block; }
+.st-who { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.st-who > span:last-child { min-width: 0; overflow-wrap: break-word; }
+.st-avatar { flex-shrink: 0; }
+
+@media (max-width: 640px) {
+  #main-content .st-table th:nth-child(3), #main-content .st-table td:nth-child(3),
+  #main-content .st-table th:nth-child(4), #main-content .st-table td:nth-child(4),
+  #main-content .st-table th:nth-child(5), #main-content .st-table td:nth-child(5), .st-avatar { display: none; }
+  #main-content .st-table td:first-child { width: 55%; }
+  #main-content table.st-table { display: table; width: 100%; min-width: 0; }
+}

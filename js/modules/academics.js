@@ -92,7 +92,7 @@ const academicsModule = {
 
   _getClasses() { return dataManager.getAll('classes') || []; },
   _getSchedules() { return dataManager.getAll('schoolSchedules') || []; },
-  _getStaff() { return (dataManager.getAll('staff') || []).filter(s => s.type === 'teaching'); },
+  _getStaff() { return (dataManager.getAll('staff') || []).filter(isTeachingStaff); },
 
   _getAvailableClasses() {
     const seen = new Set(); const list = [];
@@ -1330,7 +1330,7 @@ const academicsModule = {
   // ================================================================
   _renderSubjectsTab() {
     let subjects = dataManager.getAll('subjectCatalog') || [];
-    const staff  = (dataManager.getAll('staff') || []).filter(s => s.type === 'teaching');
+    const staff  = (dataManager.getAll('staff') || []).filter(isTeachingStaff);
     const allStudents = dataManager.getAll('students') || [];
     const studentsByGrade = {};
     allStudents.filter(s => s.status === 'active').forEach(s => { if (s.grade) studentsByGrade[s.grade] = (studentsByGrade[s.grade] || 0) + 1; });
@@ -1390,7 +1390,7 @@ const academicsModule = {
   },
 
   _openAddSubjectModal(existing) {
-    const staff = (dataManager.getAll('staff') || []).filter(s => s.type === 'teaching');
+    const staff = (dataManager.getAll('staff') || []).filter(isTeachingStaff);
     const s = existing || {};
     const selectedGrades = this._subjectGrades(s);
     const gradeCheckboxes = this._allGradeGroups().map(group => `
