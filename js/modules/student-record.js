@@ -83,16 +83,11 @@ const studentRecordModule = {
   },
 
   gradeFor(pct) {
-    const scale = window.schoolConfig?.promotion?.gradingScale || [];
-    const row = scale.find(g => pct >= g.min && pct <= g.max + 0.999);
-    return row ? { letter: row.grade, remark: row.remark } : { letter: '', remark: '' };
+    return window.pupilData.gradeFor(pct);
   },
 
   termScope() {
-    return {
-      term: window.schoolConfig?.getCurrentTerm?.()?.name || '',
-      year: String(window.schoolConfig?.getCurrentAcademicYear?.() || '').replace('/', '-')
-    };
+    return window.pupilData.termScope();
   },
 
   student() {
@@ -101,77 +96,18 @@ const studentRecordModule = {
 
   // ── Figures ───────────────────────────────────────────────
 
+  // Fees, payment states and results come from js/pupil-data.js, which the
+  // family pages read too, so the office and the parent see the same figures.
   fees(s) {
-    const paidOf = (i) => parseFloat(i.amount_paid ?? i.amountPaid ?? 0) || 0;
-    const items = (dataManager.getAll('feeItems') || [])
-      .filter(i => (i.student_id || i.studentId) === s.id)
-      .map(i => ({ ...i, billed: parseFloat(i.amount) || 0, paid: paidOf(i) }))
-      .map(i => ({ ...i, balance: Math.max(0, i.billed - i.paid) }));
-
-    const scope = this.termScope();
-    const inTerm = (i) => String(i.term || '') === scope.term && String(i.academic_year || i.academicYear || '').replace('/', '-') === scope.year;
-    const termItems = items.filter(inTerm);
-    const sum = (list, k) => list.reduce((a, i) => a + i[k], 0);
-
-    const payments = (dataManager.getAll('payments') || [])
-      .filter(p => (p.studentId || p.student_id) === s.id)
-      .sort((a, b) => new Date(b.paymentDate || b.payment_date || b.createdAt || 0) - new Date(a.paymentDate || a.payment_date || a.createdAt || 0));
-
-    return {
-      scope,
-      items,
-      termItems,
-      term: { billed: sum(termItems, 'billed'), paid: sum(termItems, 'paid'), balance: sum(termItems, 'balance') },
-      all: { billed: sum(items, 'billed'), paid: sum(items, 'paid'), balance: sum(items, 'balance') },
-      payments
-    };
+    return window.pupilData.fees(s.id);
   },
 
-  /** A payment's state in words the office uses. */
   paymentState(p) {
-    const waiting = window.portalShell?.isAwaitingVerification?.(p);
-    if (waiting) return { label: 'Being checked', tone: 'warn' };
-    if (p.status === 'paid') return { label: 'Paid', tone: 'good' };
-    if (p.rejectionReason || p.rejection_reason) return { label: 'Rejected', tone: 'warn' };
-    return { label: p.status ? p.status[0].toUpperCase() + p.status.slice(1) : 'Pending', tone: '' };
+    return window.pupilData.paymentState(p);
   },
 
-  /**
-   * Recorded grades grouped by session and term, newest first. Within a term
-   * each subject's scores are pooled across its assessments, so a subject
-   * with two tests and an exam gets one percentage.
-   */
   results(s) {
-    const termRank = { 'First Term': 1, 'Second Term': 2, 'Third Term': 3 };
-    const groups = new Map();
-    (dataManager.getAll('grades') || [])
-      .filter(g => (g.studentId || g.student_id) === s.id)
-      .forEach(g => {
-        const year = String(g.academicYear || g.academic_year || '').replace('/', '-');
-        const key = `${year}|${g.term || ''}`;
-        if (!groups.has(key)) groups.set(key, { year, term: g.term || '', subjects: new Map() });
-        const subj = g.subject || 'Unnamed subject';
-        const row = groups.get(key).subjects.get(subj) || { subject: subj, score: 0, total: 0, remarks: [] };
-        row.score += parseFloat(g.score) || 0;
-        row.total += parseFloat(g.totalMarks ?? g.total_marks) || 0;
-        if (g.remarks) row.remarks.push(g.remarks);
-        groups.get(key).subjects.set(subj, row);
-      });
-
-    return [...groups.values()]
-      .map(grp => {
-        const subjects = [...grp.subjects.values()]
-          .filter(r => r.total > 0)
-          .map(r => {
-            const pct = Math.round((r.score / r.total) * 1000) / 10;
-            return { ...r, pct, ...this.gradeFor(pct) };
-          })
-          .sort((a, b) => a.subject.localeCompare(b.subject));
-        const average = subjects.length ? Math.round((subjects.reduce((a, r) => a + r.pct, 0) / subjects.length) * 10) / 10 : null;
-        return { ...grp, subjects, average, ...(average != null ? this.gradeFor(average) : { letter: '', remark: '' }) };
-      })
-      .filter(grp => grp.subjects.length)
-      .sort((a, b) => (b.year.localeCompare(a.year)) || ((termRank[b.term] || 0) - (termRank[a.term] || 0)));
+    return window.pupilData.results(s.id);
   },
 
   guardians(s) {
@@ -203,8 +139,8 @@ const studentRecordModule = {
     fees.payments.forEach(p => {
       const st = this.paymentState(p);
       const when = p.verifiedAt || p.verified_at || p.paymentDate || p.payment_date || p.createdAt || p.created_at;
-      const verb = st.label === 'Paid' ? 'Paid' : st.label === 'Being checked' ? 'Sent' : st.label === 'Rejected' ? 'Payment rejected:' : 'Payment';
-      push(when, `${verb} ${this.money(p.amount)}${st.label === 'Being checked' ? ', being checked' : ''}${p.receiptNo ? `, receipt ${p.receiptNo}` : ''}`);
+      const verb = st.key === 'paid' ? 'Paid' : st.key === 'checking' ? 'Sent' : st.key === 'rejected' ? 'Payment not accepted:' : 'Payment';
+      push(when, `${verb} ${this.money(p.amount)}${st.key === 'checking' ? ', being checked' : ''}${p.receiptNo ? `, receipt ${p.receiptNo}` : ''}`);
     });
     if (s.admissionDate || s.admission_date) push(s.admissionDate || s.admission_date, 'Admitted to the school');
     else if (s.createdAt || s.created_at) push(s.createdAt || s.created_at, 'Record created');
@@ -353,7 +289,7 @@ const studentRecordModule = {
                 <div class="ui-row-title" style="font-size:0.875rem;">${this.money(p.amount)} · ${this.esc((p.paymentMethod || p.payment_method || 'payment').replace(/-/g, ' '))}</div>
                 <div class="ui-row-meta">${this.esc([this.date(p.paymentDate || p.payment_date || p.createdAt), p.receiptNo ? 'Receipt ' + p.receiptNo : ''].filter(Boolean).join(' · '))}</div>
               </div>
-              ${st.label === 'Being checked' && this.can('payment-checks')
+              ${st.key === 'checking' && this.can('payment-checks')
                 ? `<button type="button" class="ui-chip is-warn sr-chip-btn" onclick="window.app.loadModule('payment-checks')">Being checked</button>`
                 : `<span class="ui-chip ${st.tone ? 'is-' + st.tone : ''}">${st.label}</span>`}
             </div>`;
@@ -483,7 +419,7 @@ const studentRecordModule = {
                   <td style="text-transform:capitalize;">${this.esc((p.paymentMethod || p.payment_method || '—').replace(/-/g, ' '))}</td>
                   <td>${this.esc(p.receiptNo || p.receipt_no || '—')}</td>
                   <td>${this.money(p.amount)}</td>
-                  <td><span class="ui-chip ${st.tone ? 'is-' + st.tone : ''}">${st.label}</span>${st.label === 'Rejected' ? `<div class="ui-row-meta">${this.esc(p.rejectionReason || p.rejection_reason)}</div>` : ''}</td>
+                  <td><span class="ui-chip ${st.tone ? 'is-' + st.tone : ''}">${st.label}</span>${st.key === 'rejected' ? `<div class="ui-row-meta">${this.esc(p.rejectionReason || p.rejection_reason)}</div>` : ''}</td>
                 </tr>`;
               }).join('')}
             </tbody>

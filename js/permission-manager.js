@@ -63,10 +63,14 @@ class PermissionManager {
             // Student permissions
             student: {
                 modules: [
+                    'family-home',
+                    'family-fees',
+                    'family-results',
                     'student-dashboard',
                     'my-grades',
                     'my-fees',
-                    'my-schedule'
+                    'my-schedule',
+                    'my-tasks'
                 ],
                 actions: [
                     'view_own_data',
@@ -74,6 +78,21 @@ class PermissionManager {
                     'view_own_fees',
                     'view_own_schedule',
                     'download_reports'
+                ]
+            },
+
+            // Parents. The database decides which children they see
+            // (students.guardian_auth_id, migration 0024); these are the pages.
+            guardian: {
+                modules: [
+                    'family-home',
+                    'family-fees',
+                    'family-results'
+                ],
+                actions: [
+                    'view_own_data',
+                    'view_own_grades',
+                    'view_own_fees'
                 ]
             }
         };

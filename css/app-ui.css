@@ -978,3 +978,227 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
   .tsd-row .sd-who { grid-column: 1 / -1; }
   .tsd-row .tsd-cell:nth-child(3) { display: none; }
 }
+
+/* ============================================
+   FAMILY PORTAL (parents and students)
+   ============================================ */
+.fam-page { max-width: 760px; }
+
+.fam-kids { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+
+.fam-kid {
+  flex: 1 0 auto;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.fam-kid strong { font-size: 0.875rem; }
+.fam-kid span { font-size: 0.75rem; color: var(--text-tertiary); }
+.fam-kid.is-on { background: var(--brand-navy); border-color: var(--brand-navy); color: #FFFFFF; }
+.fam-kid.is-on span { color: #C9CDE0; }
+
+.fam-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--brand-navy);
+  color: #FFFFFF;
+}
+
+.fam-balance h2 { margin: 0; font-size: 0.8125rem; font-weight: 500; color: #C9CDE0; }
+.fam-balance-amount { font-family: var(--font-display); font-size: 2.25rem; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.fam-balance-sub { font-size: 0.8125rem; color: #C9CDE0; }
+.fam-balance-bar { height: 6px; border-radius: 999px; background: rgba(255, 255, 255, 0.18); overflow: hidden; }
+.fam-balance-bar span { display: block; height: 100%; border-radius: inherit; background: #FFFFFF; }
+.fam-balance-note { margin: 2px 0 0; font-size: 0.8125rem; color: #FFFFFF; }
+.fam-balance-actions { display: flex; gap: 10px; margin-top: 6px; }
+
+.fam-pay,
+.fam-ghost {
+  height: 46px;
+  padding: 0 18px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.fam-pay { flex: 1; border: 0; background: #FFFFFF; color: var(--brand-navy); }
+.fam-ghost { border: 1px solid rgba(255, 255, 255, 0.35); background: transparent; color: #FFFFFF; font-weight: 600; }
+.fam-pay:focus-visible, .fam-ghost:focus-visible { outline: 2px solid #FFFFFF; outline-offset: 2px; }
+
+.fam-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+
+.fam-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 88px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: 14px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fam-tile svg { width: 20px; height: 20px; color: var(--ui-ink); margin-bottom: 2px; }
+.fam-tile strong { font-size: 0.9375rem; }
+.fam-tile:focus-visible { outline: 2px solid var(--brand-navy-light); outline-offset: 2px; }
+
+.fam-notice { display: flex; align-items: center; gap: 12px; padding: 12px 14px; margin-bottom: 8px; }
+
+.fam-owed { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.fam-owed > div { display: flex; flex-direction: column; gap: 2px; }
+.fam-owed strong { font-family: var(--font-display); font-size: 1.75rem; font-weight: 600; }
+
+.fam-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border-secondary);
+  font-size: 0.875rem;
+}
+
+.fam-back { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; min-height: 44px; }
+.fam-back svg { width: 18px; height: 18px; }
+
+.fam-step { display: flex; flex-direction: column; gap: 12px; }
+.fam-step h2 { margin: 0; display: flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; }
+
+.fam-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--brand-navy);
+  color: #FFFFFF;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.fam-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-secondary);
+}
+
+.fam-field > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fam-field strong { font-size: 1rem; overflow-wrap: anywhere; }
+.fam-field strong.fam-acct { letter-spacing: 0.06em; font-size: 1.125rem; font-variant-numeric: tabular-nums; }
+
+.fam-input { display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem; font-weight: 500; }
+
+.fam-input input {
+  height: 48px;
+  padding: 0 14px;
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 1rem;
+}
+
+.fam-input input:focus { outline: none; border-color: var(--brand-navy-light); box-shadow: 0 0 0 3px rgba(var(--brand-navy-rgb), 0.15); }
+
+.fam-upload {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 96px;
+  padding: 14px;
+  border: 1.5px dashed var(--border-primary);
+  border-radius: 12px;
+  background: var(--bg-primary);
+  color: var(--ui-ink);
+  text-align: center;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fam-upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.fam-upload svg { width: 22px; height: 22px; }
+.fam-upload:focus-within { border-color: var(--brand-navy-light); }
+.fam-upload.has-file { border-style: solid; background: var(--ui-good-bg); color: var(--ui-good-ink); }
+
+.fam-submit { height: 52px; font-size: 1rem; }
+
+.fam-subject { display: flex; flex-direction: column; gap: 4px; padding: 8px 0; border-top: 1px solid var(--border-secondary); }
+.fam-subject-top { display: flex; justify-content: space-between; gap: 12px; font-size: 0.875rem; }
+
+/* Bottom tab bar: phones only, and only on pages that ask for it. */
+.fam-tabbar { display: none; }
+
+@media (max-width: 768px) {
+  body.has-tabbar .main-content { padding-bottom: calc(96px + env(safe-area-inset-bottom)) !important; }
+
+  body.has-tabbar .fam-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1100;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: 6px 8px calc(8px + env(safe-area-inset-bottom));
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border-primary);
+  }
+
+  .fam-tabbar .nav-link,
+  .fam-tab-more {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 52px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-family: inherit;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .fam-tabbar .nav-link:hover { background: transparent; color: var(--text-primary); }
+  .fam-tabbar .nav-link.active { background: transparent; color: var(--ui-ink); font-weight: 700; }
+  .fam-tabbar .nav-link .nav-link-text { flex: none; overflow: visible; font-size: 0.75rem; font-weight: inherit; }
+  .fam-tabbar svg { width: 22px; height: 22px; }
+
+  /* The tab bar's More does what the header's menu button did. */
+  body.has-tabbar .mobile-menu-btn { display: none; }
+}

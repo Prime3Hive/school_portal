@@ -303,9 +303,16 @@ nav.nav-sidebar {
 }
 
 .notification-btn {
+  position: relative;
   width: 40px;
   height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-primary);
+  border-radius: 10px;
   color: var(--text-primary);
+  cursor: pointer;
 }
 
 .notification-btn svg {

@@ -30,6 +30,7 @@ Files are numbered sequentially: `NNNN_description.sql`
 | 0022 | `0022_consolidate_account_provisioning.sql` | One account-creation path; drops the plaintext password column |
 | 0023 | `0023_lock_fee_item_balances.sql` | Revoke client UPDATE on `fee_items` — balances move only via RPC |
 | 0024 | `0024_link_students_to_guardians.sql` | `students.guardian_auth_id` + RLS so a guardian sees their own children |
+| 0028 | `0028_guardians_see_and_pay_for_their_children.sql` | Guardians read a linked child's bills, payments and grades, and may send a (pending) payment for them |
 
 `archive/` holds superseded files that must never be run — see `archive/README.md`.
 

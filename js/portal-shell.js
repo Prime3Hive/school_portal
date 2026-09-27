@@ -66,7 +66,7 @@
     return (first + last).toUpperCase();
   }
 
-  const ROLE_LABELS = { admin: 'Administrator', staff: 'Staff', teacher: 'Teacher', student: 'Student', parent: 'Parent' };
+  const ROLE_LABELS = { admin: 'Administrator', staff: 'Staff', teacher: 'Teacher', student: 'Student', parent: 'Parent', guardian: 'Parent' };
 
   function fillUser() {
     const session = window.authManager?.getSession?.();
