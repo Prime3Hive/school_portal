@@ -971,20 +971,14 @@ const academicsModule = {
     try {
       const assessment = this._getAssessments().find(a => a.id === this._selAssessment);
       const pending    = this._pendingGrades[this._selAssessment] || [];
-      const totalMarks = assessment?.total_marks || assessment?.totalMarks || 100;
-      let saved = 0;
-      for (const g of pending) {
-        if (g.score !== '' && g.score !== undefined && g.score !== null) {
-          const pct = Math.round((parseFloat(g.score) / totalMarks) * 100);
-          const result = await dataManager.create('grades', {
-            studentId: g.studentId, assessmentId: this._selAssessment,
-            subject: assessment?.subject || '', score: parseFloat(g.score),
-            totalMarks, grade: this._letterGrade(pct), remarks: g.remarks || '',
-            gradedBy: this._session()?.supabaseId || null
-          });
-          if (result) saved++;
-        }
-      }
+      // scoreBook updates a pupil's existing grade instead of adding a second
+      // one, stamps the term and session, and skips marks over the maximum.
+      const max = scoreBook.outOf(assessment);
+      const bad = pending.filter(g => scoreBook.problem(g.score, max));
+      if (bad.length) { showToast(`${bad.length} mark${bad.length !== 1 ? 's are' : ' is'} over ${max} or not a number. Fix ${bad.length !== 1 ? 'them' : 'it'} first.`, 'warning'); return; }
+      const res = await scoreBook.save({ ...assessment, id: this._selAssessment }, pending);
+      const saved = res.created + res.updated;
+      if (res.failed) showToast(`${res.failed} mark${res.failed !== 1 ? 's' : ''} could not be saved.`, 'error');
       delete this._pendingGrades[this._selAssessment];
       writeAuditLog('GRADES_SAVED', assessment?.name || this._selAssessment, `${saved} grade${saved !== 1 ? 's' : ''} saved | Subject: ${assessment?.subject || ''} | Grade ${assessment?.grade}-${assessment?.section}`);
       showToast(`${saved} grade${saved !== 1 ? 's' : ''} saved!`, 'success');

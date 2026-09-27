@@ -22,10 +22,13 @@ class PermissionManager {
             // Teacher permissions
             teacher: {
                 modules: [
+                    'teacher-today',
+                    'teacher-scores',
                     'teacher-portal',
                     'teacher-dashboard',
                     'my-classes',
-                    'academics'
+                    'academics',
+                    'calendar'
                 ],
                 actions: [
                     'view_students',

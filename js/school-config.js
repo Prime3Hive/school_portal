@@ -301,12 +301,11 @@ const schoolConfig = {
     },
 
     calculateGrade(percentage) {
-        for (const scale of this.promotion.gradingScale) {
-            if (percentage >= scale.min && percentage <= scale.max) {
-                return scale;
-            }
-        }
-        return this.promotion.gradingScale[this.promotion.gradingScale.length - 1]; // F
+        // The highest band whose minimum is reached. Testing both ends of the
+        // whole-number ranges (80–89, 90–100) left 89.5% in no band, and it
+        // fell through to F.
+        const bands = [...this.promotion.gradingScale].sort((a, b) => b.min - a.min);
+        return bands.find(b => percentage >= b.min) || bands[bands.length - 1];
     },
 
     determinePromotion(studentGrades) {

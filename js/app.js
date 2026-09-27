@@ -141,7 +141,9 @@ class SchoolPortalApp {
     loadInitialModule() {
         // Load dashboard by default
         const parsed = this.parseHash();
-        let hash = parsed.module || 'admin-dashboard';
+        // Each portal page names its own home (body data-home); the staff portal's is Today.
+        const home = document.body?.dataset?.home || 'admin-dashboard';
+        let hash = parsed.module || home;
 
         // A stale/hand-typed hash for a module this role can't open shouldn't
         // land them on an Access Denied screen at login — send them to the first
@@ -150,7 +152,7 @@ class SchoolPortalApp {
             const firstAllowed = Array.from(document.querySelectorAll('.nav-link[data-module]'))
                 .map(l => l.dataset.module)
                 .find(m => this.canOpen(m));
-            hash = firstAllowed || 'admin-dashboard';
+            hash = firstAllowed || home;
         }
 
         this.loadModule(hash, hash === parsed.module && parsed.id ? { id: parsed.id } : {});
@@ -197,6 +199,18 @@ class SchoolPortalApp {
             }
         }
 
+        // Most modules add a datamanager:change listener in init() and never
+        // remove it, so a data change could redraw a page the user had left
+        // over the one in view. Detach every module's listener here; the module
+        // being opened adds its own again in init().
+        Object.keys(window).forEach(k => {
+            if (!k.endsWith('Module')) return;
+            const m = window[k];
+            if (m && typeof m._onDataChange === 'function') {
+                window.removeEventListener('datamanager:change', m._onDataChange);
+            }
+        });
+
         // Show loading
         showLoading(contentArea);
 
@@ -238,7 +252,11 @@ class SchoolPortalApp {
 
         // Update breadcrumb
         if (breadcrumb) {
-            breadcrumb.textContent = moduleTitles[moduleName] || moduleName;
+            // The sidebar's own label names the page, so a portal that labels a
+            // shared module differently (Academics is "Classes & lessons" for
+            // teachers) titles it the same way; record pages use the map.
+            const navLabel = document.querySelector(`.nav-link[data-module="${navFor}"] .nav-link-text`)?.textContent?.trim();
+            breadcrumb.textContent = (navFor === moduleName && navLabel) || moduleTitles[moduleName] || navLabel || moduleName;
         }
 
         // Load module content
