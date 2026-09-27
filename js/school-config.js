@@ -208,8 +208,12 @@ const schoolConfig = {
         const year = now.getFullYear();
         const month = now.getMonth() + 1;
 
-        // Academic year starts in September
-        if (month >= 9) {
+        // The session turns over in July. Lessons start in September, but
+        // July–August are spent preparing the coming session, and
+        // getCurrentTerm() already treats them as its First Term; turning over
+        // in September instead paired that First Term with the finished
+        // session, so August showed (and billed) "2025/2026 First Term".
+        if (month >= 7) {
             return `${year}/${year + 1}`;
         } else {
             return `${year - 1}/${year}`;
