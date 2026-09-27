@@ -181,54 +181,52 @@ const academicsModule = {
       subjects:  this._isAdmin() ? `<div style="display:flex;gap:8px;"><button class="btn btn-secondary" onclick="academicsModule._openSeedModal()">🌱 Seed</button><button class="btn btn-primary" onclick="academicsModule._openAddSubjectModal()">➕ Add Subject</button></div>` : '',
     }[this._tab] || '';
 
+    // The sidebar names this page differently per portal ("Classes & scores"
+    // for the office, "Classes & lessons" for teachers); the heading follows it.
+    const title = document.getElementById('breadcrumb-current')?.textContent?.trim() || 'Academics';
+
     this.container.innerHTML = `
-      <div class="animate-fadeIn" style="max-width:1200px;">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+      <div class="ui-page">
+        <div class="ui-page-head">
           <div>
-            <h1 style="margin:0;font-size:1.5rem;font-weight:700;">🎓 Academic Hub</h1>
-            <p style="margin:4px 0 0;color:var(--text-secondary);font-size:0.875rem;">Classes · Timetable · Assessments · Grades · Lesson Plans · Subjects</p>
+            <h1 class="ui-page-title">${this._esc(title)}</h1>
+            <p class="ui-page-sub">Classes, timetable, assessments, grades, lesson plans and subjects</p>
           </div>
           ${headerActions}
         </div>
 
-        <!-- Stats -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:24px;">
-          ${this._stat('🏫', 'Classes', classes.length || this._getAvailableClasses().length, '#6366f1')}
-          ${this._stat('📅', 'Schedules', schedules.filter(s => s.type === 'class').length, '#3b82f6')}
-          ${this._stat('📝', 'Assessments', assessments.length, '#f59e0b')}
-          ${this._stat('📊', 'Avg Score', this._calcAvg(grades) + '%', '#10b981')}
-          ${this._isAdmin() ? this._stat('⏳', 'Plans Pending', lpPending, lpPending > 0 ? '#ef4444' : '#94a3b8') : ''}
+        <div class="acad-stats">
+          ${this._stat('Classes', classes.length || this._getAvailableClasses().length)}
+          ${this._stat('Lessons on the timetable', schedules.filter(s => s.type === 'class').length)}
+          ${this._stat('Assessments', assessments.length)}
+          ${this._stat('Average score', this._calcAvg(grades) + '%')}
+          ${this._isAdmin() ? this._stat('Lesson plans to review', lpPending) : ''}
         </div>
 
-        <!-- Tabs -->
-        <div style="display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:12px;margin-bottom:24px;overflow-x:auto;width:fit-content;max-width:100%;">
-          ${this._tabBtn('classes',    '🏫 Classes')}
-          ${this._tabBtn('timetable',  '📅 Timetable')}
-          ${this._tabBtn('assessments','📝 Assessments')}
-          ${this._tabBtn('grades',     '📊 Grades')}
-          ${this._tabBtn('lessonPlans','📖 Lesson Plans')}
-          ${this._isAdmin() ? this._tabBtn('subjects', '📚 Subjects') : ''}
+        <div role="tablist" aria-label="Academics" class="sr-tabs">
+          ${this._tabBtn('classes', 'Classes')}
+          ${this._tabBtn('timetable', 'Timetable')}
+          ${this._tabBtn('assessments', 'Assessments')}
+          ${this._tabBtn('grades', 'Grades')}
+          ${this._tabBtn('lessonPlans', 'Lesson plans')}
+          ${this._isAdmin() ? this._tabBtn('subjects', 'Subjects') : ''}
         </div>
 
         <div id="hub-content">${this._renderTabContent()}</div>
       </div>`;
   },
 
-  _stat(icon, label, value, color) {
-    return `<div style="background:white;border-radius:12px;padding:16px;border:1px solid #e2e8f0;text-align:center;">
-      <div style="font-size:0.68rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">${icon} ${label}</div>
-      <div style="font-size:1.5rem;font-weight:700;color:${color};">${value}</div>
+  _stat(label, value) {
+    return `<div class="ui-card ui-kpi" style="cursor:default;">
+      <span class="ui-kpi-label">${label}</span>
+      <span class="ui-kpi-value">${value}</span>
     </div>`;
   },
 
   _tabBtn(id, label) {
     const active = this._tab === id;
-    return `<button onclick="academicsModule._switchTab('${id}')"
-      style="padding:9px 18px;border:none;border-radius:9px;font-size:0.84rem;font-weight:600;cursor:pointer;white-space:nowrap;transition:all 0.15s;
-      ${active ? 'background:white;color:#0f172a;box-shadow:0 1px 4px rgba(0,0,0,0.1);' : 'background:transparent;color:#64748b;'}">
-      ${label}</button>`;
+    return `<button type="button" role="tab" aria-selected="${active}" class="sr-tab${active ? ' is-on' : ''}" onclick="academicsModule._switchTab('${id}')">${label}</button>`;
   },
-
   _switchTab(tab) { this._tab = tab; this._selAssessment = null; this.render(); },
   _refreshContent() { const el = document.getElementById('hub-content'); if (el) el.innerHTML = this._renderTabContent(); },
 
@@ -291,17 +289,17 @@ const academicsModule = {
         const classes = gradeMap[grade];
         return `
           <div style="margin-bottom:20px;">
-            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">Grade ${this._esc(grade)}</div>
+            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">${this._esc(grade)}</div>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
               ${classes.map(c => {
                 const sc = students.filter(s => String(s.grade) === String(c.grade) && s.section === c.section).length;
                 const teacher = teachers.find(t => t.id === c.class_teacher || t.name === c.class_teacher);
                 const isSynth = c.isSynthetic && !c.id?.startsWith('synth');
                 return `
-                  <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:16px;border-left:4px solid #6366f1;">
+                  <div style="background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:14px;padding:16px;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
                       <div>
-                        <div style="font-weight:700;font-size:1rem;color:#0f172a;">Grade ${this._esc(c.grade)} — Section ${this._esc(c.section)}</div>
+                        <div style="font-weight:700;font-size:1rem;color:#0f172a;">${this._esc(c.grade)} ${this._esc(c.section)}</div>
                         <div style="font-size:0.8rem;color:#64748b;margin-top:2px;">👩‍🏫 ${teacher ? this._esc(teacher.name) : (c.class_teacher ? this._esc(c.class_teacher) : '<em>No class teacher</em>')}</div>
                       </div>
                       ${this._isAdmin() && !c.isSynthetic ? `
@@ -463,7 +461,7 @@ const academicsModule = {
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;align-items:center;">
         <select class="form-select" style="width:auto;margin:0;" onchange="academicsModule._ttGrade=this.value;academicsModule._ttSection='';academicsModule._refreshContent()">
           <option value="all">All Grades</option>
-          ${gradeKeys.map(g => `<option value="${g}" ${this._ttGrade === g ? 'selected' : ''}>Grade ${this._esc(g)}</option>`).join('')}
+          ${gradeKeys.map(g => `<option value="${g}" ${this._ttGrade === g ? 'selected' : ''}>${this._esc(g)}</option>`).join('')}
         </select>
         ${this._ttGrade !== 'all' ? `
           <select class="form-select" style="width:auto;margin:0;" onchange="academicsModule._ttSection=this.value;academicsModule._refreshContent()">
@@ -493,10 +491,10 @@ const academicsModule = {
                 ${entries.length === 0 ? `<p style="color:#94a3b8;font-size:0.85rem;padding:10px 0;">No classes scheduled</p>` : `
                   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
                     ${entries.map(s => `
-                      <div style="background:white;border:1px solid #e2e8f0;border-radius:10px;padding:14px;border-left:4px solid #3b82f6;">
+                      <div style="background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:12px;padding:14px;">
                         <div style="font-weight:700;font-size:0.92rem;color:#0f172a;margin-bottom:4px;">${this._esc(s.subject || s.title || '—')}</div>
                         <div style="font-size:0.78rem;color:#64748b;display:flex;flex-direction:column;gap:2px;">
-                          <span>🏫 Grade ${this._esc(s.grade || '?')}-${this._esc(s.section || '?')}</span>
+                          <span>${this._esc(s.grade || '?')} ${this._esc(s.section || '')}</span>
                           ${s.start_time ? `<span>🕐 ${this._esc(s.start_time)}–${this._esc(s.end_time || '')}</span>` : ''}
                           ${s.period ? `<span>📌 Period ${s.period}</span>` : ''}
                           ${s.teacher ? `<span>👨‍🏫 ${this._esc(s.teacher)}</span>` : ''}
@@ -532,7 +530,7 @@ const academicsModule = {
           <label class="form-label">Class *</label>
           <select id="sch-class" class="form-input" onchange="academicsModule.updateSubjectOptions(this.value,'sch-subject')">
             <option value="">— Select —</option>
-            ${classes.map(c => `<option value="${this._esc(c.grade)}|${this._esc(c.section)}">Grade ${this._esc(c.grade)} — Sec ${this._esc(c.section)}</option>`).join('')}
+            ${classes.map(c => `<option value="${this._esc(c.grade)}|${this._esc(c.section)}">${this._esc(c.grade)} ${this._esc(c.section)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -648,7 +646,7 @@ const academicsModule = {
         <div class="form-group">
           <label class="form-label">Class</label>
           <select id="esch-class" class="form-input" onchange="academicsModule.updateSubjectOptions(this.value,'esch-subject')">
-            ${classes.map(c => `<option value="${this._esc(c.grade)}|${this._esc(c.section)}" ${c.grade === s.grade && c.section === s.section ? 'selected' : ''}>Grade ${this._esc(c.grade)} — Sec ${this._esc(c.section)}</option>`).join('')}
+            ${classes.map(c => `<option value="${this._esc(c.grade)}|${this._esc(c.section)}" ${c.grade === s.grade && c.section === s.section ? 'selected' : ''}>${this._esc(c.grade)} ${this._esc(c.section)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">
@@ -751,7 +749,7 @@ const academicsModule = {
           style="flex:1;min-width:180px;max-width:280px;margin:0;">
         <select class="form-select" style="width:auto;margin:0;" onchange="academicsModule._filterGrade=this.value;academicsModule._refreshContent()">
           <option value="all">All Grades</option>
-          ${gradeList.map(g => `<option value="${g}" ${this._filterGrade === g ? 'selected' : ''}>Grade ${g}</option>`).join('')}
+          ${gradeList.map(g => `<option value="${g}" ${this._filterGrade === g ? 'selected' : ''}>${g}</option>`).join('')}
         </select>
         <select class="form-select" style="width:auto;margin:0;" onchange="academicsModule._filterStatus=this.value;academicsModule._refreshContent()">
           <option value="all" ${this._filterStatus === 'all' ? 'selected' : ''}>All Status</option>
@@ -827,7 +825,7 @@ const academicsModule = {
             <label class="form-label">Class *</label>
             <select class="form-select" name="class" required onchange="academicsModule._updateClassHidden(this.value)">
               <option value="">Select Class</option>
-              ${classes.map(c => `<option value="${c.grade}|${c.section}">Grade ${c.grade} — Section ${c.section}</option>`).join('')}
+              ${classes.map(c => `<option value="${c.grade}|${c.section}">${c.grade} ${c.section}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
@@ -1360,7 +1358,7 @@ const academicsModule = {
             const teacher = staff.find(t => t.id === (s.teacherId || s.teacher_id));
             const sGrades = this._subjectGrades(s);
             const sc = sGrades.reduce((sum, g) => sum + (studentsByGrade[g] || 0), 0);
-            return `<div style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:16px;border-left:4px solid #6366f1;">
+            return `<div style="background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:14px;padding:16px;">
               <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
                 <div style="flex:1;min-width:0;">
                   <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="font-size:1.3rem;">${s.icon || '📚'}</span><span style="font-weight:700;font-size:0.95rem;">${this._esc(s.name)}</span></div>

@@ -54,7 +54,8 @@ const settingsModule = {
       schoolPhone: '0707 171 1692',
       academicYear: '2025/2026',
       currentTerm: 'Second Term',
-      theme: 'dark',
+      // The portal is designed light-first; dark is there for anyone who picks it.
+      theme: 'light',
       sessionTimeout: '24',
       currency: 'NGN',
       // The school's account, as printed on both published fee sheets.

@@ -148,105 +148,71 @@ const feesPaymentsModule = {
 
     const payments = dataManager.getAll('payments') || [];
     const stats = this.calculateStats(payments);
-    const pendingVerifications = payments.filter(p => this._isPendingVerification(p));
+    // Same rule as the sidebar badge and Payments to check, so all three agree.
+    const pendingVerifications = payments.filter(p => window.portalShell?.isAwaitingVerification
+      ? window.portalShell.isAwaitingVerification(p)
+      : this._isPendingVerification(p));
 
     // Unified outstanding balance and student count from single source of truth
     const t = this._computeBreakdownTotals();
     const displayPending = t.totalUnpaid;
     const pendingStudentCount = t.pendingStudentCount;
 
+    const money = (n) => '₦' + Math.round(Number(n) || 0).toLocaleString('en-NG');
+    const plural = (n, one, many) => `${n} ${n === 1 ? one : (many || one + 's')}`;
+    const canCheck = window.app?.canOpen ? window.app.canOpen('payment-checks') : true;
+    const waitingTotal = pendingVerifications.reduce((a, p) => a + (parseFloat(p.amount) || 0), 0);
+    const tabs = [
+      ['overview', 'Overview'],
+      ['breakdown', 'Fee breakdown'],
+      ['payments', 'Payment records'],
+      ['pending', 'Who still owes'],
+      ['reports', 'Reports'],
+      ['fee-structure', 'Fee structure']
+    ];
+    const kpi = (label, value, sub, tab) => `
+      <button type="button" class="ui-card ui-kpi" onclick="feesPaymentsModule.switchTab('${tab}')">
+        <span class="ui-kpi-label">${label}</span>
+        <span class="ui-kpi-value">${value}</span>
+        <span class="ui-kpi-sub">${sub}</span>
+      </button>`;
+
     this.container.innerHTML = `
-      <div class="animate-fadeIn">
-        <!-- Header Section -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-8);">
+      <div class="ui-page">
+        <div class="ui-page-head">
           <div>
-            <h2 class="page-title" style="margin-bottom: var(--space-2); display: flex; align-items: center; gap: var(--space-3);">
-              💰 Fees & Payments
-            </h2>
-            <p class="page-description">Comprehensive payment tracking and financial management</p>
+            <h1 class="ui-page-title">Fees &amp; payments</h1>
+            <p class="ui-page-sub">Bills, payments and who still owes, for every term</p>
           </div>
-          <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
-            <button class="btn btn-primary" onclick="feesPaymentsModule.openAssignFeesModal()" style="display: flex; align-items: center; gap: var(--space-2); background: linear-gradient(135deg, #4338ca, #7c3aed);">
-              <span>📋</span> Assign Fees for Term
-            </button>
-            <button class="btn btn-ghost" onclick="feesPaymentsModule.bulkAssignFee()" style="display: flex; align-items: center; gap: var(--space-2);">
-              <span>👥</span> Bulk Assign Fee
-            </button>
-            <button class="btn btn-secondary" onclick="feesPaymentsModule.exportPayments()" style="display: flex; align-items: center; gap: var(--space-2);">
-              <span>📥</span> Export
-            </button>
-            <button class="btn btn-primary" onclick="feesPaymentsModule.recordPayment()" style="display: flex; align-items: center; gap: var(--space-2);">
-              <span>➕</span> New Payment
-            </button>
+          <div class="ui-actions">
+            <button type="button" class="ui-btn" onclick="feesPaymentsModule.exportPayments()">Export</button>
+            <button type="button" class="ui-btn" onclick="feesPaymentsModule.bulkAssignFee()">Add a fee to many students</button>
+            <button type="button" class="ui-btn" onclick="feesPaymentsModule.openAssignFeesModal()">Assign fees for a term</button>
+            <button type="button" class="ui-btn ui-btn-primary" onclick="feesPaymentsModule.recordPayment()">Record payment</button>
           </div>
         </div>
 
-        <!-- Enhanced Financial Stats with Gradients -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 gradient-stat-grid" style="margin-bottom: var(--space-8);">
-          ${pendingVerifications.length > 0 ? `
-          <div style="grid-column: 1 / -1; background: linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(254,225,64,0.1) 100%); border: 2px solid var(--color-warning); border-radius: var(--radius-lg); padding: var(--space-5); margin-bottom: var(--space-4);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4);">
-              <h3 style="margin: 0; font-size: var(--font-size-lg); font-weight: 700; color: var(--text-primary);">⏳ Pending Bank Deposit Verifications</h3>
-              <span style="background: var(--color-warning); color: white; padding: 4px 12px; border-radius: var(--radius-full); font-size: var(--font-size-sm); font-weight: 700;">${pendingVerifications.length} pending</span>
+        ${pendingVerifications.length ? `
+          <div class="ui-card fp-waiting">
+            <span class="ui-dot is-urgent" aria-hidden="true"></span>
+            <div class="ui-row-main">
+              <div class="ui-row-title">${plural(pendingVerifications.length, 'payment')} from parents waiting to be checked</div>
+              <div class="ui-row-meta">${money(waitingTotal)} in total. They show as paid once approved.</div>
             </div>
-            <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-              ${pendingVerifications.map(p => {
-      const receiptUrl = p.receiptUrl || p.receipt_url || '';
-      const isImage = receiptUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i);
-      return '<div style="display:flex;gap:12px;padding:12px;background:var(--bg-primary);border-radius:8px;border:1px solid var(--border-primary);align-items:center;flex-wrap:wrap;">'
-        + '<div style="flex-shrink:0;width:56px;height:56px;border-radius:8px;overflow:hidden;background:var(--bg-tertiary);display:flex;align-items:center;justify-content:center;border:1px solid var(--border-primary);">'
-        + (isImage ? '<img data-storage-src="' + this._esc(receiptUrl) + '" alt="Receipt" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:1.5rem;">📄</span>')
-        + '</div>'
-        + '<div style="flex:1;min-width:160px;">'
-        + '<p style="font-weight:700;margin-bottom:2px;color:var(--text-primary);">' + (p.studentName || 'Unknown') + '</p>'
-        + '<p style="font-size:0.875rem;color:var(--text-secondary);margin-bottom:2px;">' + (p.feeType || 'Fee Payment') + ' &bull; Bank Deposit</p>'
-        + '<p style="font-size:0.75rem;color:var(--text-tertiary);">Ref: ' + (p.transactionRef || '-') + ' &bull; ' + (p.paymentDate ? new Date(p.paymentDate).toLocaleDateString() : '') + '</p>'
-        + '</div>'
-        + '<div style="text-align:right;min-width:90px;">'
-        + '<p style="font-size:1.2rem;font-weight:700;color:var(--color-success);margin-bottom:2px;">₦' + (parseFloat(p.amount) || 0).toLocaleString() + '</p>'
-        + '<p style="font-size:0.75rem;color:var(--text-tertiary);">Receipt #' + (p.receiptNo || '-') + '</p>'
-        + '</div>'
-        + '<div style="display:flex;gap:8px;flex-shrink:0;">'
-        + (receiptUrl ? '<a href="' + this._esc(receiptUrl) + '" data-storage-link target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding:6px 10px;">📎 View</a>' : '')
-        + '<button class="btn btn-primary btn-sm" onclick="feesPaymentsModule.verifyPayment(\'' + p.id + '\')" style="padding:6px 12px;">✅ Approve</button>'
-        + '<button class="btn btn-sm" onclick="feesPaymentsModule.rejectPayment(\'' + p.id + '\')" style="padding:6px 12px;background:var(--color-danger);color:white;border:none;border-radius:6px;cursor:pointer;">❌ Reject</button>'
-        + '</div>'
-        + '</div>';
-    }).join('')}
-            </div>
-          </div>
-          ` : ''}
-          ${this.createGradientStatCard('Total Billed', formatCurrency(t.totalExpected), '📋', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', t.billedCount + ' of ' + t.totalStudents + ' student' + (t.totalStudents !== 1 ? 's' : '') + ' billed')}
-          ${this.createGradientStatCard('Total Collected', formatCurrency(stats.totalCollected), '💵', 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', stats.paidTransactions + ' confirmed payment' + (stats.paidTransactions !== 1 ? 's' : ''))}
-          ${this.createGradientStatCard('Outstanding Balance', formatCurrency(displayPending), '⏳', 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', pendingStudentCount + ' student' + (pendingStudentCount !== 1 ? 's' : '') + ' still owing')}
-          ${this.createGradientStatCard('Collection Rate', t.rate + '%', '📈', 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', 'This month: ' + formatCurrency(stats.thisMonth))}
+            ${canCheck ? `<button type="button" class="ui-btn ui-btn-sm ui-btn-primary" onclick="window.app.loadModule('payment-checks')">Check now</button>` : ''}
+          </div>` : ''}
+
+        <div class="ui-grid-4">
+          ${kpi('Billed', money(t.totalExpected), `${t.billedCount} of ${plural(t.totalStudents, 'student')} billed`, 'breakdown')}
+          ${kpi('Collected', money(stats.totalCollected), plural(stats.paidTransactions, 'confirmed payment'), 'payments')}
+          ${kpi('Still owed', money(displayPending), `${plural(pendingStudentCount, 'student')} with a balance`, 'pending')}
+          ${kpi('Collection rate', t.rate + '%', 'This month: ' + money(stats.thisMonth), 'reports')}
         </div>
 
-        <!-- Tabs -->
-        <div style="border-bottom: 1px solid var(--border-primary); margin-bottom: var(--space-6);">
-          <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-            <button class="profile-tab ${this.currentTab === 'overview' ? 'active' : ''}" onclick="feesPaymentsModule.switchTab('overview', event)">
-              📊 Overview
-            </button>
-            <button class="profile-tab ${this.currentTab === 'breakdown' ? 'active' : ''}" onclick="feesPaymentsModule.switchTab('breakdown', event)">
-              📋 Fee Breakdown
-            </button>
-            <button class="profile-tab ${this.currentTab === 'payments' ? 'active' : ''}" onclick="feesPaymentsModule.switchTab('payments', event)">
-              💰 Payment Records
-            </button>
-            <button class="profile-tab ${this.currentTab === 'pending' ? 'active' : ''}" onclick="feesPaymentsModule.switchTab('pending', event)">
-              ⏳ Pending Payments
-            </button>
-            <button class="profile-tab ${this.currentTab === 'reports' ? 'active' : ''}" onclick="feesPaymentsModule.switchTab('reports', event)">
-              📈 Reports
-            </button>
-            <button class="profile-tab ${this.currentTab === 'fee-structure' ? 'active' : ''}" onclick="feesPaymentsModule.switchTab('fee-structure', event)">
-              🏗️ Fee Structure
-            </button>
-          </div>
+        <div role="tablist" aria-label="Fees" class="sr-tabs">
+          ${tabs.map(([id, label]) => `<button type="button" role="tab" data-fees-tab="${id}" aria-selected="${this.currentTab === id}" class="sr-tab${this.currentTab === id ? ' is-on' : ''}" onclick="feesPaymentsModule.switchTab('${id}')">${label}</button>`).join('')}
         </div>
 
-        <!-- Tab Content -->
         <div id="fees-tab-content">
           ${this.renderTabContent()}
         </div>
@@ -254,20 +220,17 @@ const feesPaymentsModule = {
     `;
   },
 
-  switchTab(tabName, e) {
+  switchTab(tabName) {
     this.currentTab = tabName;
     const contentDiv = document.getElementById('fees-tab-content');
     if (contentDiv) {
       contentDiv.innerHTML = this.renderTabContent();
     }
-
-    // Update active tab styling
-    document.querySelectorAll('.profile-tab').forEach(tab => {
-      tab.classList.remove('active');
+    document.querySelectorAll('[data-fees-tab]').forEach(tab => {
+      const on = tab.dataset.feesTab === tabName;
+      tab.classList.toggle('is-on', on);
+      tab.setAttribute('aria-selected', String(on));
     });
-    if (e && e.target) {
-      e.target.classList.add('active');
-    }
   },
 
   renderTabContent() {
@@ -391,46 +354,8 @@ const feesPaymentsModule = {
     const recentPayments = [...payments]
       .sort((a, b) => new Date(b.paymentDate || b.payment_date || 0) - new Date(a.paymentDate || a.payment_date || 0))
       .slice(0, 10);
-    const stats = this.calculateStats(payments);
-    const collectionRate = this._computeBreakdownTotals().rate;
-
     return `
-      <!-- Quick Stats Row -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div class="card" style="background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border: 1px solid var(--border-primary);">
-          <div class="card-body" style="text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: var(--space-3);">💰</div>
-            <div style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-2);">Collection Rate</div>
-            <div style="font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); color: var(--color-primary);">${collectionRate}%</div>
-            <div style="margin-top: var(--space-3); height: 6px; background: var(--bg-tertiary); border-radius: var(--radius-full);">
-              <div style="width: ${collectionRate}%; height: 100%; background: var(--gradient-primary); border-radius: var(--radius-full); transition: width 0.5s ease;"></div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="card" style="background: linear-gradient(135deg, #43e97b15 0%, #38f9d715 100%); border: 1px solid var(--border-primary);">
-          <div class="card-body" style="text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: var(--space-3);">📈</div>
-            <div style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-2);">Average Payment</div>
-            <div style="font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); color: var(--color-success);">
-              ${stats.totalTransactions > 0 ? formatCurrency(stats.totalCollected / stats.totalTransactions) : '₦0'}
-            </div>
-            <div style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-top: var(--space-2);">Per transaction</div>
-          </div>
-        </div>
-        
-        <div class="card" style="background: linear-gradient(135deg, #4facfe15 0%, #00f2fe15 100%); border: 1px solid var(--border-primary);">
-          <div class="card-body" style="text-align: center;">
-            <div style="font-size: 3rem; margin-bottom: var(--space-3);">🎯</div>
-            <div style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-2);">Payment Methods</div>
-            <div style="font-size: var(--font-size-3xl); font-weight: var(--font-weight-bold); color: var(--color-info);">
-              ${this.getUniquePaymentMethods(payments)}
-            </div>
-            <div style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-top: var(--space-2);">Active methods</div>
-          </div>
-        </div>
-      </div>
-
+      <!-- Collection rate and totals are in the page header above. -->
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
         <!-- Recent Transactions - Takes 2 columns -->
         <div class="lg:col-span-2">

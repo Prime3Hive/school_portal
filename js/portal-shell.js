@@ -79,10 +79,45 @@
     set('nav-user-avatar', initials(name));
   }
 
+  // ── Older pages ────────────────────────────────────────────
+  // Pages not yet rebuilt put an emoji in front of their headings, buttons
+  // and tabs ("💰 Fees & Payments"). The new design uses drawn icons or none,
+  // so a leading emoji is dropped from those elements as they are drawn.
+  // Only the start of these labels is touched, never running text; delete
+  // this once no page draws its labels that way.
+  // © ® ™ count as pictographic too; they are part of a label, so they stay.
+  const LEADING_EMOJI = /^[\s‍️]*(?:(?![©®™])[\p{Extended_Pictographic}\p{Regional_Indicator}][‍️\u{1F3FB}-\u{1F3FF}]*)+[\s‍️]*/u;
+  const LABELS = '.btn, .profile-tab, .page-title, .module-title, .card-title, .modal-title, .empty-state-title, .form-label, .badge, h1, h2, h3, h4, th';
+
+  function tidyLabels(root) {
+    if (!root || root.nodeType !== 1) return;
+    const els = root.matches(LABELS) ? [root, ...root.querySelectorAll(LABELS)] : root.querySelectorAll(LABELS);
+    els.forEach(el => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        if (!node.nodeValue.trim()) continue;
+        const next = node.nodeValue.replace(LEADING_EMOJI, '');
+        if (next === node.nodeValue) break;          // label starts with words
+        node.nodeValue = next;
+        if (next.trim()) break;                      // emoji then words, in one node
+        // an emoji on its own (<span>📋</span> Assign…): keep going to the words
+      }
+    });
+  }
+
+  function watchLabels() {
+    tidyLabels(document.body);
+    new MutationObserver(records => {
+      records.forEach(r => r.addedNodes.forEach(tidyLabels));
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+
   function init() {
     fillTerm();
     fillUser();
     updateBadges();
+    watchLabels();
   }
 
   if (document.readyState === 'loading') {

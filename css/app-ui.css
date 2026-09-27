@@ -1202,3 +1202,12 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
   /* The tab bar's More does what the header's menu button did. */
   body.has-tabbar .mobile-menu-btn { display: none; }
 }
+
+/* ============================================
+   ACADEMICS HUB
+   ============================================ */
+.acad-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+}

@@ -58,6 +58,7 @@ const PRECACHE_ASSETS = [
   '/css/mobile-optimizations.css',
   '/css/app-shell.css',
   '/css/app-ui.css',
+  '/css/app-legacy.css',
   '/js/portal-shell.js',
   '/js/score-book.js',
   '/js/pupil-data.js',

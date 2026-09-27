@@ -1,0 +1,343 @@
+/* ============================================
+   APP LEGACY — the older pages, in the new design
+   ============================================
+
+   Pages not yet rebuilt on the ui- components (Staff, Academic Hub,
+   Inventory, Applications, Users, Calendar, Settings, the fees tabs, the
+   student timetable and assignments) are drawn with the original
+   components.css classes. This file restyles those classes to match the
+   new pages, so every screen looks like one product while each is rebuilt
+   in turn.
+
+   Linked last on every portal page. Where an older page paints a gradient
+   straight onto an element in a style="" attribute, only !important can
+   replace it; those rules are marked. Delete a block here once no page
+   uses its class.
+   ============================================ */
+
+/* ── Page headings ───────────────────── */
+.page-title,
+.module-title {
+  font-family: var(--font-display);
+  font-size: 1.875rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--text-primary);
+}
+
+.page-description,
+.module-subtitle {
+  font-size: 0.875rem;
+  color: var(--text-tertiary);
+}
+
+.module-header,
+.page-header {
+  margin-bottom: 22px;
+}
+
+/* ── Buttons ─────────────────────────── */
+.btn {
+  min-height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: none;
+  transform: none;
+}
+
+.btn:hover:not(:disabled),
+.btn:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--brand-navy-light);
+  outline-offset: 2px;
+}
+
+.btn-sm {
+  min-height: 36px;
+  padding: 0 12px;
+  font-size: 0.8125rem;
+}
+
+.btn-lg {
+  min-height: 48px;
+  padding: 0 22px;
+  font-size: 0.9375rem;
+}
+
+/* Older pages set gradients inline on these; !important is the only override. */
+.btn-primary {
+  background: var(--brand-navy) !important;
+  border: 1px solid var(--brand-navy);
+  color: #FFFFFF !important;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-navy-light) !important;
+}
+
+/* No !important on these: some pages colour a Reject or Delete outline button
+   red inline, and that colour must survive. */
+.btn-secondary,
+.btn-ghost {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  color: var(--ui-ink);
+}
+
+.btn-secondary:hover:not(:disabled),
+.btn-ghost:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  border-color: var(--ui-ink);
+}
+
+.btn-success {
+  background: var(--ui-good-ink);
+  border: 1px solid var(--ui-good-ink);
+  color: #FFFFFF;
+}
+
+.btn-danger {
+  background: var(--brand-red-deep);
+  border: 1px solid var(--brand-red-deep);
+  color: #FFFFFF;
+}
+
+/* ── Cards ───────────────────────────── */
+.card {
+  border-radius: var(--ui-radius);
+  padding: 20px 22px;
+}
+
+.card:hover {
+  border-color: var(--border-primary);
+  box-shadow: none;
+}
+
+.card-header {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom-color: var(--border-secondary);
+}
+
+.card-title {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.card-body {
+  color: var(--text-primary);
+}
+
+/* Gradient figure tiles (older dashboards and reports) become plain cards. */
+.gradient-stat-card {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-primary);
+  border-radius: var(--ui-radius) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
+.gradient-stat-icon,
+.gradient-stat-watermark {
+  display: none;
+}
+
+.gradient-stat-label,
+.gradient-stat-sub {
+  color: var(--text-tertiary) !important;
+  opacity: 1 !important;
+}
+
+.gradient-stat-value {
+  font-family: var(--font-display);
+  font-weight: 600 !important;
+  color: var(--text-primary);
+}
+
+.stat-card {
+  border-radius: var(--ui-radius);
+}
+
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.stat-label {
+  color: var(--text-tertiary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ── Tabs ────────────────────────────── */
+.profile-tab {
+  min-height: 44px;
+  padding: 0 14px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-tertiary);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.profile-tab:hover {
+  color: var(--text-primary);
+  border-bottom-color: transparent;
+}
+
+.profile-tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--brand-red);
+  font-weight: 600;
+}
+
+/* ── Badges ──────────────────────────── */
+.badge {
+  padding: 3px 9px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.badge-primary,
+.badge-info,
+.badge-secondary {
+  background: var(--bg-tertiary);
+  color: var(--ui-ink);
+}
+
+.badge-success { background: var(--ui-good-bg); color: var(--ui-good-ink); }
+.badge-warning { background: var(--ui-warn-bg); color: var(--ui-warn-ink); }
+.badge-danger  { background: var(--status-overdue-bg); color: var(--ui-bad-ink); }
+
+/* ── Forms ───────────────────────────── */
+.form-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.form-input,
+.form-select,
+.form-control {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+}
+
+.form-textarea {
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+}
+
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus,
+.form-control:focus {
+  outline: none;
+  border-color: var(--brand-navy-light);
+  box-shadow: 0 0 0 3px rgba(var(--brand-navy-rgb), 0.15);
+}
+
+.search-bar {
+  border-radius: 10px;
+}
+
+/* ── Tables ──────────────────────────── */
+.table-container {
+  border-radius: var(--ui-radius);
+  border-color: var(--border-primary);
+}
+
+.table thead,
+.data-table thead {
+  background: var(--bg-primary);
+}
+
+.table th,
+.data-table th {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+
+.table td,
+.data-table td {
+  border-bottom-color: var(--border-secondary);
+  font-size: 0.875rem;
+}
+
+.table tbody tr:hover,
+.data-table tbody tr:hover {
+  background: var(--bg-primary);
+}
+
+/* ── Pop-ups ─────────────────────────── */
+.modal {
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(20, 28, 62, 0.28);
+}
+
+.modal-header {
+  padding: 18px 22px;
+  border-bottom-color: var(--border-secondary);
+}
+
+.modal-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.modal-body,
+.modal-footer {
+  padding: 18px 22px;
+}
+
+.modal-close {
+  min-width: 40px;
+  min-height: 40px;
+}
+
+/* ── Empty states and alerts ─────────── */
+/* The large emoji above each empty state is dropped; the words carry it. */
+.empty-state-icon {
+  display: none;
+}
+
+.empty-state-title {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+
+.empty-state-description {
+  color: var(--text-tertiary);
+}
+
+.alert {
+  border-radius: 10px;
+}
+
+/* ── Fees page: the link to Payments to check ── */
+.fp-waiting {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+}

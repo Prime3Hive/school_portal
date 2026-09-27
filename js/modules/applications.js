@@ -117,91 +117,26 @@ const applicationsModule = {
         const stats = this.getStatistics();
 
         container.innerHTML = `
-      <div class="module-header" style="margin-bottom: 2rem;">
+      <div class="ui-page-head" style="margin-bottom: 22px;">
         <div>
-          <h1 class="module-title" style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 48px; height: 48px; background: linear-gradient(135deg, hsl(220, 70%, 50%), hsl(220, 70%, 40%)); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">
-              📋
-            </div>
-            <span>Applications Management</span>
-          </h1>
-          <p class="module-subtitle" style="margin-top: 0.5rem;">Review and manage student application submissions</p>
+          <h1 class="ui-page-title">Applications</h1>
+          <p class="ui-page-sub">Admission applications from the public website, newest first</p>
         </div>
-        <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;">
-          <button class="btn btn-danger" onclick="applicationsModule.clearAllApplications()" title="Permanently delete all application records"
-            style="display:inline-flex;align-items:center;gap:0.5rem;font-size:0.875rem;">
-            <i class="fas fa-trash-alt"></i> Clear All Applications
+        <div class="ui-actions">
+          <!-- Deletes every record (it asks for a typed confirmation), so it is
+               a quiet outline button, not the loudest thing on the page. -->
+          <button type="button" class="ui-btn pc-danger" onclick="applicationsModule.clearAllApplications()" title="Permanently delete all application records">
+            Clear all applications…
           </button>
         </div>
       </div>
 
-      <!-- Statistics Cards with Animation -->
-      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; animation: fadeInUp 0.5s ease;">
-        
-        <!-- Total Applications Card -->
-        <div class="card" style="padding: 1.75rem; transition: all 0.3s ease; cursor: pointer;"
-          onmouseenter="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-xl)'"
-          onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-            <div style="width: 56px; height: 56px; background: linear-gradient(135deg, hsl(200, 90%, 55%), hsl(200, 90%, 45%)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 12px hsla(200, 90%, 50%, 0.3);">
-              📥
-            </div>
-          </div>
-          <div style="font-size: 2.75rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; line-height: 1;">${stats.total}</div>
-          <div style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Total Applications</div>
-        </div>
-
-        <!-- Pending Review Card -->
-        <div class="card" style="padding: 1.75rem; transition: all 0.3s ease; cursor: pointer;"
-          onmouseenter="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-xl)'"
-          onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-            <div style="width: 56px; height: 56px; background: linear-gradient(135deg, hsl(45, 100%, 50%), hsl(45, 100%, 40%)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 12px hsla(45, 100%, 50%, 0.3);">
-              ⏳
-            </div>
-          </div>
-          <div style="font-size: 2.75rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; line-height: 1;">${stats.pending}</div>
-          <div style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Pending Review</div>
-        </div>
-
-        <!-- Approved Card -->
-        <div class="card" style="padding: 1.75rem; transition: all 0.3s ease; cursor: pointer;"
-          onmouseenter="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-xl)'"
-          onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-            <div style="width: 56px; height: 56px; background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 12px hsla(150, 70%, 45%, 0.3);">
-              ✅
-            </div>
-          </div>
-          <div style="font-size: 2.75rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; line-height: 1;">${stats.approved}</div>
-          <div style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Approved</div>
-        </div>
-
-        <!-- Rejected Card -->
-        <div class="card" style="padding: 1.75rem; transition: all 0.3s ease; cursor: pointer;"
-          onmouseenter="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-xl)'"
-          onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-            <div style="width: 56px; height: 56px; background: linear-gradient(135deg, hsl(0, 80%, 55%), hsl(0, 80%, 45%)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 12px hsla(0, 80%, 55%, 0.3);">
-              ❌
-            </div>
-          </div>
-          <div style="font-size: 2.75rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; line-height: 1;">${stats.rejected}</div>
-          <div style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Rejected</div>
-        </div>
-
-        <!-- Pending Payments Card -->
-        <div class="card" style="padding: 1.75rem; transition: all 0.3s ease; cursor: pointer;"
-          onmouseenter="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-xl)'"
-          onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
-            <div style="width: 56px; height: 56px; background: linear-gradient(135deg, hsl(280, 70%, 55%), hsl(280, 70%, 45%)); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; box-shadow: 0 4px 12px hsla(280, 70%, 55%, 0.3);">
-              🧾
-            </div>
-          </div>
-          <div style="font-size: 2.75rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem; line-height: 1;">${stats.pendingPayments}</div>
-          <div style="font-size: 0.875rem; color: var(--text-secondary); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Pending Payments</div>
-        </div>
+      <div class="acad-stats" style="margin-bottom: 22px;">
+        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Received</span><span class="ui-kpi-value">${stats.total}</span></div>
+        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Waiting for review</span><span class="ui-kpi-value">${stats.pending}</span></div>
+        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Approved</span><span class="ui-kpi-value">${stats.approved}</span></div>
+        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Rejected</span><span class="ui-kpi-value">${stats.rejected}</span></div>
+        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Application fee to confirm</span><span class="ui-kpi-value">${stats.pendingPayments}</span></div>
       </div>
 
       <!-- Search and Filters -->
