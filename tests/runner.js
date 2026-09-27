@@ -93,16 +93,8 @@ function loadModule(relPath) {
 // Minimal safe load of fee-structure.js helpers only
 function extractFeeHelpers() {
   // We parse only the pure functions — not the module that touches DOM
-  const gradeLetterFn = function(pct) {
-    if (pct >= 90) return 'A+';
-    if (pct >= 80) return 'A';
-    if (pct >= 70) return 'B';
-    if (pct >= 60) return 'C';
-    if (pct >= 50) return 'D';
-    return 'F';
-  };
   const calcPct = (score, max) => max > 0 ? Math.round((score / max) * 100) : 0;
-  return { gradeLetterFn, calcPct };
+  return { calcPct };
 }
 
 // Load payment-service.js (it only touches globals we've stubbed)
@@ -123,18 +115,10 @@ try {
 // TESTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { gradeLetterFn, calcPct } = extractFeeHelpers();
+const { calcPct } = extractFeeHelpers();
 
-// ── 1. Grade letter calculation ───────────────────────────────────────────────
-describe('Grade Letter Calculation', () => {
-  it('90–100 → A+', () => { assertEqual(gradeLetterFn(90), 'A+'); assertEqual(gradeLetterFn(100), 'A+'); });
-  it('80–89 → A',   () => { assertEqual(gradeLetterFn(80), 'A');  assertEqual(gradeLetterFn(89), 'A'); });
-  it('70–79 → B',   () => { assertEqual(gradeLetterFn(70), 'B');  assertEqual(gradeLetterFn(79), 'B'); });
-  it('60–69 → C',   () => { assertEqual(gradeLetterFn(60), 'C');  assertEqual(gradeLetterFn(69), 'C'); });
-  it('50–59 → D',   () => { assertEqual(gradeLetterFn(50), 'D');  assertEqual(gradeLetterFn(59), 'D'); });
-  it('below 50 → F', () => { assertEqual(gradeLetterFn(49), 'F'); assertEqual(gradeLetterFn(0), 'F'); });
-  it('boundary: exactly 80 is A not B', () => assertEqual(gradeLetterFn(80), 'A'));
-});
+// Letter grades are tested against the real school scale in tests/redesign.test.js.
+// The copy tested here used an A+ scale the school does not use.
 
 // ── 2. Score-to-percentage calculation ───────────────────────────────────────
 describe('Score Percentage Calculation', () => {

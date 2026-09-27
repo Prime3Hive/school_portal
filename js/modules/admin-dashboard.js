@@ -101,10 +101,11 @@ const adminDashboardModule = {
     return Boolean(read(s.father) || read(s.mother) || read(s.guardian) || String(s.phone || '').trim());
   },
 
+  /** Same rule as the sidebar badge and Payments to check: transfers and Paystack claims. */
   _isAwaitingVerification(p) {
-    return window.portalShell?.isAwaitingVerification
-      ? window.portalShell.isAwaitingVerification(p)
-      : (p?.status === 'pending' && (p.paymentMethod || p.payment_method) === 'bank-deposit');
+    if (window.portalShell?.isAwaitingVerification) return window.portalShell.isAwaitingVerification(p);
+    const m = String(p?.paymentMethod || p?.payment_method || '').toLowerCase();
+    return p?.status === 'pending' && (m === 'bank-deposit' || m === 'paystack');
   },
 
   _levelOf(grade) {

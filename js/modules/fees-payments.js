@@ -2805,37 +2805,6 @@ const feesPaymentsModule = {
   // HELPER METHODS
   // ============================================
 
-  createGradientStatCard(label, value, icon, gradient, subtitle) {
-    return `
-      <div class="gradient-stat-card" style="
-        background: ${gradient};
-        color: white;
-        padding: var(--space-6);
-        border-radius: var(--radius-lg);
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
-        cursor: pointer;
-      "
-      onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 16px rgba(0, 0, 0, 0.2)';"
-      onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 6px rgba(0, 0, 0, 0.1)';">
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-4);">
-          <div class="gradient-stat-icon" style="font-size: 2.5rem; opacity: 0.9;">${icon}</div>
-        </div>
-        <div class="gradient-stat-label" style="font-size: 0.875rem; opacity: 0.9; margin-bottom: var(--space-2); font-weight: 500;">${label}</div>
-        <div class="gradient-stat-value" style="font-size: 2rem; font-weight: 700; margin-bottom: var(--space-2);">${value}</div>
-        <div class="gradient-stat-sub" style="font-size: 0.875rem; opacity: 0.8;">${subtitle}</div>
-        <div class="gradient-stat-watermark" style="
-          position: absolute;
-          bottom: -20px;
-          right: -20px;
-          font-size: 6rem;
-          opacity: 0.1;
-        ">${icon}</div>
-      </div>
-    `;
-  },
 
   getUniquePaymentMethods(payments) {
     const methods = new Set(payments.filter(p => p.status === 'paid').map(p => p.paymentMethod));

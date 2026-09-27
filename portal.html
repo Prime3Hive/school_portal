@@ -21,8 +21,6 @@
   <link rel="stylesheet" href="css/design-system.css">
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/accessibility.css">
-  <!-- Admin dashboard v2 — loaded before the mobile layer so mobile can override it -->
-  <link rel="stylesheet" href="css/dashboard-v2.css">
   <link rel="stylesheet" href="css/mobile-optimizations.css">
 
   <!-- Configuration -->
@@ -339,8 +337,6 @@
   <link rel="stylesheet" href="css/app-ui.css">
   <link rel="stylesheet" href="css/app-legacy.css">
 
-  <!-- Flatpickr CSS (stylesheet only — JS loaded in body) -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
   <!-- PWA manifest -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1E2A5A">
@@ -644,9 +640,8 @@
   <!-- Payment Service facade -->
   <script defer src="js/payment-service.js"></script>
 
-  <!-- ⑦ chart.js and flatpickr — deferred (used after first paint) -->
+  <!-- ⑦ chart.js — deferred (Users & access draws charts after first paint) -->
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script defer src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 
   <!-- ⑧ Heavy export libs — loaded ON DEMAND via window.loadLib() only when needed.
        jspdf ~500KB + html2canvas ~250KB + xlsx ~900KB = ~1.65MB saved on every page load. -->

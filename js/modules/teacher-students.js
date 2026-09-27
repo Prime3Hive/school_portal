@@ -6,7 +6,7 @@
 // card grid, which offered a filter chip for every class in the school.
 //
 // Registered as myClassesModule so the existing #my-classes link keeps
-// working; teacher-portal.js defines an older one that this replaces.
+// working.
 // ============================================
 
 window.myClassesModule = {

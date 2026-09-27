@@ -364,49 +364,6 @@ function paginateArray(array, page = 1, pageSize = 25) {
   return array.slice(startIndex, endIndex);
 }
 
-// FIX BUG #14: Academic Year Utilities
-function getCurrentAcademicYear() {
-  // Get from school config if available
-  const config = JSON.parse(localStorage.getItem('schoolConfig') || '{}');
-  if (config.academicYear) {
-    return config.academicYear;
-  }
-  
-  // Calculate based on current date (September-August cycle)
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-11
-  
-  // If before September (month 8), use previous year as start
-  if (currentMonth < 8) {
-    return `${currentYear - 1}-${currentYear}`;
-  } else {
-    return `${currentYear}-${currentYear + 1}`;
-  }
-}
-
-function setAcademicYear(year) {
-  const config = JSON.parse(localStorage.getItem('schoolConfig') || '{}');
-  config.academicYear = year;
-  localStorage.setItem('schoolConfig', JSON.stringify(config));
-  
-  // Trigger update event
-  window.dispatchEvent(new CustomEvent('academicyear:change', { detail: { year } }));
-}
-
-function getAcademicYearOptions() {
-  const currentYear = new Date().getFullYear();
-  const options = [];
-  
-  // Generate 5 years: 2 past, current, 2 future
-  for (let i = -2; i <= 2; i++) {
-    const startYear = currentYear + i;
-    const endYear = startYear + 1;
-    options.push(`${startYear}-${endYear}`);
-  }
-  
-  return options;
-}
 
 // ============================================================
 //  UNIVERSAL RECEIPT SYSTEM

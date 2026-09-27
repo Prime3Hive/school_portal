@@ -24,8 +24,6 @@ class PermissionManager {
                 modules: [
                     'teacher-today',
                     'teacher-scores',
-                    'teacher-portal',
-                    'teacher-dashboard',
                     'my-classes',
                     'academics',
                     'calendar'
@@ -66,9 +64,6 @@ class PermissionManager {
                     'family-home',
                     'family-fees',
                     'family-results',
-                    'student-dashboard',
-                    'my-grades',
-                    'my-fees',
                     'my-schedule',
                     'my-tasks'
                 ],
@@ -162,44 +157,6 @@ class PermissionManager {
         }
 
         return rolePermissions.actions;
-    }
-
-    // ============================================
-    // NAVIGATION FILTERING
-    // ============================================
-    filterNavigationByRole(role) {
-        const allNavItems = {
-            admin: [
-                { icon: '📊', label: 'Dashboard', module: 'admin-dashboard' },
-                { icon: '👥', label: 'Students', module: 'student-directory' },
-                { icon: '👨‍🏫', label: 'Staff', module: 'staff-management' },
-                { icon: '🎓', label: 'Academic Hub', module: 'academics' },
-                { icon: '💰', label: 'Fees & Payments', module: 'fees-payments' },
-                { icon: '📦', label: 'Inventory', module: 'inventory' },
-                { icon: '📋', label: 'Applications', module: 'applications' },
-                { icon: '🔐', label: 'User Management', module: 'user-management' },
-                { icon: '📆', label: 'Calendar', module: 'calendar' },
-                { icon: '⚙️', label: 'Settings', module: 'settings' }
-            ],
-            teacher: [
-                { icon: '📊', label: 'Teacher Portal', module: 'teacher-portal' },
-                { icon: '👥', label: 'My Classes', module: 'my-classes' },
-                { icon: '🎓', label: 'Academic Hub', module: 'academics' },
-            ],
-            staff: [
-                { icon: '📊', label: 'Dashboard', module: 'admin-dashboard' },
-                { icon: '📦', label: 'Inventory', module: 'inventory' },
-                { icon: '💰', label: 'Fees & Payments', module: 'fees-payments' }
-            ],
-            student: [
-                { icon: '📊', label: 'Dashboard', module: 'student-dashboard' },
-                { icon: '📝', label: 'My Grades', module: 'my-grades' },
-                { icon: '💰', label: 'My Fees', module: 'my-fees' },
-                { icon: '📅', label: 'My Schedule', module: 'my-schedule' },
-            ]
-        };
-
-        return allNavItems[role] || [];
     }
 
     // ============================================
