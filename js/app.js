@@ -127,9 +127,21 @@ class SchoolPortalApp {
         });
     }
 
+    /**
+     * "#student-record/<id>" → { module: 'student-record', id: '<id>' }.
+     * A page that shows one record keeps its id in the hash, so a reload or a
+     * shared link lands on the same record.
+     */
+    parseHash(raw = window.location.hash) {
+        const [module, ...rest] = String(raw || '').replace(/^#/, '').split('/');
+        const id = rest.length ? decodeURIComponent(rest.join('/')) : null;
+        return { module: module || null, id };
+    }
+
     loadInitialModule() {
         // Load dashboard by default
-        let hash = window.location.hash.slice(1) || 'admin-dashboard';
+        const parsed = this.parseHash();
+        let hash = parsed.module || 'admin-dashboard';
 
         // A stale/hand-typed hash for a module this role can't open shouldn't
         // land them on an Access Denied screen at login — send them to the first
@@ -141,20 +153,17 @@ class SchoolPortalApp {
             hash = firstAllowed || 'admin-dashboard';
         }
 
-        this.loadModule(hash);
-
-        // Set active nav link
-        const activeLink = document.querySelector(`[data-module="${hash}"]`);
-        if (activeLink) {
-            activeLink.classList.add('active');
-        }
+        this.loadModule(hash, hash === parsed.module && parsed.id ? { id: parsed.id } : {});
     }
 
     /**
      * @param {string} moduleName
-     * @param {{ tab?: string }} [options] open the module on one of its tabs.
-     *   Modules keep their tab in `currentTab` or `_tab`; it is set before
-     *   init() so the first render is already the right one.
+     * @param {{ tab?: string, id?: string }} [options]
+     *   tab — open the module on one of its tabs. Modules keep their tab in
+     *     `currentTab` or `_tab`; it is set before init() so the first render
+     *     is already the right one.
+     *   id  — the record a single-record page shows. It goes into the hash and
+     *     is passed to init(container, options).
      */
     async loadModule(moduleName, options = {}) {
         const contentArea = document.getElementById('main-content');
@@ -192,13 +201,16 @@ class SchoolPortalApp {
         showLoading(contentArea);
 
         // Update URL hash
-        window.location.hash = moduleName;
         this.currentModule = moduleName;
+        this.currentId = options.id || null;
+        window.location.hash = options.id ? `${moduleName}/${encodeURIComponent(options.id)}` : moduleName;
 
         // Keep the sidebar in step however the module was opened — a link on
-        // the dashboard, the bell, or the sidebar itself.
+        // the dashboard, the bell, or the sidebar itself. A record page lights
+        // up the list it belongs to.
+        const navFor = { 'student-record': 'student-directory' }[moduleName] || moduleName;
         document.querySelectorAll('.nav-link[data-module]').forEach(l => {
-            const on = l.dataset.module === moduleName;
+            const on = l.dataset.module === navFor;
             l.classList.toggle('active', on);
             if (on) l.setAttribute('aria-current', 'page');
             else l.removeAttribute('aria-current');
@@ -209,6 +221,7 @@ class SchoolPortalApp {
         const moduleTitles = {
             'admin-dashboard': 'Today',
             'student-directory': 'Students',
+            'student-record': 'Student record',
             'staff-management': 'Staff',
             'fees-payments': 'Fees & payments',
             'payment-checks': 'Payments to check',
@@ -242,7 +255,7 @@ class SchoolPortalApp {
                     if ('currentTab' in moduleFunction) moduleFunction.currentTab = options.tab;
                     else if ('_tab' in moduleFunction) moduleFunction._tab = options.tab;
                 }
-                await moduleFunction.init(contentArea);
+                await moduleFunction.init(contentArea, options);
             } else {
                 contentArea.innerHTML = `
           <div class="empty-state">
@@ -306,12 +319,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Handle browser back/forward (not nav-link clicks — those call loadModule directly)
 window.addEventListener('hashchange', () => {
-    const module = window.location.hash.slice(1);
-    if (module && window.app && window.app.currentModule !== module) {
-        window.app.loadModule(module);
-        document.querySelectorAll('.nav-link').forEach(l => {
-            l.classList.toggle('active', l.dataset.module === module);
-        });
+    if (!window.app) return;
+    const { module, id } = window.app.parseHash();
+    if (module && (window.app.currentModule !== module || (window.app.currentId || null) !== id)) {
+        window.app.loadModule(module, id ? { id } : {});
     }
 });
 

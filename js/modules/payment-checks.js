@@ -271,9 +271,7 @@ const paymentChecksModule = {
   },
 
   openStudent(studentId) {
-    window.app?.loadModule('student-directory').then(() => {
-      window.studentDirectoryModule?.showStudentProfile?.(studentId);
-    });
+    window.app?.loadModule('student-record', { id: studentId });
   },
 
   // ── Page ──────────────────────────────────────────────────

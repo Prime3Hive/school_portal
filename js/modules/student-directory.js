@@ -5,79 +5,114 @@
 const studentDirectoryModule = {
   _searchTerm: '',
   _gradeFilter: 'all',
-  _statusFilter: 'all',
+  _statusFilter: 'active',
 
   async init(container) {
     this.container = container;
     this._searchTerm = '';
     this._gradeFilter = 'all';
-    this._statusFilter = 'all';
+    this._statusFilter = 'active';
     await dataManager.waitForReady();
     this.render();
     this._onDataChange = (e) => {
-      if (['students'].includes(e.detail.collection)) this.render();
+      if (['students', 'feeItems'].includes(e.detail.collection)) this.render();
     };
     window.removeEventListener('datamanager:change', this._onDataChange);
     window.addEventListener('datamanager:change', this._onDataChange);
   },
 
+  cleanup() {
+    // Left in place, this listener redrew the list over whatever page came next.
+    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
+  },
+
+  /**
+   * After an edit, archive or access change, redraw whichever page the user is
+   * on: the list, or the student's record page these forms are opened from.
+   */
+  _afterChange() {
+    const current = window.app?.currentModule;
+    if (current === 'student-record') window.studentRecordModule?.render();
+    else if (!current || current === 'student-directory') this.render();
+  },
+
+  openRecord(studentId) {
+    window.app?.loadModule('student-record', { id: studentId });
+  },
+
+  /** Kept for callers from before the record page existed. */
+  showStudentProfile(studentId) {
+    this.openRecord(studentId);
+  },
+
+  _esc(v) {
+    return window.escapeHtml ? window.escapeHtml(v) : String(v ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+  },
+
+  _matches(s) {
+    const q = this._searchTerm.trim().toLowerCase();
+    const status = String(s.status || 'active').toLowerCase();
+    const matchesSearch = !q || String(s.name || '').toLowerCase().includes(q) || String(s.rollNo || '').toLowerCase().includes(q);
+    const matchesGrade = this._gradeFilter === 'all' || s.grade === this._gradeFilter;
+    const matchesStatus = this._statusFilter === 'all' || status === this._statusFilter;
+    return matchesSearch && matchesGrade && matchesStatus;
+  },
+
+  /** This term's balance per student, from fee items — the same rows the fees page bills from. */
+  _termBalances() {
+    const term = window.schoolConfig?.getCurrentTerm?.()?.name || '';
+    const year = String(window.schoolConfig?.getCurrentAcademicYear?.() || '').replace('/', '-');
+    const map = new Map();
+    (dataManager.getAll('feeItems') || []).forEach(i => {
+      if (String(i.term || '') !== term || String(i.academic_year || i.academicYear || '').replace('/', '-') !== year) return;
+      const id = i.student_id || i.studentId;
+      const bal = Math.max(0, (parseFloat(i.amount) || 0) - (parseFloat(i.amount_paid ?? i.amountPaid ?? 0) || 0));
+      map.set(id, (map.get(id) || 0) + bal);
+    });
+    return { term, map };
+  },
+
   render() {
-    let students = dataManager.getAll('students');
-    // Re-apply any active filters so data-change re-renders respect the current search/filter state
-    if (this._searchTerm || this._gradeFilter !== 'all' || this._statusFilter !== 'all') {
-      const q = this._searchTerm.toLowerCase();
-      students = students.filter(s => {
-        const matchesSearch = !q || s.name.toLowerCase().includes(q) || (s.rollNo || '').toLowerCase().includes(q);
-        const matchesGrade = this._gradeFilter === 'all' || s.grade === this._gradeFilter;
-        const matchesStatus = this._statusFilter === 'all' || s.status === this._statusFilter;
-        return matchesSearch && matchesGrade && matchesStatus;
-      });
-    }
+    if (!this.container) return;
+    if (window.app?.currentModule && window.app.currentModule !== 'student-directory') return;
+
+    const all = dataManager.getAll('students') || [];
+    const active = all.filter(s => String(s.status || 'active').toLowerCase() === 'active');
+    const classes = new Set(active.map(s => `${s.grade || ''} ${s.section || ''}`.trim()).filter(Boolean));
+    const students = all.filter(s => this._matches(s));
 
     this.container.innerHTML = `
-      <div class="animate-fadeIn">
-        <!-- Header with Actions -->
-        <div class="flex justify-between items-center mb-6">
+      <div class="ui-page">
+        <div class="ui-page-head">
           <div>
-            <h2 class="page-title" style="margin-bottom: var(--space-2);">Student Directory</h2>
-            <p class="page-description">Manage and view all student records</p>
+            <h1 class="ui-page-title">Students</h1>
+            <p class="ui-page-sub">${active.length} enrolled in ${classes.size} ${classes.size === 1 ? 'class' : 'classes'}</p>
           </div>
-          <div class="flex gap-3">
-            <button class="btn btn-secondary" onclick="studentDirectoryModule.showImportModal()">
-              <span>📥</span> Import Students
-            </button>
-            <button class="btn btn-secondary" onclick="studentDirectoryModule.exportToCSV()">
-              <span>📄</span> Export CSV
-            </button>
-            <button class="btn btn-secondary" onclick="studentDirectoryModule.exportToExcel()">
-              <span>📊</span> Export Excel
-            </button>
-            <button class="btn btn-primary" onclick="studentDirectoryModule.showAddStudentModal()">
-              <span>➕</span> Add Student
-            </button>
+          <div class="ui-actions">
+            <button type="button" class="ui-btn" onclick="studentDirectoryModule.showImportModal()">Import</button>
+            <button type="button" class="ui-btn" onclick="studentDirectoryModule.exportToExcel()">Export to Excel</button>
+            <button type="button" class="ui-btn" onclick="studentDirectoryModule.exportToCSV()">Export CSV</button>
+            <button type="button" class="ui-btn ui-btn-primary" onclick="studentDirectoryModule.showAddStudentModal()">Add student</button>
           </div>
         </div>
 
-        <!-- Filters -->
-        <div class="card mb-6">
-          <div class="flex flex-wrap gap-4 items-center">
-            <div class="search-bar" style="flex: 1; min-width: 300px;">
-              <span class="search-icon">🔍</span>
-              <input type="text" class="search-input" id="student-search" placeholder="Search by name, roll number..." value="${this._searchTerm}" onkeyup="studentDirectoryModule.filterStudents()">
-            </div>
-            <select class="form-select" id="grade-filter" onchange="studentDirectoryModule.filterStudents()" style="width: auto;">
-              <option value="all">All Grades</option>
-              ${schoolConfig.getAllGrades().map(g => `<option value="${g.code}" ${this._gradeFilter === g.code ? 'selected' : ''}>${g.name}</option>`).join('')}
-            </select>
-            <select class="form-select" id="status-filter" onchange="studentDirectoryModule.filterStudents()" style="width: auto;">
-              <option value="all" ${this._statusFilter === 'all' ? 'selected' : ''}>All Status</option>
-              <option value="active" ${this._statusFilter === 'active' ? 'selected' : ''}>Active</option>
-              <option value="inactive" ${this._statusFilter === 'inactive' ? 'selected' : ''}>Inactive</option>
-            </select>
-          </div>
+        <div class="ui-card sd-filters">
+          <label class="sd-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5"/></svg>
+            <input type="search" id="student-search" aria-label="Search students" placeholder="Search by name or admission number" value="${this._esc(this._searchTerm)}" oninput="studentDirectoryModule.filterStudents()">
+          </label>
+          <select id="grade-filter" class="sd-select" aria-label="Class" onchange="studentDirectoryModule.filterStudents()">
+            <option value="all">All classes</option>
+            ${schoolConfig.getAllGrades().map(g => `<option value="${this._esc(g.code)}" ${this._gradeFilter === g.code ? 'selected' : ''}>${this._esc(g.name)}</option>`).join('')}
+          </select>
+          <select id="status-filter" class="sd-select" aria-label="Status" onchange="studentDirectoryModule.filterStudents()">
+            <option value="active" ${this._statusFilter === 'active' ? 'selected' : ''}>Enrolled</option>
+            <option value="inactive" ${this._statusFilter === 'inactive' ? 'selected' : ''}>Inactive</option>
+            <option value="archived" ${this._statusFilter === 'archived' ? 'selected' : ''}>Archived</option>
+            <option value="all" ${this._statusFilter === 'all' ? 'selected' : ''}>Everyone</option>
+          </select>
         </div>
 
-        <!-- Student Grid -->
         <div id="students-container">
           ${this.renderStudentGrid(students)}
         </div>
@@ -87,175 +122,73 @@ const studentDirectoryModule = {
 
   renderStudentGrid(students) {
     if (students.length === 0) {
+      const none = !(dataManager.getAll('students') || []).length;
       return `
-        <div class="empty-state">
-          <div class="empty-state-icon">👥</div>
-          <h3 class="empty-state-title">No Students Found</h3>
-          <p class="empty-state-description">Add your first student to get started</p>
-          <button class="btn btn-primary mt-4" onclick="studentDirectoryModule.showAddStudentModal()">
-            <span>➕</span> Add Student
-          </button>
-        </div>
-      `;
+        <section class="ui-card">
+          <h2 class="ui-card-title">${none ? 'No students yet' : 'No students match'}</h2>
+          <p class="ui-empty">${none ? 'Add students one at a time, or import a class list from a spreadsheet.' : 'Try a different name, class or status.'}</p>
+          ${none ? '<button type="button" class="ui-btn ui-btn-primary ui-btn-sm" onclick="studentDirectoryModule.showAddStudentModal()">Add student</button>' : ''}
+        </section>`;
     }
 
+    const { term, map } = this._termBalances();
+    const money = (n) => '₦' + Math.round(n).toLocaleString('en-NG');
+    const initials = (n) => {
+      const p = String(n || '').trim().split(/\s+/).filter(Boolean);
+      return ((p[0]?.[0] || '') + (p.length > 1 ? p[p.length - 1][0] : '')).toUpperCase() || '?';
+    };
+    const hasPhone = (s) => [s.father, s.mother, s.guardian].some(x => {
+      if (typeof x === 'string') { try { x = JSON.parse(x); } catch { return false; } }
+      return x && String(x.phone || '').trim();
+    });
+    // Classes in the school's own order (Creche … JSS 3), not alphabetical.
+    const order = (schoolConfig.getAllGrades?.() || []).map(g => g.name);
+    const rank = (g) => { const i = order.indexOf(g); return i === -1 ? order.length : i; };
+    const sorted = [...students].sort((a, b) =>
+      rank(a.grade) - rank(b.grade) ||
+      String(a.section || '').localeCompare(String(b.section || '')) ||
+      String(a.name || '').localeCompare(String(b.name || '')));
+
     return `
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        ${students.map((student, index) => `
-          <div class="card animate-slideUp" style="animation-delay: ${index * 0.05}s; cursor: pointer; transition: all var(--transition-base);" 
-               onclick="studentDirectoryModule.showStudentProfile('${student.id}')"
-               onmouseover="this.style.transform='translateY(-4px)'; this.style.boxShadow='var(--shadow-xl)'"
-               onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-            <div class="flex items-start gap-4">
-              <div style="width: 60px; height: 60px; background: var(--gradient-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--font-size-3xl); flex-shrink: 0; overflow: hidden;">
-                ${student.photo && student.photo.startsWith('data:')
-        ? `<img src="${student.photo}" style="width: 100%; height: 100%; object-fit: cover;" alt="${student.name}" />`
-        : `<span>${student.photo || '👤'}</span>`
-      }
-              </div>
-              <div style="flex: 1; min-width: 0;">
-                <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); color: var(--text-primary); margin-bottom: var(--space-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                  ${student.name}
-                </h3>
-                <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-2);">
-                  Roll No: ${student.rollNo}
-                </p>
-                <div class="flex gap-2 flex-wrap">
-                  ${createBadge(`Grade ${student.grade}-${student.section}`, 'primary')}
-                  ${createBadge(student.status, student.status === 'active' ? 'success' : 'danger')}
-                </div>
-              </div>
-            </div>
-            <div class="card-footer mt-4">
-              <div class="flex justify-between text-sm">
-                <span style="color: var(--text-secondary);">Attendance:</span>
-                <span style="color: ${student.attendance >= 90 ? 'var(--color-success)' : student.attendance >= 75 ? 'var(--color-warning)' : 'var(--color-danger)'}; font-weight: var(--font-weight-semibold);">
-                  ${student.attendance}%
-                </span>
-              </div>
-              <div class="flex justify-between text-sm mt-2">
-                <span style="color: var(--text-secondary);">Fees:</span>
-                ${createBadge(student.fees, student.fees === 'paid' ? 'success' : student.fees === 'pending' ? 'warning' : 'danger')}
-              </div>
-            </div>
-          </div>
-        `).join('')}
+      <div class="ui-card sd-table" role="table" aria-label="Students">
+        <div class="sd-row sd-head" role="row">
+          <span role="columnheader">Student</span>
+          <span role="columnheader">Class</span>
+          <span role="columnheader">${this._esc(term || 'This term')} balance</span>
+          <span role="columnheader">Parent contact</span>
+          <span role="columnheader" class="sd-sr">Open</span>
+        </div>
+        ${sorted.map(s => {
+          const billed = map.has(s.id);
+          const bal = map.get(s.id) || 0;
+          const status = String(s.status || 'active').toLowerCase();
+          const photo = typeof s.photo === 'string' && /^data:image\//.test(s.photo) ? s.photo : '';
+          return `
+          <button type="button" class="sd-row" role="row" onclick="studentDirectoryModule.openRecord('${this._esc(s.id)}')">
+            <span class="sd-who" role="cell">
+              <span class="sd-avatar" aria-hidden="true">${photo ? `<img src="${this._esc(photo)}" alt="">` : this._esc(initials(s.name))}</span>
+              <span>
+                <span class="sd-name">${this._esc(s.name || 'Unnamed')}</span>
+                <span class="ui-row-meta">${this._esc(s.rollNo ? 'Adm. no. ' + s.rollNo : 'No admission number')}${status !== 'active' ? ' · ' + this._esc(status) : ''}</span>
+              </span>
+            </span>
+            <span role="cell" class="sd-cell">${this._esc([s.grade, s.section].filter(Boolean).join(' ') || '—')}</span>
+            <span role="cell" class="sd-cell">${!billed ? '<span class="ui-row-meta">No bill</span>' : bal > 0 ? `<span class="sd-owe">${money(bal)}</span>` : '<span class="ui-chip is-good">Paid</span>'}</span>
+            <span role="cell" class="sd-cell">${hasPhone(s) ? '<span class="ui-row-meta sd-contact-ok">On file</span>' : '<span class="ui-chip is-warn">No phone</span>'}</span>
+            <span role="cell" class="sd-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
+          </button>`;
+        }).join('')}
       </div>
+      <p class="ui-card-note" style="margin:10px 2px 0;">Showing ${students.length} ${students.length === 1 ? 'student' : 'students'}.</p>
     `;
   },
 
   filterStudents() {
-    const searchTerm = document.getElementById('student-search').value.toLowerCase();
-    const gradeFilter = document.getElementById('grade-filter').value;
-    const statusFilter = document.getElementById('status-filter').value;
-
-    // Persist filter state so re-renders don't reset inputs
-    this._searchTerm = document.getElementById('student-search').value;
-    this._gradeFilter = gradeFilter;
-    this._statusFilter = statusFilter;
-
-    let students = dataManager.getAll('students');
-
-    // Apply filters
-    students = students.filter(student => {
-      const matchesSearch = student.name.toLowerCase().includes(searchTerm) ||
-        student.rollNo.toLowerCase().includes(searchTerm);
-      const matchesGrade = gradeFilter === 'all' || student.grade === gradeFilter;
-      const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
-
-      return matchesSearch && matchesGrade && matchesStatus;
-    });
-
-    // Update grid
+    this._searchTerm = document.getElementById('student-search')?.value || '';
+    this._gradeFilter = document.getElementById('grade-filter')?.value || 'all';
+    this._statusFilter = document.getElementById('status-filter')?.value || 'active';
     const container = document.getElementById('students-container');
-    container.innerHTML = this.renderStudentGrid(students);
-  },
-
-  showStudentProfile(studentId) {
-    const student = dataManager.getById('students', studentId);
-    if (!student) return;
-
-    // Get student's grades and payment history
-    const grades = dataManager.getAll('grades').filter(g => g.studentId === studentId);
-    const enhancedPayments = dataManager.getAll('enhancedPayments').filter(p => (p.studentId || p.student_id) === studentId);
-    const paymentHistory = enhancedPayments;
-
-    // Fee bills assigned to this student (feeItems table — what they owe per term/type)
-    const studentFeeItems = (dataManager.getAll('feeItems') || [])
-      .filter(fi => (fi.student_id || fi.studentId) === studentId);
-
-    // Calculate profile completion
-    const profileCompletion = this.calculateProfileCompletion(student);
-
-    const content = `
-      <div style="max-height: 80vh; overflow-y: auto;">
-        <!-- Student Header -->
-        <div style="text-align: center; margin-bottom: var(--space-6); padding-bottom: var(--space-6); border-bottom: 1px solid var(--border-primary);">
-          <div style="width: 100px; height: 100px; background: var(--gradient-primary); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 60px; margin: 0 auto var(--space-4); overflow: hidden;">
-            ${student.photo && student.photo.startsWith('data:')
-        ? `<img src="${student.photo}" style="width: 100%; height: 100%; object-fit: cover;" alt="${student.name}" />`
-        : `<span>${student.photo || '👤'}</span>`
-      }
-          </div>
-          <h2 style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold); color: var(--text-primary); margin-bottom: var(--space-2);">
-            ${student.name}
-          </h2>
-          <div class="flex gap-2 justify-center mb-3">
-            ${createBadge(`Grade ${student.grade}-${student.section}`, 'primary')}
-            ${createBadge(student.status, student.status === 'active' ? 'success' : 'danger')}
-          </div>
-          ${student.rollNo ? `<p style="color: var(--text-secondary);">Roll No: ${student.rollNo}</p>` : ''}
-          
-          <!-- Profile Completion -->
-          <div style="margin-top: var(--space-4); max-width: 300px; margin-left: auto; margin-right: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-2);">
-              <span style="font-size: var(--font-size-sm); color: var(--text-secondary);">Profile Completion</span>
-              <span style="font-size: var(--font-size-sm); font-weight: var(--font-weight-semibold); color: ${profileCompletion >= 80 ? 'var(--color-success)' : profileCompletion >= 50 ? 'var(--color-warning)' : 'var(--color-danger)'};">${profileCompletion}%</span>
-            </div>
-            <div style="width: 100%; height: 8px; background: var(--bg-secondary); border-radius: var(--radius-full); overflow: hidden;">
-              <div style="width: ${profileCompletion}%; height: 100%; background: ${profileCompletion >= 80 ? 'var(--gradient-success)' : profileCompletion >= 50 ? 'var(--gradient-warning)' : 'var(--gradient-danger)'}; transition: width var(--transition-base);"></div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tabs -->
-        <div style="border-bottom: 1px solid var(--border-primary); margin-bottom: var(--space-6); overflow-x: auto;">
-          <div style="display: flex; gap: var(--space-1); min-width: max-content; padding-bottom: var(--space-2);">
-            <button class="profile-tab active" onclick="studentDirectoryModule.switchTab(event, 'overview')" data-tab="overview" style="white-space: nowrap; font-size: var(--font-size-sm); padding: var(--space-2) var(--space-3);">
-              📋 Overview
-            </button>
-            <button class="profile-tab" onclick="studentDirectoryModule.switchTab(event, 'personal')" data-tab="personal" style="white-space: nowrap; font-size: var(--font-size-sm); padding: var(--space-2) var(--space-3);">
-              👤 Personal
-            </button>
-            <button class="profile-tab" onclick="studentDirectoryModule.switchTab(event, 'contact')" data-tab="contact" style="white-space: nowrap; font-size: var(--font-size-sm); padding: var(--space-2) var(--space-3);">
-              📍 Contact
-            </button>
-            <button class="profile-tab" onclick="studentDirectoryModule.switchTab(event, 'guardian')" data-tab="guardian" style="white-space: nowrap; font-size: var(--font-size-sm); padding: var(--space-2) var(--space-3);">
-              👨‍👩‍👧 Guardian
-            </button>
-            <button class="profile-tab" onclick="studentDirectoryModule.switchTab(event, 'emergency')" data-tab="emergency" style="white-space: nowrap; font-size: var(--font-size-sm); padding: var(--space-2) var(--space-3);">
-              🚨 Emergency
-            </button>
-            <button class="profile-tab" onclick="studentDirectoryModule.switchTab(event, 'academics')" data-tab="academics" style="white-space: nowrap; font-size: var(--font-size-sm); padding: var(--space-2) var(--space-3);">
-              📚 Academics
-            </button>
-            <button class="profile-tab" onclick="studentDirectoryModule.switchTab(event, 'fees')" data-tab="fees" style="white-space: nowrap; font-size: var(--font-size-sm); padding: var(--space-2) var(--space-3);">
-              💰 Fees
-            </button>
-          </div>
-        </div>
-
-        <!-- Tab Content -->
-        <div id="profile-tab-content">
-          ${this.renderOverviewTab(student)}
-        </div>
-      </div>
-    `;
-
-    createModal(`Student Profile - ${student.name}`, content);
-
-    // Store data for tab switching
-    window.currentStudentData = { student, grades, paymentHistory, enhancedPayments, studentFeeItems };
+    if (container) container.innerHTML = this.renderStudentGrid((dataManager.getAll('students') || []).filter(s => this._matches(s)));
   },
 
   calculateProfileCompletion(student) {
@@ -300,367 +233,6 @@ const studentDirectoryModule = {
     if (student.emergencyContacts && student.emergencyContacts.length >= 2) filledFields++;
 
     return Math.round((filledFields / totalFields) * 100);
-  },
-
-  switchTab(event, tabName) {
-    // Update active tab
-    document.querySelectorAll('.profile-tab').forEach(tab => {
-      tab.classList.remove('active');
-    });
-    event.target.classList.add('active');
-
-    // Render tab content
-    const contentDiv = document.getElementById('profile-tab-content');
-    const { student, grades, paymentHistory, enhancedPayments } = window.currentStudentData;
-
-    switch (tabName) {
-      case 'overview':
-        contentDiv.innerHTML = this.renderOverviewTab(student);
-        break;
-      case 'personal':
-        contentDiv.innerHTML = this.renderPersonalInfoTab(student);
-        break;
-      case 'contact':
-        contentDiv.innerHTML = this.renderContactTab(student);
-        break;
-      case 'guardian':
-        contentDiv.innerHTML = this.renderGuardianTab(student);
-        break;
-      case 'emergency':
-        contentDiv.innerHTML = this.renderEmergencyTab(student);
-        break;
-      case 'academics':
-        contentDiv.innerHTML = this.renderAcademicsTab(student, grades);
-        break;
-      case 'fees':
-        contentDiv.innerHTML = this.renderFeesTab(student, enhancedPayments.length > 0 ? enhancedPayments : paymentHistory, window.currentStudentData.studentFeeItems || []);
-        break;
-    }
-  },
-
-  renderOverviewTab(student) {
-    return `
-      <div class="grid grid-cols-2 gap-6">
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Roll Number</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg);">${student.rollNo || 'Not assigned'}</p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Class</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg);">Grade ${student.grade} - Section ${student.section}</p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Attendance</p>
-          <p style="color: ${student.attendance >= 90 ? 'var(--color-success)' : 'var(--color-warning)'}; font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg);">
-            ${student.attendance}%
-          </p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Fee Status</p>
-          ${createBadge(student.fees, student.fees === 'paid' ? 'success' : student.fees === 'pending' ? 'warning' : 'danger')}
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Status</p>
-          ${createBadge(student.status, student.status === 'active' ? 'success' : 'danger')}
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Enrollment Date</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">${formatDate(student.createdAt)}</p>
-        </div>
-      </div>
-
-      <div class="mt-6">
-        <button class="btn btn-primary" onclick="studentDirectoryModule.editStudent('${student.id}')">
-          ✏️ Edit Profile
-        </button>
-        <button class="btn btn-danger ml-3" onclick="studentDirectoryModule.archiveStudent('${student.id}')">
-          🗄️ Archive Student
-        </button>
-      </div>
-    `;
-  },
-
-  renderPersonalInfoTab(student) {
-    const calculateAge = (dob) => {
-      if (!dob) return 'N/A';
-      const birthDate = new Date(dob);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const monthDiff = today.getMonth() - birthDate.getMonth();
-      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-        age--;
-      }
-      return age;
-    };
-
-    return `
-      <div class="grid grid-cols-2 gap-6">
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Date of Birth</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg);">
-            ${student.dateOfBirth ? formatDate(student.dateOfBirth) : 'Not provided'}
-          </p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Age</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg);">
-            ${calculateAge(student.dateOfBirth)} years
-          </p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Gender</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg); text-transform: capitalize;">
-            ${student.gender || 'Not provided'}
-          </p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Blood Group</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold); font-size: var(--font-size-lg);">
-            ${student.bloodGroup || 'Not provided'}
-          </p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Admission Date</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-            ${student.admissionDate ? formatDate(student.admissionDate) : 'Not provided'}
-          </p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Previous School</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-            ${student.previousSchool || 'Not provided'}
-          </p>
-        </div>
-      </div>
-
-      <div class="mt-6">
-        <button class="btn btn-primary" onclick="studentDirectoryModule.editStudent('${student.id}')">
-          ✏️ Edit Personal Info
-        </button>
-      </div>
-    `;
-  },
-
-  renderContactTab(student) {
-    const address = student.address || {};
-    return `
-      <div class="grid grid-cols-2 gap-6 mb-6">
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Email Address</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-            ${student.email || 'Not provided'}
-          </p>
-        </div>
-        <div>
-          <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Phone Number</p>
-          <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-            ${student.phone || 'Not provided'}
-          </p>
-        </div>
-      </div>
-
-      <div class="card" style="background: var(--bg-secondary); padding: var(--space-4);">
-        <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4); color: var(--text-primary);">
-          📍 Residential Address
-        </h3>
-        <div class="grid grid-cols-2 gap-4">
-          <div style="grid-column: span 2;">
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Street Address</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${address.street || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">City</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${address.city || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">State</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${address.state || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Postal Code</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${address.postalCode || 'Not provided'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div class="mt-6">
-        <button class="btn btn-primary" onclick="studentDirectoryModule.editStudent('${student.id}')">
-          ✏️ Edit Contact Info
-        </button>
-      </div>
-    `;
-  },
-
-  renderGuardianTab(student) {
-    const father = student.father || {};
-    const mother = student.mother || {};
-    const guardian = student.guardian || {};
-
-    return `
-      <!-- Father's Information -->
-      <div class="card" style="background: var(--bg-secondary); padding: var(--space-4); margin-bottom: var(--space-4);">
-        <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4); color: var(--text-primary);">
-          👨 Father's Information
-        </h3>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Name</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${father.name || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Phone</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${father.phone || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Email</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${father.email || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Occupation</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${father.occupation || 'Not provided'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Mother's Information -->
-      <div class="card" style="background: var(--bg-secondary); padding: var(--space-4); margin-bottom: var(--space-4);">
-        <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4); color: var(--text-primary);">
-          👩 Mother's Information
-        </h3>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Name</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${mother.name || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Phone</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${mother.phone || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Email</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${mother.email || 'Not provided'}
-            </p>
-          </div>
-          <div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Occupation</p>
-            <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-              ${mother.occupation || 'Not provided'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      ${guardian.name ? `
-        <!-- Guardian's Information -->
-        <div class="card" style="background: var(--bg-secondary); padding: var(--space-4); margin-bottom: var(--space-4);">
-          <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4); color: var(--text-primary);">
-            👤 Guardian's Information
-          </h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Name</p>
-              <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-                ${guardian.name}
-              </p>
-            </div>
-            <div>
-              <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Relationship</p>
-              <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-                ${guardian.relationship}
-              </p>
-            </div>
-            <div>
-              <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Phone</p>
-              <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-                ${guardian.phone}
-              </p>
-            </div>
-            <div>
-              <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Email</p>
-              <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-                ${guardian.email}
-              </p>
-            </div>
-          </div>
-        </div>
-      ` : ''}
-
-      ${this.renderPortalAccessCard(student)}
-
-      <div class="mt-6">
-        <button class="btn btn-primary" onclick="studentDirectoryModule.editStudent('${student.id}')">
-          ✏️ Edit Parent/Guardian Info
-        </button>
-      </div>
-    `;
-  },
-
-  /**
-   * Which guardian login can see this child, and the controls to change it.
-   *
-   * Separate from the guardian's name and phone above on purpose: those are
-   * contact details on the pupil's record, this is an access grant. Sibling
-   * grouping in the import is a guess from shared surnames, so the office
-   * needs a way to move a child to the right household when that guess is
-   * wrong — this is it.
-   */
-  renderPortalAccessCard(student) {
-    const linkedId = student.guardianAuthId || student.guardian_auth_id || null;
-    const users = (typeof authManager !== 'undefined' && authManager.getAllUsers)
-      ? authManager.getAllUsers() : [];
-    const linked = linkedId
-      ? users.find(u => (u.id || u.authId) === linkedId)
-      : null;
-
-    const status = linkedId
-      ? `<p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-           ${escapeHtml(linked ? (linked.fullName || linked.full_name || linked.email) : 'Linked account')}
-         </p>
-         <p style="color: var(--text-secondary); font-size: var(--font-size-sm);">
-           ${escapeHtml(linked ? (linked.email || '') : linkedId)}
-         </p>`
-      : `<p style="color: var(--text-secondary);">
-           No guardian can see this child in the portal yet.
-         </p>`;
-
-    return `
-      <div class="card" style="background: var(--bg-secondary); padding: var(--space-4); margin-bottom: var(--space-4);">
-        <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2); color: var(--text-primary);">
-          🔑 Portal Access
-        </h3>
-        <div style="margin-bottom: var(--space-4);">${status}</div>
-        <div style="display: flex; gap: var(--space-2); flex-wrap: wrap;">
-          <button class="btn btn-secondary btn-sm" onclick="studentDirectoryModule.manageGuardianLink('${student.id}')">
-            ${linkedId ? '↔️ Move to another guardian' : '🔗 Link a guardian'}
-          </button>
-          ${linkedId ? `
-            <button class="btn btn-ghost btn-sm" onclick="studentDirectoryModule.unlinkGuardian('${student.id}')">
-              ✖ Remove access
-            </button>` : ''}
-        </div>
-      </div>
-    `;
   },
 
   /** Pick which guardian account may see this pupil. */
@@ -742,7 +314,7 @@ const studentDirectoryModule = {
     if (ok) {
       document.querySelector('.modal-backdrop')?.remove();
       showToast('Guardian linked — they can now see this child', 'success');
-      this.viewStudent(studentId);
+      this._afterChange();
     }
   },
 
@@ -753,7 +325,7 @@ const studentDirectoryModule = {
     const ok = await this._writeGuardianLink(studentId, null);
     if (ok) {
       showToast('Portal access removed', 'success');
-      this.viewStudent(studentId);
+      this._afterChange();
     }
   },
 
@@ -777,262 +349,6 @@ const studentDirectoryModule = {
       showToast(`Could not save the link: ${err.message}`, 'error');
       return false;
     }
-  },
-
-  renderEmergencyTab(student) {
-    const emergencyContacts = student.emergencyContacts || [];
-
-    if (emergencyContacts.length === 0) {
-      return `
-        <div class="empty-state">
-          <div class="empty-state-icon">🚨</div>
-          <h3 class="empty-state-title">No Emergency Contacts</h3>
-          <p class="empty-state-description">No emergency contacts have been added for this student</p>
-          <button class="btn btn-primary mt-4" onclick="studentDirectoryModule.editStudent('${student.id}')">
-            ➕ Add Emergency Contacts
-          </button>
-        </div>
-      `;
-    }
-
-    return `
-      <div class="grid grid-cols-1 gap-4">
-        ${emergencyContacts.map((contact, index) => `
-          <div class="card" style="background: var(--bg-secondary); padding: var(--space-4);">
-            <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-3); color: var(--text-primary);">
-              ${index === 0 ? '🚨 Primary' : '🚨 Secondary'} Emergency Contact
-            </h3>
-            <div class="grid grid-cols-3 gap-4">
-              <div>
-                <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Name</p>
-                <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-                  ${contact.name || 'Not provided'}
-                </p>
-              </div>
-              <div>
-                <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Relationship</p>
-                <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-                  ${contact.relationship || 'Not provided'}
-                </p>
-              </div>
-              <div>
-                <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-1);">Phone Number</p>
-                <p style="color: var(--text-primary); font-weight: var(--font-weight-semibold);">
-                  ${contact.phone || 'Not provided'}
-                </p>
-              </div>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-
-      <div class="mt-6">
-        <button class="btn btn-primary" onclick="studentDirectoryModule.editStudent('${student.id}')">
-          ✏️ Edit Emergency Contacts
-        </button>
-      </div>
-    `;
-  },
-
-  renderAcademicsTab(student, grades) {
-    if (grades.length === 0) {
-      return `
-        <div class="empty-state">
-          <div class="empty-state-icon">📚</div>
-          <h3 class="empty-state-title">No Academic Records</h3>
-          <p class="empty-state-description">No grades have been recorded for this student yet</p>
-        </div>
-      `;
-    }
-
-    // Calculate average
-    const average = (grades.reduce((sum, g) => sum + (parseFloat(g.score) || 0), 0) / grades.length).toFixed(1);
-
-    // Get student's class/grade level name
-    const gradeName = schoolConfig.getAllGrades().find(g => g.code === student.grade)?.name || student.grade;
-    const letterGrade = average >= 90 ? 'A' : average >= 80 ? 'B' : average >= 70 ? 'C' : average >= 60 ? 'D' : 'F';
-
-    return `
-      <!-- Academic Summary -->
-      <div class="grid grid-cols-4 gap-4 mb-6">
-        <div class="card" style="background: var(--gradient-primary); color: white; text-align: center; padding: var(--space-4);">
-          <p style="font-size: var(--font-size-xs); margin-bottom: var(--space-1); opacity: 0.9;">Class/Grade</p>
-          <p style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold);">${gradeName}</p>
-        </div>
-        <div class="card" style="background: var(--gradient-secondary); color: white; text-align: center; padding: var(--space-4);">
-          <p style="font-size: var(--font-size-xs); margin-bottom: var(--space-1); opacity: 0.9;">Overall Average</p>
-          <p style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold);">${average}%</p>
-        </div>
-        <div class="card" style="background: var(--gradient-info); color: white; text-align: center; padding: var(--space-4);">
-          <p style="font-size: var(--font-size-xs); margin-bottom: var(--space-1); opacity: 0.9;">Letter Grade</p>
-          <p style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold);">${letterGrade}</p>
-        </div>
-        <div class="card" style="background: var(--gradient-success); color: white; text-align: center; padding: var(--space-4);">
-          <p style="font-size: var(--font-size-xs); margin-bottom: var(--space-1); opacity: 0.9;">Subjects</p>
-          <p style="font-size: var(--font-size-2xl); font-weight: var(--font-weight-bold);">${grades.length}</p>
-        </div>
-      </div>
-
-      <!-- Subject Grades -->
-      <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4);">Subject Performance</h3>
-      <div style="overflow-x: auto;">
-        <table class="table" style="width: 100%; border-collapse: collapse;">
-          <thead>
-            <tr>
-              <th style="text-align: left; padding: var(--space-3); white-space: nowrap;">Subject</th>
-              <th style="text-align: center; padding: var(--space-3);">Score</th>
-              <th style="text-align: center; padding: var(--space-3);">Total</th>
-              <th style="text-align: center; padding: var(--space-3);">%</th>
-              <th style="text-align: center; padding: var(--space-3);">Grade</th>
-              <th style="text-align: left; padding: var(--space-3);">Remarks</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${grades.map(grade => {
-      const score = parseFloat(grade.score) || 0;
-      const total = parseFloat(grade.totalMarks) || 100;
-      const percentage = (score / total * 100).toFixed(1);
-      const letterGrade = percentage >= 90 ? 'A' : percentage >= 80 ? 'B' : percentage >= 70 ? 'C' : percentage >= 60 ? 'D' : 'F';
-      return `
-                <tr>
-                  <td style="font-weight: var(--font-weight-semibold); padding: var(--space-3); white-space: nowrap;">${grade.subject || 'N/A'}</td>
-                  <td style="text-align: center; padding: var(--space-3);">${score}</td>
-                  <td style="text-align: center; padding: var(--space-3);">${total}</td>
-                  <td style="text-align: center; padding: var(--space-3);">
-                    <span style="color: ${percentage >= 90 ? 'var(--color-success)' : percentage >= 75 ? 'var(--color-info)' : percentage >= 60 ? 'var(--color-warning)' : 'var(--color-danger)'}; font-weight: var(--font-weight-semibold);">
-                      ${percentage}%
-                    </span>
-                  </td>
-                  <td style="text-align: center; padding: var(--space-3);">${createBadge(grade.grade || letterGrade, letterGrade === 'A' ? 'success' : letterGrade === 'B' ? 'info' : letterGrade === 'C' ? 'warning' : 'danger')}</td>
-                  <td style="color: var(--text-secondary); padding: var(--space-3);">${grade.remarks || '-'}</td>
-                </tr>
-              `;
-    }).join('')}
-          </tbody>
-        </table>
-      </div>
-    `;
-  },
-
-  renderFeesTab(student, paymentHistory, studentFeeItems = []) {
-    const amt = (p) => parseFloat(p.amount) || 0;
-
-    // Source of truth: prefer feeItems (assigned bills) if they exist
-    let totalAmount, totalPaid, totalPending;
-    if (studentFeeItems.length > 0) {
-      totalAmount   = studentFeeItems.reduce((s, fi) => s + parseFloat(fi.amount || 0), 0);
-      const paidOnItems = studentFeeItems.reduce((s, fi) => s + parseFloat(fi.amount_paid || 0), 0);
-      const paidTxns    = paymentHistory.filter(p => p.status === 'paid').reduce((s, p) => s + amt(p), 0);
-      totalPaid    = Math.max(paidOnItems, paidTxns);
-      totalPending = Math.max(0, totalAmount - totalPaid);
-    } else {
-      // No assigned bills — fall back to payment records alone
-      totalPaid    = paymentHistory.filter(p => p.status === 'paid').reduce((s, p) => s + amt(p), 0);
-      totalPending = paymentHistory.filter(p => p.status !== 'paid').reduce((s, p) => s + amt(p), 0);
-      totalAmount  = totalPaid + totalPending;
-    }
-
-    const hasBills = studentFeeItems.length > 0;
-
-    return `
-      <!-- Payment Summary -->
-      <div class="grid grid-cols-3 gap-4 mb-6">
-        <div class="card" style="background: var(--gradient-primary); color: white; text-align: center; padding: var(--space-4);">
-          <p style="font-size: var(--font-size-xs); margin-bottom: var(--space-1); opacity: 0.9;">Total Fees</p>
-          <p style="font-size: var(--font-size-xl); font-weight: var(--font-weight-bold);">${formatCurrency(totalAmount)}</p>
-        </div>
-        <div class="card" style="background: var(--gradient-success); color: white; text-align: center; padding: var(--space-4);">
-          <p style="font-size: var(--font-size-xs); margin-bottom: var(--space-1); opacity: 0.9;">Paid</p>
-          <p style="font-size: var(--font-size-xl); font-weight: var(--font-weight-bold);">${formatCurrency(totalPaid)}</p>
-        </div>
-        <div class="card" style="background: ${totalPending > 0 ? 'var(--gradient-warning)' : 'var(--gradient-success)'}; color: white; text-align: center; padding: var(--space-4);">
-          <p style="font-size: var(--font-size-xs); margin-bottom: var(--space-1); opacity: 0.9;">Outstanding</p>
-          <p style="font-size: var(--font-size-xl); font-weight: var(--font-weight-bold);">${formatCurrency(totalPending)}</p>
-        </div>
-      </div>
-
-      ${totalAmount === 0 && !hasBills ? `
-        <div style="background: linear-gradient(135deg,rgba(245,158,11,0.08),rgba(254,225,64,0.08)); border:1.5px solid var(--color-warning); border-radius:var(--radius-lg); padding:var(--space-4); margin-bottom:var(--space-5); display:flex; align-items:center; gap:var(--space-3);">
-          <span style="font-size:1.5rem;">⚠️</span>
-          <div>
-            <p style="font-weight:700; color:var(--text-primary); margin:0 0 2px;">No fee bills assigned yet</p>
-            <p style="font-size:var(--font-size-sm); color:var(--text-secondary); margin:0;">Go to <strong>Fees & Payments → Assign Fees for Term</strong> to create fee bills for this student.</p>
-          </div>
-        </div>
-      ` : ''}
-
-      ${hasBills ? `
-        <!-- Assigned Fee Bills -->
-        <h3 style="font-size:var(--font-size-lg); font-weight:var(--font-weight-semibold); margin-bottom:var(--space-3);">Fee Bills</h3>
-        <div style="overflow-x:auto; margin-bottom:var(--space-6);">
-          <table class="table" style="width:100%; border-collapse:collapse;">
-            <thead>
-              <tr>
-                <th style="text-align:left; padding:var(--space-3);">Fee Type</th>
-                <th style="text-align:left; padding:var(--space-3);">Term</th>
-                <th style="text-align:right; padding:var(--space-3);">Billed</th>
-                <th style="text-align:right; padding:var(--space-3);">Paid</th>
-                <th style="text-align:right; padding:var(--space-3);">Balance</th>
-                <th style="text-align:center; padding:var(--space-3);">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${studentFeeItems.map(fi => {
-                const billed   = parseFloat(fi.amount || 0);
-                const paid     = parseFloat(fi.amount_paid || 0);
-                const balance  = Math.max(0, billed - paid);
-                const status   = fi.status || (balance === 0 ? 'paid' : balance < billed ? 'partial' : 'pending');
-                return `<tr>
-                  <td style="font-weight:var(--font-weight-semibold); padding:var(--space-3);">${fi.item_name || fi.fee_type || fi.feeType || 'Fee'}</td>
-                  <td style="padding:var(--space-3); color:var(--text-secondary);">${fi.term || fi.academic_year || '-'}</td>
-                  <td style="text-align:right; padding:var(--space-3);">${formatCurrency(billed)}</td>
-                  <td style="text-align:right; padding:var(--space-3); color:var(--color-success);">${formatCurrency(paid)}</td>
-                  <td style="text-align:right; padding:var(--space-3); font-weight:700; color:${balance > 0 ? 'var(--color-warning)' : 'var(--color-success)'};">${formatCurrency(balance)}</td>
-                  <td style="text-align:center; padding:var(--space-3);">${createBadge(status, status === 'paid' ? 'success' : status === 'partial' ? 'info' : 'warning')}</td>
-                </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      ` : ''}
-
-      <!-- Payment History -->
-      <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4);">Payment History</h3>
-      ${paymentHistory.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-state-icon">💰</div>
-          <h3 class="empty-state-title">No Payment Records</h3>
-          <p class="empty-state-description">No payments have been recorded for this student yet</p>
-        </div>
-      ` : `
-        <div style="overflow-x: auto;">
-          <table class="table" style="width: 100%; border-collapse: collapse;">
-            <thead>
-              <tr>
-                <th style="text-align: left; padding: var(--space-3); white-space: nowrap;">Fee Type</th>
-                <th style="text-align: right; padding: var(--space-3);">Amount</th>
-                <th style="text-align: center; padding: var(--space-3);">Date</th>
-                <th style="text-align: center; padding: var(--space-3);">Method</th>
-                <th style="text-align: center; padding: var(--space-3);">Receipt</th>
-                <th style="text-align: center; padding: var(--space-3);">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${paymentHistory.map(payment => `
-                <tr>
-                  <td style="font-weight: var(--font-weight-semibold); padding: var(--space-3); white-space: nowrap;">${payment.feeType || payment.fee_type || payment.term || '-'}</td>
-                  <td style="text-align: right; padding: var(--space-3);">${formatCurrency(parseFloat(payment.amount) || 0)}</td>
-                  <td style="text-align: center; padding: var(--space-3);">${formatDate(payment.paymentDate || payment.payment_date || payment.createdAt)}</td>
-                  <td style="text-align: center; padding: var(--space-3); text-transform: capitalize;">${(payment.paymentMethod || payment.payment_method || '-').replace(/-/g, ' ')}</td>
-                  <td style="text-align: center; padding: var(--space-3); font-family: monospace; font-size: var(--font-size-sm);">${payment.receiptNo || payment.receipt_no || '-'}</td>
-                  <td style="text-align: center; padding: var(--space-3);">${createBadge(payment.status || 'pending', payment.status === 'paid' ? 'success' : payment.status === 'overdue' ? 'danger' : 'warning')}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
-      `}
-    `;
   },
 
   showAddStudentModal() {
@@ -1910,7 +1226,7 @@ const studentDirectoryModule = {
 
     // Close modal and refresh
     document.querySelector('.modal-backdrop')?.remove();
-    this.render();
+    this._afterChange();
   },
 
 
@@ -1931,7 +1247,7 @@ const studentDirectoryModule = {
         modalBackdrop.remove();
       }
 
-      this.render();
+      this._afterChange();
     }
   },
 
@@ -1942,7 +1258,7 @@ const studentDirectoryModule = {
     await dataManager.update('students', studentId, { status: 'active' });
     showToast(`${student.name} has been restored successfully!`, 'success');
     if (typeof writeAuditLog === 'function') writeAuditLog('STUDENT_RESTORED', student.name, `Grade: ${student.grade}`);
-    this.render();
+    this._afterChange();
   },
 
   // ============================================

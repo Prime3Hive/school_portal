@@ -141,6 +141,11 @@ const feesPaymentsModule = {
   },
 
   render() {
+    // The payment form is also opened from a student's record page, and its
+    // listener outlives this page; neither may draw fees over another page.
+    if (!this.container) return;
+    if (window.app?.currentModule && window.app.currentModule !== 'fees-payments') return;
+
     const payments = dataManager.getAll('payments') || [];
     const stats = this.calculateStats(payments);
     const pendingVerifications = payments.filter(p => this._isPendingVerification(p));
