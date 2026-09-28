@@ -189,13 +189,13 @@ const schoolConfig = {
     // Helper Methods
     /** A date's month (1-12). Accepts a Date, "YYYY-MM-DD" or nothing (today). */
     _monthOf(date) {
-        if (typeof date === 'string' && /^d{4}-d{2}/.test(date)) return Number(date.slice(5, 7));
+        if (typeof date === 'string' && /^\d{4}-\d{2}/.test(date)) return Number(date.slice(5, 7));
         const d = date ? new Date(date) : new Date();
         return (isNaN(d) ? new Date() : d).getMonth() + 1;
     },
 
     _yearOf(date) {
-        if (typeof date === 'string' && /^d{4}-d{2}/.test(date)) return Number(date.slice(0, 4));
+        if (typeof date === 'string' && /^\d{4}-\d{2}/.test(date)) return Number(date.slice(0, 4));
         const d = date ? new Date(date) : new Date();
         return (isNaN(d) ? new Date() : d).getFullYear();
     },

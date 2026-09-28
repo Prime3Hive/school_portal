@@ -41,7 +41,7 @@
   // An assessment's own term, else the term of its date, else today's. Teacher
   // assessments have no term column, so without the date a test marked after
   // the holiday was filed under the new term.
-  const dateOf = (a) => { const d = String(a?.date || '').slice(0, 10); return /^d{4}-d{2}-d{2}$/.test(d) ? d : null; };
+  const dateOf = (a) => { const d = String(a?.date || '').slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null; };
 
   function termOf(assessment) {
     const d = dateOf(assessment);
