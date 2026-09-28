@@ -101,414 +101,151 @@ const applicationsModule = {
         this.applications = dataManager.getAll('applications') || [];
     },
 
-    attachEventListeners() {
-        // Search functionality
-        const searchInput = document.getElementById('applicationSearch');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.searchQuery = e.target.value.toLowerCase();
-                this.refreshApplicationsList();
-            });
-        }
+    // Search is wired inline (oninput) so it keeps working after a re-render.
+    attachEventListeners() {},
+
+    STATUS: {
+        pending:    { label: 'Waiting for review', tone: 'is-warn' },
+        approved:   { label: 'Approved',           tone: 'is-good' },
+        rejected:   { label: 'Rejected',           tone: '' },
+        incomplete: { label: 'Fee not accepted',   tone: 'is-warn' }
+    },
+
+    _field(app, camel, snake) {
+        return app[camel] ?? app[snake];
+    },
+
+    _submitted(app) {
+        return app.submitted_date || app.submittedDate || app.created_at || app.createdAt || null;
+    },
+
+    _date(v, withTime = false) {
+        if (!v) return '—';
+        const d = new Date(v);
+        if (isNaN(d)) return '—';
+        return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}) });
+    },
+
+    _money(n) {
+        return '₦' + Math.round(parseFloat(n) || 0).toLocaleString('en-NG');
+    },
+
+    _feePaid(app) {
+        return !!(app.application_fee_paid || app.applicationFeePaid);
+    },
+
+    /** Where the application fee stands, in the school's words. */
+    _feeState(app) {
+        if (this._feePaid(app)) return { label: 'Fee paid', tone: 'is-good' };
+        if (app.payment_rejection_reason || app.paymentRejectionReason) return { label: 'Fee not accepted', tone: 'is-warn' };
+        if (this._awaitsPaymentVerification(app)) return { label: 'Fee to confirm', tone: 'is-warn' };
+        return { label: 'Fee not paid', tone: '' };
     },
 
     render() {
         const container = this.container || document.getElementById('main-content');
         const stats = this.getStatistics();
+        const filters = [['all', 'All', stats.total], ['pending', 'Waiting', stats.pending], ['approved', 'Approved', stats.approved], ['incomplete', 'Fee not accepted', stats.incomplete], ['rejected', 'Rejected', stats.rejected]];
+        const kpi = (label, value, sub, filter) => `
+          <button type="button" class="ui-card ui-kpi" onclick="applicationsModule.filterApplications('${filter}')">
+            <span class="ui-kpi-label">${label}</span><span class="ui-kpi-value">${value}</span><span class="ui-kpi-sub">${sub}</span>
+          </button>`;
 
         container.innerHTML = `
-      <div class="ui-page-head" style="margin-bottom: 22px;">
-        <div>
-          <h1 class="ui-page-title">Applications</h1>
-          <p class="ui-page-sub">Admission applications from the public website, newest first</p>
+      <div class="ui-page">
+        <div class="ui-page-head">
+          <div>
+            <h1 class="ui-page-title">Applications</h1>
+            <p class="ui-page-sub">Admission applications from the public website</p>
+          </div>
+          <div class="ui-actions">
+            <!-- Deletes records (after a typed confirmation), so it stays a quiet button. -->
+            <button type="button" class="ui-btn pc-danger" onclick="applicationsModule.clearAllApplications()">Clear old applications…</button>
+          </div>
         </div>
-        <div class="ui-actions">
-          <!-- Deletes every record (it asks for a typed confirmation), so it is
-               a quiet outline button, not the loudest thing on the page. -->
-          <button type="button" class="ui-btn pc-danger" onclick="applicationsModule.clearAllApplications()" title="Permanently delete all application records">
-            Clear all applications…
-          </button>
+
+        <div class="ui-grid-4">
+          ${kpi('Waiting for review', stats.pending, stats.readyToApprove ? `${stats.readyToApprove} with the fee paid` : 'none with the fee paid yet', 'pending')}
+          ${kpi('Fee to confirm', stats.pendingPayments, 'bank transfers to check', 'pending')}
+          ${kpi('Approved', stats.approved, 'now pupils', 'approved')}
+          ${kpi('Received', stats.total, `${stats.rejected} rejected`, 'all')}
         </div>
-      </div>
 
-      <div class="acad-stats" style="margin-bottom: 22px;">
-        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Received</span><span class="ui-kpi-value">${stats.total}</span></div>
-        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Waiting for review</span><span class="ui-kpi-value">${stats.pending}</span></div>
-        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Approved</span><span class="ui-kpi-value">${stats.approved}</span></div>
-        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Rejected</span><span class="ui-kpi-value">${stats.rejected}</span></div>
-        <div class="ui-card ui-kpi" style="cursor:default;"><span class="ui-kpi-label">Application fee to confirm</span><span class="ui-kpi-value">${stats.pendingPayments}</span></div>
-      </div>
-
-      <!-- Search and Filters -->
-      <div class="card" style="padding: 2rem; margin-bottom: 2rem; animation: fadeInUp 0.6s ease;">
-
-        <!-- Search Bar Section -->
-        <div style="margin-bottom: 2rem;">
-          <label style="display: block; font-weight: 600; color: var(--text-primary); margin-bottom: 0.75rem; font-size: 0.9375rem; display: flex; align-items: center; gap: 0.5rem;">
-            <div style="width: 32px; height: 32px; background: linear-gradient(135deg, hsl(220, 70%, 50%), hsl(220, 70%, 40%)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1rem;">
-              🔍
+        ${stats.pendingPayments ? `
+          <section class="ui-card">
+            <div class="ui-card-head">
+              <h2 class="ui-card-title">Application fees to confirm</h2>
+              <span class="ui-card-note">Check each transfer reached the school's account</span>
             </div>
-            Search Applications
+            ${this.renderPendingPayments()}
+          </section>` : ''}
+
+        <div class="ui-card sd-filters">
+          <label class="sd-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5"/></svg>
+            <input id="applicationSearch" type="search" aria-label="Search applications" placeholder="Search by child, parent, email, number or class"
+              value="${this._esc(this.searchQuery)}" oninput="applicationsModule.searchQuery = this.value.toLowerCase(); applicationsModule.refreshApplicationsList()">
           </label>
-          <div style="position: relative;">
-            <span style="position: absolute; left: 1.25rem; top: 50%; transform: translateY(-50%); color: var(--text-tertiary); font-size: 1.125rem;">🔍</span>
-            <input type="text" id="applicationSearch" placeholder="Search by student name, parent name, email, or application number..."
-              style="width: 100%; padding: 1rem 1.25rem 1rem 3.5rem; border: 2px solid var(--border-primary); border-radius: 12px; font-size: 1rem; transition: all 0.3s ease; background: var(--bg-secondary); color: var(--text-primary);"
-              onfocus="this.style.borderColor='hsl(220, 70%, 50%)'; this.style.boxShadow='0 0 0 4px hsla(220, 70%, 50%, 0.1)'"
-              onblur="this.style.borderColor='var(--border-primary)'; this.style.boxShadow='none'">
-            ${this.searchQuery ? `<button onclick="document.getElementById('applicationSearch').value=''; applicationsModule.searchQuery=''; applicationsModule.refreshApplicationsList();" style="position: absolute; right: 1rem; top: 50%; transform: translateY(-50%); background: var(--bg-tertiary); border: none; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease; color: var(--text-secondary);" onmouseenter="this.style.background='hsl(0, 80%, 55%)'; this.style.color='white'" onmouseleave="this.style.background='var(--bg-tertiary)'; this.style.color='var(--text-secondary)'">
-              ✕
-            </button>` : ''}
+          <div class="app-filters" role="group" aria-label="Status">
+            ${filters.map(([key, label, n]) => `<button type="button" class="ui-btn ui-btn-sm${this.currentFilter === key ? ' ui-btn-primary' : ''}" aria-pressed="${this.currentFilter === key}" onclick="applicationsModule.filterApplications('${key}')">${label} (${n})</button>`).join('')}
           </div>
         </div>
 
-        <!-- Divider -->
-        <div style="height: 1px; background: linear-gradient(to right, transparent, var(--border-primary), transparent); margin-bottom: 2rem;"></div>
-
-        <!-- Filter Buttons Section -->
-        <div>
-          <label style="display: block; font-weight: 600; color: var(--text-primary); margin-bottom: 1rem; font-size: 0.9375rem; display: flex; align-items: center; gap: 0.5rem;">
-            <div style="width: 32px; height: 32px; background: linear-gradient(135deg, hsl(280, 70%, 55%), hsl(280, 70%, 45%)); border-radius: 8px; display: flex; align-items: center; justify-content: center;">
-              <i class="fas fa-filter" style="color: white; font-size: 0.875rem;"></i>
-            </div>
-            Filter by Status
-          </label>
-          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem;">
-            <button class="filter-btn ${this.currentFilter === 'all' ? 'active' : ''}" 
-              onclick="applicationsModule.filterApplications('all')" 
-              style="padding: 0.875rem 1.25rem; border-radius: 10px; border: 2px solid ${this.currentFilter === 'all' ? 'hsl(220, 70%, 50%)' : 'var(--border-primary)'}; background: ${this.currentFilter === 'all' ? 'linear-gradient(135deg, hsl(220, 70%, 50%), hsl(220, 70%, 40%))' : 'white'}; color: ${this.currentFilter === 'all' ? 'white' : 'var(--text-primary)'}; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.9375rem;"
-              onmouseenter="if('${this.currentFilter}' !== 'all') { this.style.borderColor='hsl(220, 70%, 50%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'; }"
-              onmouseleave="if('${this.currentFilter}' !== 'all') { this.style.borderColor='var(--border-primary)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'; }">
-              <i class="fas fa-list"></i>
-              <span>All</span>
-              <span style="background: ${this.currentFilter === 'all' ? 'rgba(255,255,255,0.25)' : 'hsl(220, 20%, 95)'}; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8125rem; font-weight: 700;">${stats.total}</span>
-            </button>
-            
-            <button class="filter-btn ${this.currentFilter === 'pending' ? 'active' : ''}" 
-              onclick="applicationsModule.filterApplications('pending')" 
-              style="padding: 0.875rem 1.25rem; border-radius: 10px; border: 2px solid ${this.currentFilter === 'pending' ? 'hsl(45, 100%, 50%)' : 'var(--border-primary)'}; background: ${this.currentFilter === 'pending' ? 'linear-gradient(135deg, hsl(45, 100%, 50%), hsl(45, 100%, 40%))' : 'white'}; color: ${this.currentFilter === 'pending' ? 'white' : 'var(--text-primary)'}; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.9375rem;"
-              onmouseenter="if('${this.currentFilter}' !== 'pending') { this.style.borderColor='hsl(45, 100%, 50%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'; }"
-              onmouseleave="if('${this.currentFilter}' !== 'pending') { this.style.borderColor='var(--border-primary)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'; }">
-              <i class="fas fa-clock"></i>
-              <span>Pending</span>
-              <span style="background: ${this.currentFilter === 'pending' ? 'rgba(255,255,255,0.25)' : 'hsl(45, 100%, 95)'}; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8125rem; font-weight: 700;">${stats.pending}</span>
-            </button>
-            
-            <button class="filter-btn ${this.currentFilter === 'approved' ? 'active' : ''}" 
-              onclick="applicationsModule.filterApplications('approved')" 
-              style="padding: 0.875rem 1.25rem; border-radius: 10px; border: 2px solid ${this.currentFilter === 'approved' ? 'hsl(150, 70%, 45%)' : 'var(--border-primary)'}; background: ${this.currentFilter === 'approved' ? 'linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%))' : 'white'}; color: ${this.currentFilter === 'approved' ? 'white' : 'var(--text-primary)'}; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.9375rem;"
-              onmouseenter="if('${this.currentFilter}' !== 'approved') { this.style.borderColor='hsl(150, 70%, 45%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'; }"
-              onmouseleave="if('${this.currentFilter}' !== 'approved') { this.style.borderColor='var(--border-primary)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'; }">
-              <i class="fas fa-check-circle"></i>
-              <span>Approved</span>
-              <span style="background: ${this.currentFilter === 'approved' ? 'rgba(255,255,255,0.25)' : 'hsl(150, 70%, 95)'}; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8125rem; font-weight: 700;">${stats.approved}</span>
-            </button>
-            
-            <button class="filter-btn ${this.currentFilter === 'rejected' ? 'active' : ''}" 
-              onclick="applicationsModule.filterApplications('rejected')" 
-              style="padding: 0.875rem 1.25rem; border-radius: 10px; border: 2px solid ${this.currentFilter === 'rejected' ? 'hsl(0, 80%, 55%)' : 'var(--border-primary)'}; background: ${this.currentFilter === 'rejected' ? 'linear-gradient(135deg, hsl(0, 80%, 55%), hsl(0, 80%, 45%))' : 'white'}; color: ${this.currentFilter === 'rejected' ? 'white' : 'var(--text-primary)'}; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 0.9375rem;"
-              onmouseenter="if('${this.currentFilter}' !== 'rejected') { this.style.borderColor='hsl(0, 80%, 55%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'; }"
-              onmouseleave="if('${this.currentFilter}' !== 'rejected') { this.style.borderColor='var(--border-primary)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'; }">
-              <i class="fas fa-times-circle"></i>
-              <span>Rejected</span>
-              <span style="background: ${this.currentFilter === 'rejected' ? 'rgba(255,255,255,0.25)' : 'hsl(0, 80%, 95)'}; padding: 0.25rem 0.5rem; border-radius: 6px; font-size: 0.8125rem; font-weight: 700;">${stats.rejected}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Pending Payment Verifications -->
-      ${stats.pendingPayments > 0 ? `
-      <div style="background: white; border-radius: 16px; padding: 2rem; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border: 1px solid hsl(280, 30%, 90%); margin-bottom: 2rem; animation: fadeInUp 0.65s ease;">
-        <h3 style="margin: 0 0 1.5rem; display: flex; align-items: center; gap: 0.75rem; color: var(--text-primary);">
-          <div style="width: 36px; height: 36px; background: linear-gradient(135deg, hsl(280, 70%, 55%), hsl(280, 70%, 45%)); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-            <i class="fas fa-receipt" style="color: white; font-size: 1rem;"></i>
-          </div>
-          Pending Payment Verifications
-          <span style="background: hsl(280, 70%, 55%); color: white; padding: 0.25rem 0.75rem; border-radius: 12px; font-size: 0.8rem; font-weight: 700;">${stats.pendingPayments}</span>
-        </h3>
-        <div style="display: grid; gap: 1rem;">
-          ${this.renderPendingPayments()}
-        </div>
-      </div>
-      ` : ''}
-
-      <!-- Applications List -->
-      <div id="applicationsList" style="animation: fadeInUp 0.7s ease;">
-        ${this.renderApplicationsList()}
-      </div>
-
-      <style>
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-          }
-          to {
-            opacity: 1;
-          }
-        }
-
-        .filter-btn {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.5rem;
-        }
-
-        .filter-btn:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
-        .filter-btn.active {
-          box-shadow: 0 4px 12px rgba(34, 60, 120, 0.2);
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-
-          .module-title {
-            flex-direction: column !important;
-            align-items: flex-start !important;
-            gap: 0.5rem !important;
-          }
-
-          #applicationSearch {
-            font-size: 16px !important; /* Prevent zoom on iOS */
-          }
-
-          .filter-btn {
-            font-size: 0.875rem;
-            padding: 0.5rem 0.75rem;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .stats-grid {
-            grid-template-columns: 1fr !important;
-          }
-
-          .stat-value {
-            font-size: 2rem !important;
-          }
-
-          .card {
-            padding: 1rem !important;
-          }
-        }
-
-        /* Performance: GPU acceleration for animations */
-        .card, .stat-card, .filter-btn {
-          will-change: transform;
-          backface-visibility: hidden;
-          -webkit-font-smoothing: antialiased;
-        }
-      </style>
-    `;
+        <section class="ui-card" id="applicationsList">${this.renderApplicationsList()}</section>
+      </div>`;
     },
 
     refreshApplicationsList() {
         const listContainer = document.getElementById('applicationsList');
-        if (listContainer) {
-            listContainer.innerHTML = this.renderApplicationsList();
-        }
+        if (listContainer) listContainer.innerHTML = this.renderApplicationsList();
     },
 
     renderApplicationsList() {
-        let filteredApps = this.currentFilter === 'all'
-            ? this.applications
-            : this.applications.filter(app => app.status === this.currentFilter);
+        const q = this.searchQuery;
+        const apps = this.applications
+            .filter(app => this.currentFilter === 'all' || app.status === this.currentFilter)
+            .filter(app => !q || [app.student_name || app.studentName, app.parent_name || app.parentName, app.parent_email || app.parentEmail,
+                app.application_number || app.applicationNumber || app.id, app.grade].some(v => String(v || '').toLowerCase().includes(q)))
+            .sort((a, b) => new Date(this._submitted(b) || 0) - new Date(this._submitted(a) || 0));
 
-        // Apply search filter
-        if (this.searchQuery) {
-            filteredApps = filteredApps.filter(app => {
-                const searchStr = this.searchQuery;
-                return (
-                    (app.student_name || app.studentName || '').toLowerCase().includes(searchStr) ||
-                    (app.parent_name || app.parentName || '').toLowerCase().includes(searchStr) ||
-                    (app.parent_email || app.parentEmail || '').toLowerCase().includes(searchStr) ||
-                    (app.application_number || app.id || '').toLowerCase().includes(searchStr) ||
-                    (app.grade || '').toLowerCase().includes(searchStr)
-                );
-            });
+        if (!apps.length) {
+            const loading = !dataManager._loaded?.['applications'];
+            return `<p class="ui-empty">${loading ? 'Loading applications…'
+                : q ? `No application matches "${this._esc(q)}".`
+                : this.currentFilter === 'all' ? 'No applications yet. They appear here when parents apply on the website.'
+                : 'None at the moment.'}</p>`;
         }
-
-        if (filteredApps.length === 0) {
-            const isLoading = !dataManager._loaded?.['applications'];
-            return `
-        <div class="card" style="text-align: center; padding: 4rem 2rem; animation: fadeIn 0.5s ease;">
-          <div style="width: 80px; height: 80px; margin: 0 auto 1.5rem; background: linear-gradient(135deg, hsl(220, 70%, 97%), hsl(220, 70%, 93%)); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-            <i class="fas fa-${isLoading ? 'spinner fa-spin' : this.searchQuery ? 'search' : 'inbox'}" style="font-size: 2rem; color: var(--color-primary);"></i>
-          </div>
-          <h3 style="color: var(--text-secondary); margin-bottom: 0.75rem; font-size: 1.25rem;">${isLoading ? 'Loading Applications…' : 'No Applications Found'}</h3>
-          <p style="color: var(--text-tertiary); max-width: 400px; margin: 0 auto;">
-            ${isLoading
-              ? 'Fetching applications from the database, please wait.'
-              : this.searchQuery
-                ? `No applications match "${this._esc(this.searchQuery)}". Try a different search term.`
-                : this.currentFilter === 'all'
-                  ? 'No applications have been submitted yet. Applications will appear here once submitted from the public admissions page.'
-                  : `No ${this.currentFilter} applications at the moment.`
-            }
-          </p>
-          ${this.searchQuery && !isLoading ? `<button class="btn-secondary" onclick="document.getElementById('applicationSearch').value=''; applicationsModule.searchQuery=''; applicationsModule.refreshApplicationsList();" style="margin-top: 1.5rem;">
-            <i class="fas fa-times"></i> Clear Search
-          </button>` : ''}
-        </div>
-      `;
-        }
-
-        // Sort by date (newest first)
-        const sortedApps = [...filteredApps].sort((a, b) =>
-            new Date(b.submitted_date || b.submittedDate) - new Date(a.submitted_date || a.submittedDate)
-        );
-
         return `
-          <div style="margin-bottom: 1rem; color: var(--text-secondary); font-size: 0.875rem;">
-            <i class="fas fa-info-circle"></i> Showing ${sortedApps.length} ${sortedApps.length === 1 ? 'application' : 'applications'}
+          <div class="ui-card-head">
+            <h2 class="ui-card-title">${apps.length} application${apps.length === 1 ? '' : 's'}</h2>
+            <span class="ui-card-note">Newest first</span>
           </div>
-          ${sortedApps.map((app, index) => this.renderApplicationCard(app, index)).join('')}
-        `;
+          ${apps.map(app => this.renderApplicationCard(app)).join('')}`;
     },
 
-    renderApplicationCard(app, index) {
-        const statusColors = {
-            pending: { bg: 'hsl(45, 100%, 95%)', border: 'hsl(45, 100%, 50%)', text: 'hsl(45, 100%, 30%)', icon: 'fa-clock', gradient: 'linear-gradient(135deg, hsl(45, 100%, 50%), hsl(45, 100%, 40%))' },
-            approved: { bg: 'hsl(150, 70%, 95%)', border: 'hsl(150, 70%, 45%)', text: 'hsl(150, 70%, 25%)', icon: 'fa-check-circle', gradient: 'linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%))' },
-            rejected: { bg: 'hsl(0, 80%, 95%)', border: 'hsl(0, 80%, 55%)', text: 'hsl(0, 80%, 30%)', icon: 'fa-times-circle', gradient: 'linear-gradient(135deg, hsl(0, 80%, 55%), hsl(0, 80%, 45%))' },
-            incomplete: { bg: 'hsl(30, 100%, 95%)', border: 'hsl(30, 100%, 50%)', text: 'hsl(30, 100%, 30%)', icon: 'fa-exclamation-triangle', gradient: 'linear-gradient(135deg, hsl(30, 100%, 50%), hsl(30, 100%, 40%))' }
-        };
-
-        const statusInfo = statusColors[app.status] || statusColors.pending;
-        const safeName    = this._esc(app.student_name || app.studentName || '');
-        const safeParent  = this._esc(app.parent_name  || app.parentName  || '');
-        const safePhone   = this._esc(app.parent_phone || app.parentPhone || '');
-        const safeGrade   = this._esc(app.grade || '');
-        const safeAppNo   = this._esc(app.application_number || app.id || '');
-        const submittedDate = new Date(app.submitted_date || app.submittedDate).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-
-        // Count documents
-        const docCount = [
-            app.application_form_url,
-            app.birth_certificate_url,
-            app.passport_photo_url,
-            app.previous_report_url
-        ].filter(Boolean).length;
-
+    renderApplicationCard(app) {
+        const id = this._esc(app.id);
+        const status = this.STATUS[app.status] || { label: app.status || 'Unknown', tone: '' };
+        const fee = this._feeState(app);
+        const docs = [app.application_form_url, app.birth_certificate_url, app.passport_photo_url, app.previous_report_url].filter(Boolean).length;
+        const canApprove = app.status === 'pending' && this._feePaid(app);
         return `
-      <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid ${statusInfo.border}; transition: all 0.3s ease; animation: fadeInUp 0.5s ease ${index * 0.05}s both; cursor: pointer;" 
-        onmouseenter="this.style.transform='translateY(-4px)'; this.style.boxShadow='0 8px 24px rgba(0,0,0,0.12)'"
-        onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''"
-        onclick="applicationsModule.viewApplication('${app.id}')">
-        
-        <!-- Header Section -->
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1.5rem;">
-          <div style="flex: 1;">
-            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; flex-wrap: wrap;">
-              <h3 style="margin: 0; color: var(--text-primary); font-size: 1.25rem;">${safeName}</h3>
-              <span style="background: ${statusInfo.gradient}; color: white; padding: 0.375rem 0.875rem; border-radius: 20px; font-size: 0.8125rem; font-weight: 600; text-transform: capitalize; box-shadow: 0 2px 8px ${statusInfo.border}40;">
-                <i class="fas ${statusInfo.icon}"></i> ${this._esc(app.status)}
-              </span>
-              ${app.application_fee_paid ? `<span style="background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%)); color: white; padding: 0.375rem 0.875rem; border-radius: 20px; font-size: 0.8125rem; font-weight: 600; box-shadow: 0 2px 8px hsl(150, 70%, 45%)40;">
-                <i class="fas fa-check-circle"></i> Fee Paid
-              </span>` : (app.payment_method === 'bank-transfer' || app.paymentMethod === 'bank-transfer') ? `<span style="background: linear-gradient(135deg, hsl(45, 100%, 50%), hsl(45, 100%, 40%)); color: white; padding: 0.375rem 0.875rem; border-radius: 20px; font-size: 0.8125rem; font-weight: 600; box-shadow: 0 2px 8px hsl(45, 100%, 50%)40;">
-                <i class="fas fa-clock"></i> Payment Pending
-              </span>` : ''}
+          <div class="ui-row app-row" role="button" tabindex="0" onclick="applicationsModule.viewApplication('${id}')" onkeydown="if(event.key==='Enter')applicationsModule.viewApplication('${id}')">
+            <span class="ui-dot ${app.status === 'pending' ? (canApprove ? 'is-urgent' : 'is-warn') : ''}" aria-hidden="true"></span>
+            <div class="ui-row-main">
+              <div class="ui-row-title">${this._esc(app.student_name || app.studentName || 'Unnamed')} <span class="ui-row-meta">· ${this._esc(app.grade || 'class not given')}</span></div>
+              <div class="ui-row-meta">${this._esc(app.parent_name || app.parentName || 'Parent not given')}${(app.parent_phone || app.parentPhone) ? ` · ${this._esc(app.parent_phone || app.parentPhone)}` : ''} · ${this._esc(app.application_number || app.applicationNumber || '')} · ${this._date(this._submitted(app))}${docs ? ` · ${docs} document${docs === 1 ? '' : 's'}` : ''}</div>
             </div>
-            <div style="display: flex; align-items: center; gap: 1.5rem; flex-wrap: wrap;">
-              <p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-hashtag" style="color: var(--text-tertiary);"></i>
-                <strong>${safeAppNo}</strong>
-              </p>
-              ${docCount > 0 ? `<p style="margin: 0; color: var(--text-secondary); font-size: 0.875rem; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-paperclip" style="color: var(--text-tertiary);"></i>
-                <strong>${docCount} ${docCount === 1 ? 'Document' : 'Documents'}</strong>
-              </p>` : ''}
+            <div class="app-chips">
+              <span class="ui-chip ${status.tone}">${this._esc(status.label)}</span>
+              ${app.status === 'pending' ? `<span class="ui-chip ${fee.tone}">${fee.label}</span>` : ''}
             </div>
-          </div>
-          <button class="icon-btn" onclick="event.stopPropagation(); applicationsModule.viewApplication('${app.id}')" title="View Details" style="transition: all 0.3s ease;" onmouseenter="this.style.transform='scale(1.1)'; this.style.background='var(--color-primary)'; this.style.color='white'" onmouseleave="this.style.transform='scale(1)'; this.style.background=''; this.style.color=''">
-            <i class="fas fa-eye"></i>
-          </button>
-        </div>
-
-        <!-- Info Grid -->
-        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem; padding: 1.25rem; background: var(--bg-secondary); border-radius: var(--radius-md);">
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, hsl(200, 90%, 55%), hsl(200, 90%, 45%)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-              <i class="fas fa-graduation-cap" style="color: white; font-size: 1rem;"></i>
-            </div>
-            <div>
-              <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.125rem; text-transform: uppercase; letter-spacing: 0.5px;">Grade</div>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${safeGrade}</div>
-            </div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-              <i class="fas fa-user-friends" style="color: white; font-size: 1rem;"></i>
-            </div>
-            <div>
-              <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.125rem; text-transform: uppercase; letter-spacing: 0.5px;">Parent/Guardian</div>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${safeParent}</div>
-            </div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, hsl(45, 100%, 50%), hsl(45, 100%, 40%)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-              <i class="fas fa-phone" style="color: white; font-size: 1rem;"></i>
-            </div>
-            <div>
-              <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.125rem; text-transform: uppercase; letter-spacing: 0.5px;">Contact</div>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${safePhone}</div>
-            </div>
-          </div>
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, hsl(280, 70%, 55%), hsl(280, 70%, 45%)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-              <i class="fas fa-calendar" style="color: white; font-size: 1rem;"></i>
-            </div>
-            <div>
-              <div style="font-size: 0.75rem; color: var(--text-tertiary); margin-bottom: 0.125rem; text-transform: uppercase; letter-spacing: 0.5px;">Submitted</div>
-              <div style="font-weight: 600; color: var(--text-primary); font-size: 0.9375rem;">${submittedDate}</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Action Buttons -->
-        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-          <button class="btn-secondary" onclick="event.stopPropagation(); applicationsModule.viewApplication('${app.id}')" style="transition: all 0.3s ease;" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-            <i class="fas fa-eye"></i> View Full Details
-          </button>
-          ${this._safeUrl(app.application_form_url) ? `<a class="btn-secondary" href="${this._escUrl(app.application_form_url)}" data-storage-link target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="transition: all 0.3s ease; text-decoration:none;" onmouseenter="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'" onmouseleave="this.style.transform='translateY(0)'; this.style.boxShadow=''">
-            <i class="fas fa-file-pdf"></i> View Form
-          </a>` : ''}
-          ${app.status === 'pending' ? `
-            <button class="btn-success" onclick="event.stopPropagation(); applicationsModule.approveApplication('${app.id}')" style="transition: all 0.3s ease; margin-left: auto;" onmouseenter="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(34, 197, 94, 0.3)'" onmouseleave="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow=''">
-              <i class="fas fa-check"></i> Approve Application
-            </button>
-            <button class="btn-danger" onclick="event.stopPropagation(); applicationsModule.rejectApplication('${app.id}')" style="transition: all 0.3s ease;" onmouseenter="this.style.transform='translateY(-2px) scale(1.05)'; this.style.boxShadow='0 6px 16px rgba(239, 68, 68, 0.3)'" onmouseleave="this.style.transform='translateY(0) scale(1)'; this.style.boxShadow=''">
-              <i class="fas fa-times"></i> Reject
-            </button>
-          ` : ''}
-        </div>
-      </div>
-    `;
+            ${canApprove ? `
+              <div class="ui-actions" onclick="event.stopPropagation()">
+                <button type="button" class="ui-btn ui-btn-sm" onclick="applicationsModule.rejectApplication('${id}')">Reject</button>
+                <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" onclick="applicationsModule.approveApplication('${id}')">Approve</button>
+              </div>` : ''}
+          </div>`;
     },
 
     filterApplications(status) {
@@ -519,178 +256,73 @@ const applicationsModule = {
     viewApplication(id) {
         const app = this.applications.find(a => a.id === id);
         if (!app) return;
+        const f = (camel, snake) => this._field(app, camel, snake);
+        const photoUrl = f('passportPhotoUrl', 'passport_photo_url') || '';
+        const formUrl = f('applicationFormUrl', 'application_form_url') || '';
+        const receiptUrl = f('receiptUrl', 'receipt_url') || '';
+        const otherRaw = f('otherDocuments', 'other_documents') || [];
+        const others = Array.isArray(otherRaw) ? otherRaw : (typeof otherRaw === 'string' && otherRaw ? [otherRaw] : []);
+        const status = this.STATUS[app.status] || { label: app.status || 'Unknown', tone: '' };
+        const fee = this._feeState(app);
+        const sid = this._esc(app.id);
 
-        const statusColors = {
-            pending:  { bg: 'hsl(45, 100%, 95%)',  border: 'hsl(45, 100%, 50%)',  text: 'hsl(45, 100%, 30%)'  },
-            approved: { bg: 'hsl(150, 70%, 95%)',  border: 'hsl(150, 70%, 45%)',  text: 'hsl(150, 70%, 25%)'  },
-            rejected: { bg: 'hsl(0, 80%, 95%)',    border: 'hsl(0, 80%, 55%)',    text: 'hsl(0, 80%, 30%)'    }
-        };
-        const statusInfo = statusColors[app.status] || statusColors.pending;
-
-        // Normalise all document URL fields (camelCase or snake_case)
-        const photoUrl      = app.passportPhotoUrl      || app.passport_photo_url      || '';
-        const formUrl       = app.applicationFormUrl    || app.application_form_url    || '';
-        const birthCertUrl  = app.birthCertificateUrl   || app.birth_certificate_url   || '';
-        const reportUrl     = app.previousReportUrl     || app.previous_report_url     || '';
-        const otherDocs     = app.otherDocuments        || app.other_documents         || [];
-        const receiptUrl    = app.receiptUrl            || app.receipt_url             || '';
-
-        // helper: document link button (URL validated + escaped)
-        const docBtn = (url, label, icon = 'fa-file-alt') => {
+        const doc = (url, label) => {
             const href = this._escUrl(url);
-            return href ? `<a href="${href}" data-storage-link target="_blank" rel="noopener noreferrer"
-                      style="display:inline-flex;align-items:center;gap:0.4rem;padding:0.45rem 0.9rem;background:var(--bg-primary);color:var(--text-primary);border:1.5px solid var(--border-primary);border-radius:6px;font-size:0.8rem;font-weight:600;text-decoration:none;transition:opacity 0.2s;"
-                      onmouseenter="this.style.opacity='0.75'" onmouseleave="this.style.opacity='1'">
-                    <i class="fas ${icon}"></i> ${this._esc(label)}
-                  </a>` : `<span style="color:var(--text-tertiary);font-size:0.8rem;font-style:italic;">Not uploaded</span>`;
+            return `<div class="ui-row app-doc"><div class="ui-row-main"><div class="ui-row-title">${this._esc(label)}</div></div>${href
+                ? `<a class="ui-btn ui-btn-sm" href="${href}" data-storage-link target="_blank" rel="noopener noreferrer">Open</a>`
+                : '<span class="ui-row-meta">Not uploaded</span>'}</div>`;
         };
+        const dl = (rows) => `<dl class="sr-dl sr-dl-2">${rows.map(([k, v, wide]) => `<div${wide ? ' style="grid-column:1/-1"' : ''}><dt>${k}</dt><dd>${this._esc(v || '—')}</dd></div>`).join('')}</dl>`;
+        const dob = f('studentDob', 'student_dob');
+        const rejection = f('rejectionReason', 'rejection_reason');
+        const payRejection = f('paymentRejectionReason', 'payment_rejection_reason');
+        const reviewed = f('reviewedDate', 'reviewed_date');
 
-        // other documents array handling
-        const otherDocsHtml = (() => {
-            const docs = Array.isArray(otherDocs) ? otherDocs : (typeof otherDocs === 'string' && otherDocs ? [otherDocs] : []);
-            if (!docs.length) return `<span style="color:var(--text-tertiary);font-size:0.8rem;font-style:italic;">None</span>`;
-            return docs.map((d, i) => docBtn(typeof d === 'string' ? d : d.url, `Document ${i + 1}`, 'fa-paperclip')).join(' ');
-        })();
-
-        const submittedAt = app.submittedDate || app.submitted_date || app.createdAt || app.created_at;
-        const reviewedAt  = app.reviewedDate  || app.reviewed_date;
-
-        showModal('Application Details', `
-      <div style="max-height:75vh;overflow-y:auto;padding-right:0.25rem;">
-
-        <!-- Status Banner -->
-        <div style="background:${statusInfo.bg};padding:1rem 1.25rem;border-radius:10px;border-left:4px solid ${statusInfo.border};margin-bottom:1.5rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
-          <div>
-            <div style="font-weight:700;font-size:1rem;color:${statusInfo.text};text-transform:capitalize;margin-bottom:0.2rem;">
-              <i class="fas fa-circle" style="font-size:0.6rem;margin-right:0.4rem;"></i> ${this._esc(app.status)}
-            </div>
-            <div style="font-size:0.8rem;color:var(--text-secondary);">
-              App No: <strong>${this._esc(app.applicationNumber || app.application_number || app.id)}</strong>
-            </div>
-          </div>
-          ${submittedAt ? `<div style="font-size:0.8rem;color:var(--text-secondary);text-align:right;">
-            Submitted<br><strong>${new Date(submittedAt).toLocaleString()}</strong>
-          </div>` : ''}
-        </div>
-
-        <div style="display:grid;gap:1.5rem;">
-
-          <!-- ── PASSPORT PHOTO ── -->
-          ${this._safeUrl(photoUrl) ? `
-          <div style="text-align:center;">
-            <img data-storage-src="${this._escUrl(photoUrl)}" alt="Passport Photo"
-              style="width:120px;height:140px;object-fit:cover;border-radius:10px;border:3px solid var(--border-primary);box-shadow:0 4px 12px rgba(0,0,0,0.1);"
-              onerror="this.style.display='none'">
-            <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:0.4rem;">Passport Photo</div>
-          </div>` : ''}
-
-          <!-- ── STUDENT INFORMATION ── -->
-          <div>
-            <h4 style="margin:0 0 0.75rem;color:var(--text-primary);border-bottom:2px solid var(--border-primary);padding-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-              <i class="fas fa-user-graduate" style="color:var(--color-primary);"></i> Student Information
-            </h4>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1.5rem;">
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Full Name</span><br><strong>${this._esc(app.studentName || app.student_name || '—')}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Grade Applying For</span><br><strong>${this._esc(app.grade || '—')}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Date of Birth</span><br><strong>${app.studentDob || app.student_dob ? this._esc(new Date(app.studentDob || app.student_dob).toLocaleDateString()) : '—'}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Gender</span><br><strong style="text-transform:capitalize;">${this._esc(app.studentGender || app.student_gender || '—')}</strong></div>
-              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Previous School</span><br><strong>${this._esc(app.previousSchool || app.previous_school || '—')}</strong></div>
-            </div>
-          </div>
-
-          <!-- ── PARENT / GUARDIAN ── -->
-          <div>
-            <h4 style="margin:0 0 0.75rem;color:var(--text-primary);border-bottom:2px solid var(--border-primary);padding-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-              <i class="fas fa-user-friends" style="color:var(--color-primary);"></i> Parent / Guardian
-            </h4>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1.5rem;">
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Name</span><br><strong>${this._esc(app.parentName || app.parent_name || '—')}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Phone</span><br><strong>${this._esc(app.parentPhone || app.parent_phone || '—')}</strong></div>
-              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Email</span><br><strong>${this._esc(app.parentEmail || app.parent_email || '—')}</strong></div>
-              <div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Address</span><br><strong>${this._esc(this._formatAddress(app.parentAddress || app.parent_address))}</strong></div>
-            </div>
-          </div>
-
-          <!-- ── UPLOADED DOCUMENTS ── -->
-          <div>
-            <h4 style="margin:0 0 0.75rem;color:var(--text-primary);border-bottom:2px solid var(--border-primary);padding-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-              <i class="fas fa-folder-open" style="color:var(--color-primary);"></i> Uploaded Documents
-            </h4>
-            <div style="display:grid;gap:0.75rem;">
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0.75rem;background:var(--bg-secondary);border-radius:8px;">
-                <span style="font-size:0.875rem;font-weight:600;color:var(--text-primary);"><i class="fas fa-file-pdf" style="color:#e74c3c;margin-right:0.4rem;"></i>Application Form</span>
-                ${docBtn(formUrl, 'View / Download', 'fa-download')}
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0.75rem;background:var(--bg-secondary);border-radius:8px;">
-                <span style="font-size:0.875rem;font-weight:600;color:var(--text-primary);"><i class="fas fa-certificate" style="color:#f39c12;margin-right:0.4rem;"></i>Birth Certificate</span>
-                ${docBtn(birthCertUrl, 'View', 'fa-eye')}
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0.75rem;background:var(--bg-secondary);border-radius:8px;">
-                <span style="font-size:0.875rem;font-weight:600;color:var(--text-primary);"><i class="fas fa-graduation-cap" style="color:#9b59b6;margin-right:0.4rem;"></i>Previous School Report</span>
-                ${docBtn(reportUrl, 'View', 'fa-eye')}
-              </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0.75rem;background:var(--bg-secondary);border-radius:8px;">
-                <span style="font-size:0.875rem;font-weight:600;color:var(--text-primary);"><i class="fas fa-paperclip" style="color:#3498db;margin-right:0.4rem;"></i>Other Documents</span>
-                <div style="display:flex;gap:0.4rem;flex-wrap:wrap;">${otherDocsHtml}</div>
+        showModal(this._esc(app.student_name || app.studentName || 'Application'), `
+          <div class="app-view">
+            <div class="app-view-head">
+              ${this._safeUrl(photoUrl) ? `<img data-storage-src="${this._escUrl(photoUrl)}" alt="Passport photo" class="app-photo" onerror="this.remove()">` : ''}
+              <div>
+                <div class="sr-chips"><span class="ui-chip ${status.tone}">${this._esc(status.label)}</span><span class="ui-chip ${fee.tone}">${fee.label}</span></div>
+                <p class="ui-row-meta" style="margin-top:6px;">${this._esc(f('applicationNumber', 'application_number') || app.id)} · submitted ${this._date(this._submitted(app), true)}</p>
               </div>
             </div>
-          </div>
 
-          <!-- ── PAYMENT INFORMATION ── -->
-          <div>
-            <h4 style="margin:0 0 0.75rem;color:var(--text-primary);border-bottom:2px solid var(--border-primary);padding-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-              <i class="fas fa-credit-card" style="color:var(--color-primary);"></i> Application Fee
-            </h4>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.6rem 1.5rem;">
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Amount</span><br><strong>&#8358;${(app.applicationFeeAmount || app.application_fee_amount || 0).toLocaleString()}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Method</span><br><strong style="text-transform:capitalize;">${(app.paymentMethod || app.payment_method || 'N/A').replace(/-/g, ' ')}</strong></div>
-              <div><span style="color:var(--text-secondary);font-size:0.8rem;">Status</span><br>
-                ${(app.applicationFeePaid || app.application_fee_paid)
-                  ? '<strong style="color:hsl(150,70%,35%);"><i class="fas fa-check-circle"></i> Paid</strong>'
-                  : (app.paymentRejectionReason || app.payment_rejection_reason)
-                    ? '<strong style="color:hsl(0,80%,45%);"><i class="fas fa-times-circle"></i> Rejected</strong>'
-                    : '<strong style="color:hsl(45,100%,35%);"><i class="fas fa-clock"></i> Pending Verification</strong>'}
-              </div>
-              ${(app.paymentReference || app.payment_reference) ? `<div><span style="color:var(--text-secondary);font-size:0.8rem;">Reference</span><br><strong>${this._esc(app.paymentReference || app.payment_reference)}</strong></div>` : '<div></div>'}
-              ${receiptUrl ? `<div style="grid-column:span 2;"><span style="color:var(--text-secondary);font-size:0.8rem;">Payment Receipt</span><br>${docBtn(receiptUrl, 'View Receipt', 'fa-receipt')}</div>` : ''}
-              ${(app.paymentRejectionReason || app.payment_rejection_reason) ? `
-              <div style="grid-column:span 2;padding:0.75rem;background:hsl(0,80%,97%);border-radius:8px;border-left:3px solid hsl(0,80%,55%);color:hsl(0,60%,30%);">
-                <strong>Rejection Reason:</strong> ${this._esc(app.paymentRejectionReason || app.payment_rejection_reason)}
-              </div>` : ''}
+            <h3 class="app-h">Child</h3>
+            ${dl([['Name', app.student_name || app.studentName], ['Class applying for', app.grade],
+                  ['Date of birth', dob ? this._date(dob) : ''], ['Gender', f('studentGender', 'student_gender')],
+                  ['Previous school', f('previousSchool', 'previous_school'), true]])}
+
+            <h3 class="app-h">Parent or guardian</h3>
+            ${dl([['Name', app.parent_name || app.parentName], ['Phone', app.parent_phone || app.parentPhone],
+                  ['Email', app.parent_email || app.parentEmail, true], ['Address', this._formatAddress(f('parentAddress', 'parent_address')), true]])}
+
+            <h3 class="app-h">Documents</h3>
+            ${doc(formUrl, 'Application form')}
+            ${doc(f('birthCertificateUrl', 'birth_certificate_url'), 'Birth certificate')}
+            ${doc(f('previousReportUrl', 'previous_report_url'), 'Last school report')}
+            ${others.map((d, i) => doc(typeof d === 'string' ? d : d?.url, `Other document ${i + 1}`)).join('')}
+
+            <h3 class="app-h">Application fee</h3>
+            ${dl([['Amount', this._money(f('applicationFeeAmount', 'application_fee_amount'))], ['Paid by', String(f('paymentMethod', 'payment_method') || '—').replace(/[-_]/g, ' ')],
+                  ['Status', fee.label], ['Reference', f('paymentReference', 'payment_reference')]])}
+            ${receiptUrl ? doc(receiptUrl, 'Payment receipt') : ''}
+            ${payRejection ? `<p class="ui-card-note app-note">Fee not accepted: ${this._esc(payRejection)}</p>` : ''}
+
+            ${(reviewed || app.notes || rejection) ? `
+              <h3 class="app-h">Review</h3>
+              ${dl([['Reviewed', reviewed ? this._date(reviewed, true) : ''], ['Reviewed by', f('reviewedBy', 'reviewed_by')]])}
+              ${rejection ? `<p class="ui-card-note app-note">Reason for rejecting: ${this._esc(rejection)}</p>`
+                : app.notes ? `<p class="ui-card-note app-note">${this._esc(app.notes)}</p>` : ''}` : ''}
+
+            <div class="ui-actions" style="justify-content:flex-end;margin-top:18px;flex-wrap:wrap;">
+              <button type="button" class="ui-btn" onclick="closeModal()">Close</button>
+              ${app.status === 'pending' ? `
+                <button type="button" class="ui-btn" onclick="closeModal(); applicationsModule.rejectApplication('${sid}')">Reject</button>
+                <button type="button" class="ui-btn ui-btn-primary" ${this._feePaid(app) ? '' : 'disabled title="The application fee has not been confirmed"'} onclick="closeModal(); applicationsModule.approveApplication('${sid}')">Approve</button>` : ''}
             </div>
-          </div>
-
-          <!-- ── REVIEW DETAILS ── -->
-          ${(reviewedAt || app.notes || app.rejectionReason || app.rejection_reason) ? `
-          <div>
-            <h4 style="margin:0 0 0.75rem;color:var(--text-primary);border-bottom:2px solid var(--border-primary);padding-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
-              <i class="fas fa-clipboard-check" style="color:var(--color-primary);"></i> Review Details
-            </h4>
-            <div style="display:grid;gap:0.6rem;">
-              ${reviewedAt ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text-secondary);">Reviewed:</span><strong>${this._esc(new Date(reviewedAt).toLocaleString())}</strong></div>` : ''}
-              ${(app.reviewedBy || app.reviewed_by) ? `<div style="display:flex;justify-content:space-between;"><span style="color:var(--text-secondary);">Reviewed By:</span><strong>${this._esc(app.reviewedBy || app.reviewed_by)}</strong></div>` : ''}
-              ${app.notes ? `<div><span style="color:var(--text-secondary);">Notes:</span><div style="margin-top:0.4rem;padding:0.75rem;background:var(--bg-secondary);border-radius:8px;">${this._esc(app.notes)}</div></div>` : ''}
-              ${(app.rejectionReason || app.rejection_reason) ? `<div style="padding:0.75rem;background:hsl(0,80%,97%);border-radius:8px;border-left:3px solid hsl(0,80%,55%);color:hsl(0,60%,30%);"><strong>Rejection Reason:</strong> ${this._esc(app.rejectionReason || app.rejection_reason)}</div>` : ''}
-            </div>
-          </div>` : ''}
-
-        </div>
-
-        <!-- Action Buttons -->
-        <div style="margin-top:1.75rem;display:flex;gap:0.75rem;flex-wrap:wrap;padding-top:1rem;border-top:1px solid var(--border-primary);">
-          ${this._safeUrl(formUrl) ? `<a class="btn-secondary" href="${this._escUrl(formUrl)}" data-storage-link target="_blank" rel="noopener noreferrer" style="text-decoration:none;"><i class="fas fa-download"></i> Download Form</a>` : ''}
-          ${app.status === 'pending' ? `
-            <button class="btn-success" onclick="closeModal(); applicationsModule.approveApplication('${app.id}')">
-              <i class="fas fa-check"></i> Approve
-            </button>
-            <button class="btn-danger" onclick="closeModal(); applicationsModule.rejectApplication('${app.id}')">
-              <i class="fas fa-times"></i> Reject
-            </button>
-          ` : ''}
-          <button class="btn-secondary" onclick="closeModal()" style="margin-left:auto;">Close</button>
-        </div>
-      </div>
-    `);
+            ${app.status === 'pending' && !this._feePaid(app) ? '<p class="ui-card-note" style="text-align:right;">Approve becomes available once the application fee is confirmed.</p>' : ''}
+          </div>`);
     },
 
     downloadForm(id) {
@@ -724,25 +356,20 @@ const applicationsModule = {
         // method says. The previous check only blocked bank transfers, so a row
         // claiming payment_method 'paystack' (or none at all) was approved
         // without any payment ever having been confirmed.
-        const applicationFeePaid = app.application_fee_paid || app.applicationFeePaid;
-        if (!applicationFeePaid) {
+        if (!this._feePaid(app)) {
             showToast('Cannot approve: the application fee has not been verified yet.', 'error');
             return;
         }
 
-        showModal('Approve Application', `
-      <p style="margin-bottom: 1.5rem;">Are you sure you want to approve this application?</p>
-      <div style="margin-bottom: 1.5rem;">
-        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Notes (Optional)</label>
-        <textarea id="approvalNotes" rows="3" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-family: inherit;"></textarea>
-      </div>
-      <div style="display: flex; gap: 0.75rem;">
-        <button class="btn-success" id="confirmApprovalBtn" onclick="event.preventDefault(); applicationsModule.confirmApproval('${id}', this)">
-          <i class="fas fa-check"></i> Confirm Approval
-        </button>
-        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      </div>
-    `);
+        showModal('Approve application', `
+          <p>Approve <strong>${this._esc(app.student_name || app.studentName)}</strong> for <strong>${this._esc(app.grade || '')}</strong>?
+          This enrols them, bills this term's fees (with the uniform set) and creates their portal login.</p>
+          <label class="form-group" style="margin-top:14px;"><span class="form-label">Notes (optional)</span>
+            <textarea id="approvalNotes" class="form-textarea" rows="3"></textarea></label>
+          <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+            <button type="button" class="ui-btn" onclick="closeModal()">Cancel</button>
+            <button type="button" class="ui-btn ui-btn-primary" id="confirmApprovalBtn" onclick="event.preventDefault(); applicationsModule.confirmApproval('${this._esc(id)}', this)">Approve</button>
+          </div>`);
     },
 
     async confirmApproval(id, triggerBtn) {
@@ -871,34 +498,22 @@ const applicationsModule = {
             if (typeof writeAuditLog === 'function') writeAuditLog('APPLICATION_APPROVED', app.student_name, `Grade: ${app.grade} | Student ID: ${result.studentLoginId}`);
             
             // Show success with account details
-            showModal('Application Approved', `
-                <div style="text-align: center;">
-                    <div style="width: 80px; height: 80px; margin: 0 auto 1.5rem; background: linear-gradient(135deg, hsl(150, 70%, 45%), hsl(150, 70%, 35%)); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <i class="fas fa-check" style="font-size: 2.5rem; color: white;"></i>
-                    </div>
-                    <h3 style="margin: 0 0 1rem;">Application Approved Successfully!</h3>
-                    <p style="margin-bottom: 1.5rem;">Student account has been created.</p>
-                    <div style="background: hsl(220, 70%, 97%); padding: 1.5rem; border-radius: 0.75rem; margin-bottom: 1rem; text-align: left;">
-                        <h4 style="margin: 0 0 1rem;">Student Account Details</h4>
-                        <p style="margin: 0.5rem 0;"><strong>Student Name:</strong> ${this._esc(app.student_name)}</p>
-                        <p style="margin: 0.5rem 0;"><strong>Login ID:</strong> ${this._esc(result.studentLoginId)}</p>
-                        <p style="margin: 0.5rem 0;"><strong>Password:</strong> ${this._esc(result.studentPassword)}</p>
-                        <p style="margin: 0.5rem 0;"><strong>Grade:</strong> ${this._esc(app.grade)}</p>
-                    </div>
-                    <div style="background: hsl(45, 100%, 95%); padding: 1rem; border-radius: 0.75rem; border-left: 4px solid hsl(45, 100%, 50%); text-align: left;">
-                        <p style="margin: 0; font-size: 0.875rem; color: var(--text-secondary);">
-                            <strong>Note:</strong> Guardian account must be created separately via User Management if needed.
-                        </p>
-                    </div>
-                    <p style="margin-top: 1.5rem; font-size: 0.875rem; color: var(--text-secondary);">Please share these credentials with the parent/guardian.</p>
-                    <button class="btn-primary" onclick="closeModal()" style="margin-top: 1rem;">Close</button>
+            showModal('Application approved', `
+                <p><strong>${this._esc(app.student_name)}</strong> is now a pupil in <strong>${this._esc(app.grade)}</strong>, and this term's fees are billed.</p>
+                <dl class="sr-dl sr-dl-2 app-creds">
+                    <div><dt>Login ID</dt><dd>${this._esc(result.studentLoginId)}</dd></div>
+                    <div><dt>Password</dt><dd>${this._esc(result.studentPassword)}</dd></div>
+                </dl>
+                <p class="ui-card-note">Share these with the parent now: the password is not shown again. A parent login is added in Users &amp; access.</p>
+                <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+                    <button type="button" class="ui-btn ui-btn-primary" onclick="closeModal()">Done</button>
                 </div>
             `);
         } catch (error) {
             const msg = error?.message || String(error);
             console.error('Error approving application:', msg);
             showToast(msg || 'Error approving application', 'error');
-            if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Confirm Approval'; }
+            if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Approve'; }
         } finally {
             this._approving = false;
         }
@@ -993,19 +608,15 @@ const applicationsModule = {
     },
 
     rejectApplication(id) {
-        showModal('Reject Application', `
-      <p style="margin-bottom: 1.5rem;">Are you sure you want to reject this application?</p>
-      <div style="margin-bottom: 1.5rem;">
-        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Reason for Rejection:</label>
-        <textarea id="rejectionNotes" rows="3" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-family: inherit;" required></textarea>
-      </div>
-      <div style="display: flex; gap: 0.75rem;">
-        <button class="btn-danger" onclick="applicationsModule.confirmRejection('${id}')">
-          <i class="fas fa-times"></i> Confirm Rejection
-        </button>
-        <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-      </div>
-    `);
+        const app = this.applications.find(a => a.id === id);
+        showModal('Reject application', `
+          <p>Reject the application for <strong>${this._esc(app?.student_name || app?.studentName || '')}</strong>? The parent sees the reason on the status page.</p>
+          <label class="form-group" style="margin-top:14px;"><span class="form-label">Reason</span>
+            <textarea id="rejectionNotes" class="form-textarea" rows="3" required></textarea></label>
+          <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+            <button type="button" class="ui-btn" onclick="closeModal()">Cancel</button>
+            <button type="button" class="ui-btn ui-btn-primary" onclick="applicationsModule.confirmRejection('${this._esc(id)}')">Reject</button>
+          </div>`);
     },
 
     async confirmRejection(id) {
@@ -1061,27 +672,15 @@ const applicationsModule = {
             return;
         }
 
-        showModal('Clear Applications', `
-            <div style="text-align:center;">
-                <div style="width:64px;height:64px;margin:0 auto 1.25rem;background:linear-gradient(135deg,hsl(0,80%,55%),hsl(0,80%,45%));border-radius:50%;display:flex;align-items:center;justify-content:center;">
-                    <i class="fas fa-trash-alt" style="color:white;font-size:1.75rem;"></i>
-                </div>
-                <h3 style="margin:0 0 0.75rem;color:hsl(0,80%,35%);">Permanently Delete ${deletable.length} Application${deletable.length === 1 ? '' : 's'}?</h3>
-                <p style="color:var(--text-secondary);margin-bottom:1rem;">
-                    Pending, rejected and incomplete records will be removed. Approved applications
-                    (${this.applications.length - deletable.length}) are kept. This cannot be undone.
-                </p>
-                <p style="color:var(--text-secondary);margin-bottom:0.5rem;font-size:0.875rem;">Type <strong>DELETE</strong> to confirm:</p>
-                <input type="text" id="clearAllConfirmInput" autocomplete="off"
-                    style="width:100%;max-width:220px;padding:0.6rem 0.75rem;border:2px solid var(--border-primary);border-radius:var(--radius-md);text-align:center;font-weight:700;letter-spacing:0.1em;margin-bottom:1.5rem;">
-                <div style="display:flex;gap:0.75rem;justify-content:center;">
-                    <button class="btn-danger" onclick="applicationsModule._confirmClearAll()">
-                        <i class="fas fa-trash-alt"></i> Delete
-                    </button>
-                    <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-                </div>
-            </div>
-        `);
+        showModal('Clear old applications', `
+          <p>Permanently delete <strong>${deletable.length}</strong> waiting, rejected and fee-not-accepted application${deletable.length === 1 ? '' : 's'}?
+          The ${this.applications.length - deletable.length} approved record${this.applications.length - deletable.length === 1 ? ' is' : 's are'} kept. This cannot be undone.</p>
+          <label class="form-group" style="margin-top:14px;"><span class="form-label">Type DELETE to confirm</span>
+            <input type="text" id="clearAllConfirmInput" class="form-input" autocomplete="off"></label>
+          <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+            <button type="button" class="ui-btn" onclick="closeModal()">Cancel</button>
+            <button type="button" class="ui-btn pc-danger" onclick="applicationsModule._confirmClearAll()">Delete</button>
+          </div>`);
     },
 
     async _confirmClearAll() {
@@ -1116,14 +715,18 @@ const applicationsModule = {
     },
 
     getStatistics() {
+        const by = (s) => this.applications.filter(app => app.status === s);
         return {
             total: this.applications.length,
-            pending: this.applications.filter(app => app.status === 'pending').length,
-            approved: this.applications.filter(app => app.status === 'approved').length,
-            rejected: this.applications.filter(app => app.status === 'rejected').length,
+            pending: by('pending').length,
+            readyToApprove: by('pending').filter(app => this._feePaid(app)).length,
+            approved: by('approved').length,
+            rejected: by('rejected').length,
+            incomplete: by('incomplete').length,
             pendingPayments: this.applications.filter(app => this._awaitsPaymentVerification(app)).length
         };
     },
+
 
     _isBankTransfer(app) {
         const pm = app.payment_method || app.paymentMethod || '';
@@ -1140,53 +743,30 @@ const applicationsModule = {
             && !(app.payment_rejection_reason || app.paymentRejectionReason);
     },
 
-    // Render pending payment verification cards
     renderPendingPayments() {
-        const pending = this.applications.filter(app => this._awaitsPaymentVerification(app));
-
-        if (pending.length === 0) return '<p style="color: var(--text-tertiary); text-align: center;">No pending payment verifications.</p>';
+        const pending = this.applications
+            .filter(app => this._awaitsPaymentVerification(app))
+            .sort((a, b) => new Date(this._submitted(a) || 0) - new Date(this._submitted(b) || 0));
+        if (!pending.length) return '<p class="ui-empty">No fees to confirm.</p>';
 
         return pending.map(app => {
-            const receiptUrl  = app.receipt_url  || app.receiptUrl;
-            const paymentRef  = this._esc(app.payment_reference || app.paymentReference || 'N/A');
-            const feeAmount   = app.application_fee_amount || app.applicationFeeAmount || 0;
-            const pName       = this._esc(app.student_name || app.studentName || '');
-            const pAppNo      = this._esc(app.application_number || app.id || '');
-            const pGrade      = this._esc(app.grade || '');
-            const submittedDate = new Date(app.submitted_date || app.submittedDate).toLocaleDateString('en-US', {
-                year: 'numeric', month: 'short', day: 'numeric'
-            });
-
+            const receiptUrl = app.receipt_url || app.receiptUrl;
+            const id = this._esc(app.id);
             return `
-            <div style="padding: 1.25rem; border: 1px solid var(--border-primary); border-radius: 12px; border-left: 4px solid hsl(280, 70%, 55%); background: hsl(280, 30%, 98%);">
-              <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem;">
-                <div style="flex: 1; min-width: 200px;">
-                  <h4 style="margin: 0 0 0.5rem; color: var(--text-primary);">${pName}</h4>
-                  <div style="display: grid; gap: 0.35rem; font-size: 0.875rem; color: var(--text-secondary);">
-                    <div><i class="fas fa-hashtag" style="width: 16px;"></i> ${pAppNo}</div>
-                    <div><i class="fas fa-graduation-cap" style="width: 16px;"></i> ${pGrade}</div>
-                    <div><i class="fas fa-money-bill" style="width: 16px;"></i> &#8358;${feeAmount.toLocaleString()}</div>
-                    <div><i class="fas fa-receipt" style="width: 16px;"></i> Ref: ${paymentRef}</div>
-                    <div><i class="fas fa-calendar" style="width: 16px;"></i> ${submittedDate}</div>
-                  </div>
+              <div class="ui-row">
+                <span class="ui-dot is-warn" aria-hidden="true"></span>
+                <div class="ui-row-main">
+                  <div class="ui-row-title">${this._money(app.application_fee_amount || app.applicationFeeAmount)} · ${this._esc(app.student_name || app.studentName || '')}</div>
+                  <div class="ui-row-meta">${this._esc(app.grade || '')} · ref ${this._esc(app.payment_reference || app.paymentReference || 'none given')} · ${this._date(this._submitted(app))}</div>
                 </div>
-                <div style="display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-end;">
-                  ${this._safeUrl(receiptUrl) ? `
-                    <a class="btn-secondary" href="${this._escUrl(receiptUrl)}" data-storage-link target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation();" style="font-size: 0.8rem; padding: 0.4rem 0.75rem; text-decoration:none;">
-                      <i class="fas fa-eye"></i> View Receipt
-                    </a>
-                  ` : '<span style="color: var(--text-tertiary); font-size: 0.8rem;">No receipt uploaded</span>'}
-                  <div style="display: flex; gap: 0.5rem;">
-                    <button class="btn-success" onclick="event.stopPropagation(); applicationsModule.approvePayment('${app.id}')" style="font-size: 0.8rem; padding: 0.4rem 0.75rem;">
-                      <i class="fas fa-check"></i> Approve
-                    </button>
-                    <button class="btn-danger" onclick="event.stopPropagation(); applicationsModule.rejectPayment('${app.id}')" style="font-size: 0.8rem; padding: 0.4rem 0.75rem;">
-                      <i class="fas fa-times"></i> Reject
-                    </button>
-                  </div>
+                <div class="ui-actions">
+                  ${this._safeUrl(receiptUrl)
+                    ? `<a class="ui-btn ui-btn-sm" href="${this._escUrl(receiptUrl)}" data-storage-link target="_blank" rel="noopener noreferrer">Receipt</a>`
+                    : '<span class="ui-row-meta">No receipt</span>'}
+                  <button type="button" class="ui-btn ui-btn-sm" onclick="applicationsModule.rejectPayment('${id}')">Not received</button>
+                  <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" onclick="applicationsModule.approvePayment('${id}')">Received</button>
                 </div>
-              </div>
-            </div>`;
+              </div>`;
         }).join('');
     },
 
@@ -1194,21 +774,13 @@ const applicationsModule = {
     approvePayment(id) {
         const app = this.applications.find(a => a.id === id);
         if (!app) { showToast('Application not found', 'error'); return; }
-
-        const safeName = this._esc(app.student_name || app.studentName || '');
-        const feeAmt = (app.application_fee_amount || app.applicationFeeAmount || 0).toLocaleString();
-
-        showModal('Approve Payment', `
-            <p style="margin-bottom:1.5rem;">
-                Approve payment of <strong>&#8358;${feeAmt}</strong> for <strong>${safeName}</strong>?
-            </p>
-            <div style="display:flex;gap:0.75rem;">
-                <button class="btn-success" onclick="applicationsModule._confirmApprovePayment('${id}')">
-                    <i class="fas fa-check"></i> Confirm Approval
-                </button>
-                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-            </div>
-        `);
+        showModal('Confirm the application fee', `
+          <p>Confirm <strong>${this._money(app.application_fee_amount || app.applicationFeeAmount)}</strong> reached the school's account for <strong>${this._esc(app.student_name || app.studentName || '')}</strong>?
+          The application can then be approved.</p>
+          <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+            <button type="button" class="ui-btn" onclick="closeModal()">Cancel</button>
+            <button type="button" class="ui-btn ui-btn-primary" onclick="applicationsModule._confirmApprovePayment('${this._esc(id)}')">Yes, received</button>
+          </div>`);
     },
 
     async _confirmApprovePayment(id) {
@@ -1258,20 +830,14 @@ const applicationsModule = {
     rejectPayment(id) {
         const app = this.applications.find(a => a.id === id);
         if (!app) { showToast('Application not found', 'error'); return; }
-
-        showModal('Reject Payment', `
-            <p style="margin-bottom: 1rem;">Reject payment for <strong>${this._esc(app.student_name || app.studentName)}</strong>?</p>
-            <div style="margin-bottom: 1.5rem;">
-                <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Reason for Rejection:</label>
-                <textarea id="paymentRejectionReason" rows="3" style="width: 100%; padding: 0.75rem; border: 2px solid var(--border-primary); border-radius: var(--radius-md); font-family: inherit;" placeholder="Enter reason for rejecting this payment..." required></textarea>
-            </div>
-            <div style="display: flex; gap: 0.75rem;">
-                <button class="btn-danger" onclick="applicationsModule.confirmPaymentRejection('${id}')">
-                    <i class="fas fa-times"></i> Confirm Rejection
-                </button>
-                <button class="btn-secondary" onclick="closeModal()">Cancel</button>
-            </div>
-        `);
+        showModal('Fee not received', `
+          <p>Mark the fee for <strong>${this._esc(app.student_name || app.studentName)}</strong> as not received? The application moves to "Fee not accepted" and the parent sees the reason.</p>
+          <label class="form-group" style="margin-top:14px;"><span class="form-label">Reason</span>
+            <textarea id="paymentRejectionReason" class="form-textarea" rows="3" placeholder="e.g. No transfer with this reference reached the account" required></textarea></label>
+          <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+            <button type="button" class="ui-btn" onclick="closeModal()">Cancel</button>
+            <button type="button" class="ui-btn ui-btn-primary" onclick="applicationsModule.confirmPaymentRejection('${this._esc(id)}')">Save</button>
+          </div>`);
     },
 
     async confirmPaymentRejection(id) {

@@ -1350,3 +1350,24 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
   #main-content .inv-table th:nth-child(4), #main-content .inv-table td:nth-child(4) { display: none; }
   .inv-req { flex-wrap: wrap; }
 }
+
+/* ============================================
+   APPLICATIONS
+   ============================================ */
+.app-filters { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.app-row { cursor: pointer; border-radius: 10px; }
+.app-row:hover { background: var(--bg-primary); }
+.app-row:focus-visible { outline: 2px solid var(--brand-navy-light); outline-offset: 2px; }
+.app-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.app-view { display: flex; flex-direction: column; gap: 10px; }
+.app-view-head { display: flex; align-items: center; gap: 14px; }
+.app-photo { width: 72px; height: 88px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border-primary); }
+.app-h { margin: 12px 0 2px; font-size: 0.8125rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-tertiary); }
+.app-doc { padding: 8px 0; }
+.app-note { padding: 10px 12px; border-radius: 10px; background: var(--bg-tertiary); }
+.app-creds { margin: 14px 0; padding: 12px 14px; border-radius: 12px; background: var(--bg-tertiary); }
+
+@media (max-width: 640px) {
+  .app-row { flex-wrap: wrap; }
+  .app-chips { justify-content: flex-start; }
+}
