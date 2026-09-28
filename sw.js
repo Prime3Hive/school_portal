@@ -61,6 +61,7 @@ const PRECACHE_ASSETS = [
   '/js/portal-shell.js',
   '/js/score-book.js',
   '/js/pupil-data.js',
+  '/js/calendar-events.js',
   '/js/config.js',
   '/js/env-loader.js',
   '/js/school-config.js',

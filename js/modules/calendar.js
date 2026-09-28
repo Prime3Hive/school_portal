@@ -1,484 +1,223 @@
+// ============================================
+// CALENDAR
+// ============================================
+// The school calendar: a month grid, a list, and the chosen day's events.
+// Reading and writing go through js/calendar-events.js, which copes with
+// both shapes of the calendar_events table and compares local days.
+// Admin and office staff can add, change and delete events (the table's
+// policy allows admin and staff); everyone else reads.
+// ============================================
+
 window.calendarModule = {
-  currentDate: new Date(),
-  selectedDate: null,
-  events: [],
+  month: null,        // first day of the month shown
+  selected: null,     // "YYYY-MM-DD"
   view: 'month',
+  events: [],
+  failed: false,
+
+  TYPES: [
+    ['academic', 'Academic'], ['exam', 'Exams'], ['holiday', 'Holiday'], ['meeting', 'Meeting'], ['event', 'Event']
+  ],
 
   async init(container) {
     this.container = container;
-    await dataManager.waitForReady();
+    const today = new Date();
+    if (!this.month) this.month = new Date(today.getFullYear(), today.getMonth(), 1);
+    if (!this.selected) this.selected = calendarEvents.dayKey(today);
+    this.events = null;
+    this.render();
     await this.loadEvents();
     this.render();
-    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
-    this._onDataChange = async (e) => {
-      if (['schoolSchedules', 'assessments'].includes(e.detail?.collection)) {
-        await this.loadEvents();
-        this.render();
-      }
-    };
-    window.addEventListener('datamanager:change', this._onDataChange);
+  },
+
+  cleanup() {},
+
+  // ── Helpers ───────────────────────────────────────────────
+
+  _esc(v) {
+    return typeof window.escapeHtml === 'function'
+      ? window.escapeHtml(v)
+      : String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  },
+
+  canEdit() {
+    const role = window.authManager?.getSession?.()?.role;
+    return role === 'admin' || role === 'staff';
+  },
+
+  typeLabel(t) {
+    return (this.TYPES.find(([k]) => k === t) || [, 'Event'])[1];
+  },
+
+  today() {
+    return calendarEvents.dayKey(new Date());
+  },
+
+  /** "12 Sept" or "12–14 Sept 2026". */
+  range(e, withYear = false) {
+    const opts = { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) };
+    const a = calendarEvents.fromKey(e.start).toLocaleDateString('en-GB', opts);
+    if (e.end === e.start) return a;
+    return `${a} – ${calendarEvents.fromKey(e.end).toLocaleDateString('en-GB', opts)}`;
+  },
+
+  on(key) {
+    return (this.events || []).filter(e => e.start <= key && e.end >= key);
   },
 
   async loadEvents() {
-    if (!window.supabaseReady) {
-      this.events = this.getMockEvents();
-      return;
-    }
-
     try {
-      const { data, error } = await supabaseClient
-        .from('calendar_events')
-        .select('*')
-        .order('start_date', { ascending: true });
-
-      if (error) throw error;
-      this.events = data || [];
-    } catch (error) {
-      console.error('Error loading events:', error);
-      this.events = this.getMockEvents();
+      this.events = await calendarEvents.list();
+      this.failed = false;
+    } catch (err) {
+      console.warn('[Calendar] could not load events:', err);
+      this.events = [];
+      this.failed = true;
     }
   },
 
-  getMockEvents() {
-    const today = new Date();
-    return [
-      {
-        id: '1',
-        title: 'First Term Begins',
-        start_date: new Date(today.getFullYear(), 8, 15).toISOString(),
-        end_date: new Date(today.getFullYear(), 8, 15).toISOString(),
-        type: 'academic',
-        description: 'Start of first term academic session'
-      },
-      {
-        id: '2',
-        title: 'Mid-Term Break',
-        start_date: new Date(today.getFullYear(), 10, 1).toISOString(),
-        end_date: new Date(today.getFullYear(), 10, 7).toISOString(),
-        type: 'holiday',
-        description: 'Mid-term break for all students'
-      },
-      {
-        id: '3',
-        title: 'Parent-Teacher Meeting',
-        start_date: new Date(today.getFullYear(), today.getMonth(), 20).toISOString(),
-        end_date: new Date(today.getFullYear(), today.getMonth(), 20).toISOString(),
-        type: 'meeting',
-        description: 'Quarterly parent-teacher conference'
-      }
-    ];
-  },
+  // ── Page ─────────────────────────────────────────────────
 
   render() {
+    if (!this.container) return;
+    if (window.app?.currentModule && window.app.currentModule !== 'calendar') return;
+    const monthName = this.month.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+    const term = window.schoolConfig?.getCurrentTerm?.()?.name;
+    const session = window.schoolConfig?.getCurrentAcademicYear?.();
+
     this.container.innerHTML = `
-      <div class="animate-fadeIn">
-        <!-- Header -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-8); flex-wrap: wrap; gap: var(--space-4);">
+      <div class="ui-page">
+        <div class="ui-page-head">
           <div>
-            <h2 class="page-title" style="margin-bottom: var(--space-2);">📅 School Calendar</h2>
-            <p class="page-description">View academic events, holidays, and important dates</p>
+            <h1 class="ui-page-title">Calendar</h1>
+            <p class="ui-page-sub">${this._esc([term, session].filter(Boolean).join(' · '))}</p>
           </div>
-          <div style="display: flex; gap: var(--space-3); flex-wrap: wrap;">
-            <div class="btn-group">
-              <button class="btn ${this.view === 'month' ? 'btn-primary' : 'btn-secondary'}" 
-                      onclick="calendarModule.setView('month')">
-                Month
-              </button>
-              <button class="btn ${this.view === 'week' ? 'btn-primary' : 'btn-secondary'}" 
-                      onclick="calendarModule.setView('week')">
-                Week
-              </button>
-              <button class="btn ${this.view === 'list' ? 'btn-primary' : 'btn-secondary'}" 
-                      onclick="calendarModule.setView('list')">
-                List
-              </button>
+          <div class="ui-actions">
+            <div class="app-filters" role="group" aria-label="View">
+              <button type="button" class="ui-btn${this.view === 'month' ? ' ui-btn-primary' : ''}" aria-pressed="${this.view === 'month'}" onclick="calendarModule.setView('month')">Month</button>
+              <button type="button" class="ui-btn${this.view === 'list' ? ' ui-btn-primary' : ''}" aria-pressed="${this.view === 'list'}" onclick="calendarModule.setView('list')">List</button>
             </div>
-            ${permissionManager.canPerformAction('calendar', 'create') ? `
-              <button class="btn btn-primary" onclick="calendarModule.showAddEventModal()">
-                <span>➕</span> Add Event
-              </button>
-            ` : ''}
+            ${this.canEdit() ? '<button type="button" class="ui-btn ui-btn-primary" onclick="calendarModule.showAddEventModal()">Add event</button>' : ''}
           </div>
         </div>
 
-        <!-- Calendar Navigation -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-6); padding: var(--space-4); background: var(--bg-secondary); border-radius: var(--radius-lg);">
-          <button class="btn btn-secondary" onclick="calendarModule.previousPeriod()">
-            ← Previous
-          </button>
-          <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin: 0;">
-            ${this.getHeaderText()}
-          </h3>
-          <button class="btn btn-secondary" onclick="calendarModule.nextPeriod()">
-            Next →
-          </button>
-        </div>
+        ${this.failed ? '<div class="ui-card"><p class="ui-empty">The calendar could not be loaded just now. Try again in a moment.</p></div>' : ''}
 
-        <!-- Calendar View -->
-        <div id="calendar-view">
-          ${this.renderView()}
-        </div>
-
-        <!-- Upcoming Events -->
-        <div class="card" style="margin-top: var(--space-8);">
-          <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
-            📌 Upcoming Events
-          </h3>
-          ${this.renderUpcomingEvents()}
-        </div>
-      </div>
-    `;
-  },
-
-  renderView() {
-    switch (this.view) {
-      case 'month':
-        return this.renderMonthView();
-      case 'week':
-        return this.renderWeekView();
-      case 'list':
-        return this.renderListView();
-      default:
-        return this.renderMonthView();
-    }
-  },
-
-  renderMonthView() {
-    const year = this.currentDate.getFullYear();
-    const month = this.currentDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-    let html = `
-      <div class="calendar-grid" style="
-        display: grid;
-        grid-template-columns: repeat(7, 1fr);
-        gap: 1px;
-        background: var(--border-primary);
-        border: 1px solid var(--border-primary);
-        border-radius: var(--radius-lg);
-        overflow: hidden;
-      ">
-    `;
-
-    days.forEach(day => {
-      html += `
-        <div style="
-          padding: var(--space-3);
-          background: var(--bg-tertiary);
-          text-align: center;
-          font-weight: var(--font-weight-semibold);
-          color: var(--text-secondary);
-          font-size: var(--font-size-sm);
-        ">${day}</div>
-      `;
-    });
-
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      html += `<div style="background: var(--bg-primary); min-height: 100px;"></div>`;
-    }
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day);
-      const dateStr = date.toISOString().split('T')[0];
-      const dayEvents = this.events.filter(e => {
-        const eventStart = new Date(e.start_date).toISOString().split('T')[0];
-        const eventEnd = new Date(e.end_date).toISOString().split('T')[0];
-        return dateStr >= eventStart && dateStr <= eventEnd;
-      });
-
-      const isToday = date.toDateString() === new Date().toDateString();
-      const isSelected = this.selectedDate && date.toDateString() === this.selectedDate.toDateString();
-
-      html += `
-        <div onclick="calendarModule.selectDate(new Date(${year}, ${month}, ${day}))" style="
-          background: var(--bg-secondary);
-          min-height: 100px;
-          padding: var(--space-2);
-          cursor: pointer;
-          transition: all 0.2s;
-          ${isToday ? 'border: 2px solid var(--color-primary);' : ''}
-          ${isSelected ? 'background: var(--bg-tertiary);' : ''}
-        " onmouseover="this.style.background='var(--bg-tertiary)'" 
-           onmouseout="this.style.background='${isSelected ? 'var(--bg-tertiary)' : 'var(--bg-secondary)'}'">
-          <div style="
-            font-weight: ${isToday ? 'var(--font-weight-bold)' : 'var(--font-weight-medium)'};
-            color: ${isToday ? 'var(--color-primary)' : 'var(--text-primary)'};
-            margin-bottom: var(--space-2);
-          ">${day}</div>
-          ${dayEvents.slice(0, 3).map(e => {
-        const typeColors = {
-          academic: 'var(--color-primary)',
-          holiday: 'var(--color-success)',
-          exam: 'var(--color-danger)',
-          meeting: 'var(--color-warning)',
-          event: 'var(--color-info)'
-        };
-        return `
-              <div style="
-                font-size: var(--font-size-xs);
-                padding: 0.125rem 0.25rem;
-                background: ${typeColors[e.type] || 'var(--color-info)'};
-                color: white;
-                border-radius: var(--radius-sm);
-                margin-bottom: 0.125rem;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                white-space: nowrap;
-              " title="${e.title}">${e.title}</div>
-            `;
-      }).join('')}
-          ${dayEvents.length > 3 ? `<div style="font-size: var(--font-size-xs); color: var(--text-tertiary);">+${dayEvents.length - 3} more</div>` : ''}
-        </div>
-      `;
-    }
-
-    html += '</div>';
-    return html;
-  },
-
-  renderWeekView() {
-    // Build the 7-day range for the week containing this.currentDate
-    const startOfWeek = new Date(this.currentDate);
-    const dow = startOfWeek.getDay(); // 0=Sun
-    startOfWeek.setDate(startOfWeek.getDate() - dow);
-
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(startOfWeek);
-      d.setDate(startOfWeek.getDate() + i);
-      days.push(d);
-    }
-
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    const hours = [];
-    for (let h = 7; h <= 21; h++) {
-      hours.push(h);
-    }
-
-    const todayStr = new Date().toISOString().split('T')[0];
-
-    const typeColors = {
-      academic: 'var(--color-primary)',
-      holiday: 'var(--color-success)',
-      exam: 'var(--color-danger)',
-      meeting: 'var(--color-warning)',
-      event: 'var(--color-info)'
-    };
-
-    // Helper: does an event touch a given day?
-    const eventsForDay = (dayDate) => {
-      const ds = dayDate.toISOString().split('T')[0];
-      return this.events.filter(e => {
-        const es = new Date(e.start_date).toISOString().split('T')[0];
-        const ee = new Date(e.end_date).toISOString().split('T')[0];
-        return ds >= es && ds <= ee;
-      });
-    };
-
-    let html = `
-      <div style="overflow-x:auto;">
-        <div style="
-          display: grid;
-          grid-template-columns: 60px repeat(7, 1fr);
-          min-width: 600px;
-          border: 1px solid var(--border-primary);
-          border-radius: var(--radius-lg);
-          overflow: hidden;
-        ">
-          <!-- Header row -->
-          <div style="background:var(--bg-tertiary);padding:var(--space-3);border-right:1px solid var(--border-primary);"></div>
-          ${days.map((d, i) => {
-      const ds = d.toISOString().split('T')[0];
-      const isToday = ds === todayStr;
-      return `
-              <div style="
-                background:${isToday ? 'var(--color-primary)' : 'var(--bg-tertiary)'};
-                color:${isToday ? 'white' : 'var(--text-primary)'};
-                text-align:center;
-                padding:var(--space-3) var(--space-2);
-                font-weight:var(--font-weight-semibold);
-                font-size:var(--font-size-sm);
-                border-right:1px solid var(--border-primary);
-              ">
-                <div>${dayNames[d.getDay()]}</div>
-                <div style="font-size:1.1rem;font-weight:700;">${d.getDate()}</div>
+        ${this.view === 'list' ? this.listHTML() : `
+          <div class="cal-layout">
+            <section class="ui-card cal-month">
+              <div class="ui-card-head">
+                <button type="button" class="ui-btn ui-btn-sm" onclick="calendarModule.previousPeriod()" aria-label="Previous month">‹</button>
+                <h2 class="ui-card-title">${this._esc(monthName)}</h2>
+                <button type="button" class="ui-btn ui-btn-sm" onclick="calendarModule.nextPeriod()" aria-label="Next month">›</button>
               </div>
-            `;
-    }).join('')}
+              ${this.monthHTML()}
+              <div class="cal-legend">${this.TYPES.map(([k, l]) => `<span><i class="cal-dot cal-${k}"></i>${l}</span>`).join('')}</div>
+            </section>
+            <section class="ui-card">${this.dayHTML()}</section>
+          </div>`}
 
-          <!-- Time slots -->
-          ${hours.map(h => {
-      const label = `${String(h).padStart(2, '0')}:00`;
-      return `
-              <div style="
-                padding:4px 6px;
-                font-size:var(--font-size-xs);
-                color:var(--text-tertiary);
-                border-right:1px solid var(--border-primary);
-                border-top:1px solid var(--border-primary);
-                min-height:52px;
-                display:flex;
-                align-items:flex-start;
-                background:var(--bg-secondary);
-              ">${label}</div>
-              ${days.map(d => {
-        const dayEvents = eventsForDay(d);
-        const ds = d.toISOString().split('T')[0];
-        return `
-                  <div style="
-                    border-right:1px solid var(--border-primary);
-                    border-top:1px solid var(--border-primary);
-                    min-height:52px;
-                    padding:2px 4px;
-                    background:${ds === todayStr ? 'rgba(19,127,236,0.04)' : 'var(--bg-primary)'};
-                    vertical-align:top;
-                  ">
-                    ${h === 7 ? dayEvents.map(ev => `
-                      <div style="
-                        font-size:0.7rem;
-                        padding:2px 6px;
-                        background:${typeColors[ev.type] || 'var(--color-info)'};
-                        color:white;
-                        border-radius:4px;
-                        margin-bottom:2px;
-                        overflow:hidden;
-                        text-overflow:ellipsis;
-                        white-space:nowrap;
-                      " title="${ev.title}">${ev.title}</div>
-                    `).join('') : ''}
-                  </div>
-                `;
-      }).join('')}
-            `;
-    }).join('')}
-        </div>
-      </div>
-      <p style="text-align:center;margin-top:var(--space-3);font-size:var(--font-size-sm);color:var(--text-tertiary);">
-        All-day events shown in the first row. Use the list view for full details.
-      </p>
-    `;
-    return html;
+        <section class="ui-card">
+          <div class="ui-card-head"><h2 class="ui-card-title">Coming up</h2></div>
+          ${this.upcomingHTML()}
+        </section>
+      </div>`;
   },
 
-  renderListView() {
-    const sortedEvents = [...this.events].sort((a, b) =>
-      new Date(a.start_date) - new Date(b.start_date)
-    );
-
-    if (sortedEvents.length === 0) {
-      return `
-        <div class="empty-state">
-          <div class="empty-state-icon">📅</div>
-          <h3 class="empty-state-title">No Events Scheduled</h3>
-          <p class="empty-state-description">There are no events in the calendar yet.</p>
-        </div>
-      `;
+  monthHTML() {
+    const y = this.month.getFullYear(), m = this.month.getMonth();
+    const days = new Date(y, m + 1, 0).getDate();
+    const lead = (new Date(y, m, 1).getDay() + 6) % 7; // weeks start on Monday
+    const today = this.today();
+    const cells = [];
+    for (let i = 0; i < lead; i++) cells.push('<div class="cal-cell is-blank"></div>');
+    for (let d = 1; d <= days; d++) {
+      const key = calendarEvents.dayKey(new Date(y, m, d));
+      const evs = this.on(key);
+      const weekend = [0, 6].includes(new Date(y, m, d).getDay());
+      cells.push(`
+        <button type="button" class="cal-cell${key === today ? ' is-today' : ''}${key === this.selected ? ' is-on' : ''}${weekend ? ' is-weekend' : ''}"
+          onclick="calendarModule.selectDate('${key}')" aria-label="${this._esc(calendarEvents.fromKey(key).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }))}${evs.length ? `, ${evs.length} event${evs.length === 1 ? '' : 's'}` : ''}">
+          <span class="cal-num">${d}</span>
+          <span class="cal-evs">${evs.slice(0, 2).map(e => `<span class="cal-ev cal-${this._esc(e.type)}">${this._esc(e.title)}</span>`).join('')}${evs.length > 2 ? `<span class="cal-more">+${evs.length - 2}</span>` : ''}</span>
+          ${evs.length ? `<span class="cal-dots">${evs.slice(0, 3).map(e => `<i class="cal-dot cal-${this._esc(e.type)}"></i>`).join('')}</span>` : ''}
+        </button>`);
     }
-
     return `
-      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-        ${sortedEvents.map(event => this.renderEventCard(event)).join('')}
-      </div>
-    `;
+      <div class="cal-grid" role="grid">
+        ${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(d => `<div class="cal-head">${d}</div>`).join('')}
+        ${cells.join('')}
+      </div>`;
   },
 
-  renderEventCard(event) {
-    const typeColors = {
-      academic: 'var(--color-primary)',
-      holiday: 'var(--color-success)',
-      exam: 'var(--color-danger)',
-      meeting: 'var(--color-warning)',
-      event: 'var(--color-info)'
-    };
-
-    const typeIcons = {
-      academic: '📚',
-      holiday: '🎉',
-      exam: '📝',
-      meeting: '👥',
-      event: '📌'
-    };
-
-    const startDate = new Date(event.start_date);
-    const endDate = new Date(event.end_date);
-    const isSameDay = startDate.toDateString() === endDate.toDateString();
-
+  eventRow(e, withYear = false) {
+    const id = this._esc(e.id);
     return `
-      <div class="card" style="border-left: 4px solid ${typeColors[event.type] || 'var(--color-info)'};">
-        <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: var(--space-3);">
-          <div style="flex: 1;">
-            <div style="display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2);">
-              <span style="font-size: 1.5rem;">${typeIcons[event.type] || '📌'}</span>
-              <h4 style="font-weight: var(--font-weight-semibold); margin: 0;">${event.title}</h4>
-            </div>
-            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin: 0;">
-              ${startDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-              ${!isSameDay ? ` - ${endDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : ''}
-            </p>
+      <div class="ui-row cal-row">
+        <i class="cal-dot cal-${this._esc(e.type)}" aria-hidden="true"></i>
+        <div class="ui-row-main">
+          <div class="ui-row-title">${this._esc(e.title)}</div>
+          <div class="ui-row-meta">${this._esc(this.range(e, withYear))} · ${this._esc(this.typeLabel(e.type))}</div>
+          ${e.description ? `<div class="ui-row-meta">${this._esc(e.description)}</div>` : ''}
+        </div>
+        ${this.canEdit() ? `
+          <div class="ui-actions">
+            <button type="button" class="ui-btn ui-btn-sm" onclick="calendarModule.showEditEventModal('${id}')">Edit</button>
+          </div>` : ''}
+      </div>`;
+  },
+
+  dayHTML() {
+    const key = this.selected;
+    const evs = this.on(key);
+    const label = calendarEvents.fromKey(key).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
+    return `
+      <div class="ui-card-head">
+        <h2 class="ui-card-title">${this._esc(label)}</h2>
+        ${key === this.today() ? '<span class="ui-chip is-good">Today</span>' : ''}
+      </div>
+      ${this.events === null ? '<p class="ui-empty">Loading…</p>'
+        : evs.length ? evs.map(e => this.eventRow(e)).join('')
+        : `<p class="ui-empty">Nothing on this day.${this.canEdit() ? ` <button type="button" class="ui-link" onclick="calendarModule.showAddEventModal('${key}')">Add an event</button>` : ''}</p>`}`;
+  },
+
+  listHTML() {
+    if (this.events === null) return '<section class="ui-card"><p class="ui-empty">Loading…</p></section>';
+    const today = this.today();
+    const coming = this.events.filter(e => e.end >= today);
+    const past = this.events.filter(e => e.end < today).reverse().slice(0, 20);
+    return `
+      <section class="ui-card">
+        <div class="ui-card-head"><h2 class="ui-card-title">Today and after</h2><span class="ui-card-note">${coming.length}</span></div>
+        ${coming.length ? coming.map(e => this.eventRow(e, true)).join('') : '<p class="ui-empty">Nothing ahead on the calendar.</p>'}
+      </section>
+      ${past.length ? `
+        <section class="ui-card">
+          <div class="ui-card-head"><h2 class="ui-card-title">Recently</h2></div>
+          ${past.map(e => this.eventRow(e, true)).join('')}
+        </section>` : ''}`;
+  },
+
+  /** Events under way today or starting in the next 60 days. */
+  upcomingHTML() {
+    if (this.events === null) return '<p class="ui-empty">Loading…</p>';
+    const today = this.today();
+    const limit = calendarEvents.dayKey(new Date(Date.now() + 60 * 864e5));
+    const list = this.events.filter(e => e.end >= today && e.start <= limit).slice(0, 6);
+    if (!list.length) return '<p class="ui-empty">Nothing in the next two months.</p>';
+    return list.map(e => {
+      const days = Math.round((calendarEvents.fromKey(e.start) - calendarEvents.fromKey(today)) / 864e5);
+      const when = e.start <= today ? 'On now' : days === 1 ? 'Tomorrow' : `In ${days} days`;
+      return `
+        <div class="ui-row">
+          <i class="cal-dot cal-${this._esc(e.type)}" aria-hidden="true"></i>
+          <div class="ui-row-main">
+            <div class="ui-row-title">${this._esc(e.title)}</div>
+            <div class="ui-row-meta">${this._esc(this.range(e))}</div>
           </div>
-          <span style="
-            padding: 0.25rem 0.75rem;
-            background: ${typeColors[event.type] || 'var(--color-info)'};
-            color: white;
-            border-radius: var(--radius-full);
-            font-size: var(--font-size-xs);
-            font-weight: var(--font-weight-semibold);
-            text-transform: capitalize;
-          ">${event.type}</span>
-        </div>
-        ${event.description ? `<p style="color: var(--text-secondary); font-size: var(--font-size-sm);">${event.description}</p>` : ''}
-      </div>
-    `;
-  },
-
-  renderUpcomingEvents() {
-    const today = new Date();
-    const upcoming = this.events
-      .filter(e => new Date(e.start_date) >= today)
-      .sort((a, b) => new Date(a.start_date) - new Date(b.start_date))
-      .slice(0, 5);
-
-    if (upcoming.length === 0) {
-      return '<p style="color: var(--text-secondary);">No upcoming events</p>';
-    }
-
-    return `
-      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-        ${upcoming.map(event => {
-      const startDate = new Date(event.start_date);
-      const daysUntil = Math.ceil((startDate - today) / (1000 * 60 * 60 * 24));
-
-      return `
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3); background: var(--bg-tertiary); border-radius: var(--radius-md);">
-              <div>
-                <div style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-1);">
-                  ${event.title}
-                </div>
-                <div style="font-size: var(--font-size-sm); color: var(--text-secondary);">
-                  ${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                </div>
-              </div>
-              <div style="text-align: right;">
-                <div style="font-size: var(--font-size-sm); color: var(--text-tertiary);">
-                  ${daysUntil === 0 ? 'Today' : daysUntil === 1 ? 'Tomorrow' : `In ${daysUntil} days`}
-                </div>
-              </div>
-            </div>
-          `;
-    }).join('')}
-      </div>
-    `;
-  },
-
-  getHeaderText() {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'];
-    return `${months[this.currentDate.getMonth()]} ${this.currentDate.getFullYear()}`;
+          <span class="ui-row-meta">${when}</span>
+        </div>`;
+    }).join('');
   },
 
   setView(view) {
@@ -487,98 +226,106 @@ window.calendarModule = {
   },
 
   previousPeriod() {
-    if (this.view === 'month') {
-      this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() - 1, 1);
-    } else if (this.view === 'week') {
-      this.currentDate = new Date(this.currentDate.getTime() - 7 * 24 * 60 * 60 * 1000);
-    }
+    this.month = new Date(this.month.getFullYear(), this.month.getMonth() - 1, 1);
     this.render();
   },
 
   nextPeriod() {
-    if (this.view === 'month') {
-      this.currentDate = new Date(this.currentDate.getFullYear(), this.currentDate.getMonth() + 1, 1);
-    } else if (this.view === 'week') {
-      this.currentDate = new Date(this.currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-    }
+    this.month = new Date(this.month.getFullYear(), this.month.getMonth() + 1, 1);
     this.render();
   },
 
-  selectDate(date) {
-    this.selectedDate = date;
+  selectDate(key) {
+    this.selected = calendarEvents.dayKey(key);
     this.render();
   },
 
-  showAddEventModal() {
-    showModal('Add Calendar Event', `
-      <form id="add-event-form" onsubmit="calendarModule.submitEvent(event)">
-        <div class="form-group">
-          <label class="form-label">Event Title *</label>
-          <input type="text" name="title" class="form-input" required>
+  // ── Add, change, delete ──────────────────────────────────
+
+  _form(ev = null, day = null) {
+    const e = (v) => this._esc(v ?? '');
+    const start = ev?.start || day || this.selected || this.today();
+    return `
+      <form class="fp-form" onsubmit="calendarModule.submitEvent(event${ev ? `, '${e(ev.id)}'` : ''})">
+        <label class="form-group"><span class="form-label">Title</span><input type="text" name="title" class="form-input" required maxlength="255" value="${e(ev?.title)}"></label>
+        <div class="fp-grid">
+          <label class="form-group"><span class="form-label">From</span><input type="date" name="start" class="form-input" required value="${e(start)}"></label>
+          <label class="form-group"><span class="form-label">To (same day if blank)</span><input type="date" name="end" class="form-input" value="${e(ev && ev.end !== ev.start ? ev.end : '')}"></label>
+          <label class="form-group"><span class="form-label">Kind</span>
+            <select name="type" class="form-select">${this.TYPES.map(([k, l]) => `<option value="${k}" ${(ev?.type || 'event') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Start Date *</label>
-            <input type="date" name="start_date" class="form-input" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">End Date *</label>
-            <input type="date" name="end_date" class="form-input" required>
-          </div>
+        <label class="form-group"><span class="form-label">Details</span><textarea name="description" class="form-textarea" rows="3">${e(ev?.description)}</textarea></label>
+        <div class="ui-actions" style="justify-content:space-between;">
+          ${ev ? `<button type="button" class="ui-btn pc-danger" onclick="calendarModule.deleteEvent('${e(ev.id)}')">Delete</button>` : '<span></span>'}
+          <span class="ui-actions">
+            <button type="button" class="ui-btn" onclick="closeModal()">Cancel</button>
+            <button type="submit" class="ui-btn ui-btn-primary">${ev ? 'Save' : 'Add event'}</button>
+          </span>
         </div>
-        <div class="form-group">
-          <label class="form-label">Event Type *</label>
-          <select name="type" class="form-input" required>
-            <option value="academic">Academic</option>
-            <option value="holiday">Holiday</option>
-            <option value="exam">Exam</option>
-            <option value="meeting">Meeting</option>
-            <option value="event">Event</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Description</label>
-          <textarea name="description" class="form-input" rows="3"></textarea>
-        </div>
-        <div style="display: flex; gap: var(--space-3); justify-content: flex-end; margin-top: var(--space-6);">
-          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add Event</button>
-        </div>
-      </form>
-    `);
+      </form>`;
   },
 
-  async submitEvent(e) {
+  showAddEventModal(day) {
+    if (!this.canEdit()) return;
+    showModal('Add an event', this._form(null, day));
+  },
+
+  showEditEventModal(id) {
+    const ev = (this.events || []).find(e => String(e.id) === String(id));
+    if (ev && this.canEdit()) showModal('Change event', this._form(ev));
+  },
+
+  /** The event a form describes, or an error message. */
+  readForm(form) {
+    const f = new FormData(form);
+    const ev = {
+      title: String(f.get('title') || '').trim(),
+      start: String(f.get('start') || ''),
+      end: String(f.get('end') || '') || String(f.get('start') || ''),
+      type: String(f.get('type') || 'event'),
+      description: String(f.get('description') || '').trim()
+    };
+    if (!ev.title) return { error: 'Give the event a title' };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ev.start)) return { error: 'Choose the day it starts' };
+    if (ev.end < ev.start) return { error: 'It cannot end before it starts' };
+    return { ev };
+  },
+
+  async submitEvent(e, id) {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const eventData = Object.fromEntries(formData);
-
-    if (window.supabaseReady) {
-      try {
-        const { data, error } = await supabaseClient
-          .from('calendar_events')
-          .insert([eventData])
-          .select()
-          .single();
-
-        if (error) throw error;
-        this.events.push(data);
-      } catch (error) {
-        console.error('Error creating event:', error);
-        showToast('Failed to create event', 'error');
-        return;
-      }
-    } else {
-      eventData.id = Date.now().toString();
-      this.events.push(eventData);
+    const { ev, error } = this.readForm(e.target);
+    if (error) { showToast(error, 'warning'); return; }
+    const btn = e.target.querySelector('[type=submit]');
+    if (btn) btn.disabled = true;
+    try {
+      if (id) await calendarEvents.update(id, ev);
+      else await calendarEvents.create(ev);
+      if (typeof writeAuditLog === 'function') writeAuditLog(id ? 'CALENDAR_EVENT_UPDATED' : 'CALENDAR_EVENT_CREATED', ev.title, `${ev.start} to ${ev.end}`);
+      closeModal();
+      showToast(id ? 'Event saved' : 'Event added', 'success');
+      this.selected = ev.start;
+      this.month = new Date(calendarEvents.fromKey(ev.start).getFullYear(), calendarEvents.fromKey(ev.start).getMonth(), 1);
+      await this.loadEvents();
+      this.render();
+    } catch (err) {
+      console.error('[Calendar] save failed:', err);
+      showToast('Could not save the event: ' + (err.message || 'unknown error'), 'error');
+      if (btn) btn.disabled = false;
     }
-
-    showToast('Event added successfully', 'success');
-    closeModal();
-    this.render();
   },
 
-  cleanup() {
-    this.selectedDate = null;
+  async deleteEvent(id) {
+    const ev = (this.events || []).find(e => String(e.id) === String(id));
+    if (!ev || !confirm(`Delete "${ev.title}" (${this.range(ev, true)})?`)) return;
+    try {
+      await calendarEvents.remove(id);
+      if (typeof writeAuditLog === 'function') writeAuditLog('CALENDAR_EVENT_DELETED', ev.title, `${ev.start} to ${ev.end}`);
+      closeModal();
+      showToast('Event deleted', 'success');
+      await this.loadEvents();
+      this.render();
+    } catch (err) {
+      showToast('Could not delete the event: ' + (err.message || 'unknown error'), 'error');
+    }
   }
 };

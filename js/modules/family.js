@@ -134,17 +134,11 @@
     },
 
     async loadEvents() {
-      if (!window.supabaseClient) { this.events = []; this.render(); return; }
+      if (!window.supabaseClient || !window.calendarEvents) { this.events = []; this.render(); return; }
       try {
         const today = new Date(); today.setHours(0, 0, 0, 0);
-        const from = new Date(today); from.setDate(from.getDate() - 31);
         const until = new Date(today); until.setDate(until.getDate() + 21);
-        const { data, error } = await supabaseClient.from('calendar_events')
-          .select('id, title, start_date, end_date, type')
-          .gte('start_date', from.toISOString()).lte('start_date', until.toISOString())
-          .order('start_date', { ascending: true });
-        if (error) throw error;
-        this.events = (data || []).filter(e => new Date(e.end_date || e.start_date) >= today).slice(0, 4);
+        this.events = (await calendarEvents.between(today, until)).slice(0, 4);
       } catch (err) {
         console.warn('[Family] calendar not read:', err);
         this.events = [];
@@ -228,8 +222,8 @@
             ${this.events === null ? '<p class="ui-empty">Loading…</p>'
               : this.events.length ? this.events.map(e => `
                 <div class="ui-card fam-notice">
-                  <div class="ui-date" aria-hidden="true"><div class="ui-date-day">${esc(date(e.start_date, { weekday: 'short' }))}</div><div class="ui-date-num">${new Date(e.start_date).getDate()}</div></div>
-                  <div><div class="ui-row-title" style="font-size:0.875rem;">${esc(e.title)}</div><div class="ui-row-meta">${esc(date(e.start_date, { weekday: 'long', day: 'numeric', month: 'long' }))}</div></div>
+                  <div class="ui-date" aria-hidden="true"><div class="ui-date-day">${esc(date(calendarEvents.fromKey(e.start), { weekday: 'short' }))}</div><div class="ui-date-num">${calendarEvents.fromKey(e.start).getDate()}</div></div>
+                  <div><div class="ui-row-title" style="font-size:0.875rem;">${esc(e.title)}</div><div class="ui-row-meta">${esc(date(calendarEvents.fromKey(e.start), { weekday: 'long', day: 'numeric', month: 'long' }))}${e.end !== e.start ? esc(' – ' + date(calendarEvents.fromKey(e.end), { day: 'numeric', month: 'short' })) : ''}</div></div>
                 </div>`).join('')
               : '<p class="ui-empty" style="padding-top:0;">No school events in the next three weeks.</p>'}
           </section>

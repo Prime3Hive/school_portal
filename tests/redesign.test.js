@@ -437,6 +437,56 @@ describe('Inventory: stock, value and low stock', () => {
   });
 });
 
+// ── Calendar ────────────────────────────────────────────────
+describe('Calendar: either table shape, local days', () => {
+  const w = sandbox('2026-09-26T09:00:00', {}, ['js/calendar-events.js']);
+  const c = w.calendarEvents;
+
+  it('the first shape (start_date timestamptz, type)', () => {
+    eq(c.normalise({ id: 1, title: 'Resumption', start_date: '2026-09-14T00:00:00+00:00', end_date: '2026-09-14T00:00:00+00:00', type: 'academic' }),
+      { id: 1, title: 'Resumption', description: '', start: '2026-09-14', end: '2026-09-14', type: 'academic', createdBy: null });
+  });
+  it('the 0003 shape (event_date date, event_type)', () => {
+    const e = c.normalise({ id: 2, title: 'Mid-term', event_date: '2026-10-29', end_date: '2026-10-31', event_type: 'holiday' });
+    eq([e.start, e.end, e.type], ['2026-10-29', '2026-10-31', 'holiday']);
+  });
+  it('a missing or earlier end date means a one-day event', () => {
+    eq([c.normalise({ event_date: '2026-10-05' }).end, c.normalise({ event_date: '2026-10-05', end_date: '2026-10-01' }).end], ['2026-10-05', '2026-10-05']);
+  });
+  it('day keys are local and plain dates pass through unchanged', () => {
+    eq([c.dayKey('2026-09-15'), c.dayKey(new Date(2026, 8, 15)), c.fromKey('2026-09-15').getDate()], ['2026-09-15', '2026-09-15', 15]);
+  });
+  it('between() keeps events touching the range (including ones under way), then writes in the shape it read', async () => {
+    w.supabaseClient = { from: () => ({ select: async () => ({ data: [
+      { id: 'a', title: 'Old', event_date: '2026-09-01', end_date: '2026-09-02' },
+      { id: 'b', title: 'Running', event_date: '2026-09-20', end_date: '2026-09-28' },
+      { id: 'c', title: 'Soon', event_date: '2026-10-05' },
+      { id: 'd', title: 'Later', event_date: '2026-11-20' }
+    ], error: null }) }) };
+    eq((await c.between('2026-09-26', '2026-10-10')).map(e => e.id), ['b', 'c']);
+    // Having read 0003-shaped rows, a new event is written in that shape.
+    let sent;
+    w.supabaseClient.from = () => ({ insert: (rows) => { sent = rows[0]; return { select: () => ({ single: async () => ({ data: { id: 'n', ...rows[0] }, error: null }) }) }; } });
+    await c.create({ title: 'Exams', start: '2026-11-23', end: '2026-11-27', type: 'exam' });
+    eq([sent.event_date, sent.event_type, sent.end_date, 'start_date' in sent], ['2026-11-23', 'exam', '2026-11-27', false]);
+  });
+});
+
+describe('Calendar: an unknown table shape is found on the first write', () => {
+  const w = sandbox('2026-09-26T09:00:00', {}, ['js/calendar-events.js']);
+  it('retries with event_date when start_date does not exist', async () => {
+    const tried = [];
+    w.supabaseClient = { from: () => ({ insert: (rows) => ({ select: () => ({ single: async () => {
+      tried.push('start_date' in rows[0] ? 'start' : 'event');
+      return 'start_date' in rows[0]
+        ? { data: null, error: { code: 'PGRST204', message: "Could not find the 'start_date' column" } }
+        : { data: { id: 'x', ...rows[0] }, error: null };
+    } }) }) }) };
+    const e = await w.calendarEvents.create({ title: 'PTA', start: '2026-10-10', end: '2026-10-10', type: 'meeting' });
+    eq([tried, e.start], [['start', 'event'], '2026-10-10']);
+  });
+});
+
 // ── Label tidying ───────────────────────────────────────────
 describe('Older pages lose leading emoji, not words', () => {
   const src = read('js/portal-shell.js');

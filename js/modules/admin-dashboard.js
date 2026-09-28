@@ -327,25 +327,15 @@ const adminDashboardModule = {
     const until = new Date(today);
     until.setDate(until.getDate() + 14);
 
-    if (!window.supabaseClient) {
+    if (!window.supabaseClient || !window.calendarEvents) {
       this.events = [];
       this.renderEvents();
       return;
     }
     try {
-      // Fetch from a month back so an event already under way still shows.
-      const from = new Date(today);
-      from.setDate(from.getDate() - 31);
-      const { data, error } = await supabaseClient
-        .from('calendar_events')
-        .select('id, title, start_date, end_date, type')
-        .gte('start_date', from.toISOString())
-        .lte('start_date', until.toISOString())
-        .order('start_date', { ascending: true });
-      if (error) throw error;
-      this.events = (data || [])
-        .filter(e => this._ts(e.end_date, e.start_date) >= today.getTime())
-        .slice(0, 5);
+      // Under way today, or starting in the next two weeks (calendar-events.js
+      // reads either shape of the table and compares local days).
+      this.events = (await calendarEvents.between(today, until)).slice(0, 5);
       this.eventsFailed = false;
     } catch (err) {
       console.warn('[Today] Calendar could not be read:', err);
@@ -361,9 +351,9 @@ const adminDashboardModule = {
       return `<p class="ui-empty">${this.eventsFailed ? 'The calendar could not be loaded just now.' : 'Nothing on the calendar for the next two weeks.'}</p>`;
     }
     return this.events.map(e => {
-      const start = new Date(e.start_date);
-      const end = e.end_date ? new Date(e.end_date) : null;
-      const multiDay = end && end.toDateString() !== start.toDateString();
+      const start = calendarEvents.fromKey(e.start);
+      const end = calendarEvents.fromKey(e.end);
+      const multiDay = e.end !== e.start;
       const meta = multiDay
         ? `Until ${end.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}`
         : start.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
