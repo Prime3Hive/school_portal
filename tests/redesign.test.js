@@ -600,6 +600,71 @@ describe('Users & access: logins are counted apart from records', () => {
   });
 });
 
+describe('Users & access: an action says "done" only when something changed', () => {
+  const setup = (updateResult = (c, id, patch) => ({ id, ...patch })) => {
+    const students = [
+      { id: 'P1', name: 'Has login', authId: 'auth-p1', grade: 'Basic 1', section: 'A', status: 'active' },
+      { id: 'P2', name: 'No login', grade: 'Basic 1', section: 'A', status: 'active' },
+      { id: 'P3', name: 'Left', status: 'inactive' }
+    ];
+    const w = sandbox('2026-09-26T09:00:00', { students, staff: [] }, ['js/modules/user-management.js']);
+    const logins = [
+      { id: 'TBD/STU/1', schoolId: 'TBD/STU/1', authId: 'auth-p1', fullName: 'Has login', role: 'student', status: 'active', lastLogin: '2026-09-01' },
+      { id: 'TBD/ADM/1', schoolId: 'TBD/ADM/1', authId: 'auth-a', fullName: 'Admin', role: 'admin', status: 'suspended', lastLogin: '2026-01-01' }
+    ];
+    const log = { student: [], profile: [], toasts: [] };
+    w.isTeachingStaff = () => false;
+    w.escapeJs = v => String(v ?? '');
+    w.confirm = () => true;
+    w.closeModal = () => {};
+    w.writeAuditLog = () => {};
+    w.showToast = (msg, tone) => log.toasts.push(tone);
+    w.dataManager.waitForReady = async () => {};
+    w.dataManager.update = async (c, id, patch) => { log.student.push([c, id, patch]); return updateResult(c, id, patch); };
+    Object.assign(w.authManager, {
+      getUsers: async () => logins.map(u => ({ ...u })),
+      updateUser: async (schoolId, patch) => { log.profile.push([schoolId, patch]); return { success: true }; }
+    });
+    const m = w.userManagementModule;
+    const form = (grade, section) => ({ preventDefault() {}, target: { grade, section } });
+    w.FormData = class { constructor(t) { this.t = t; } *[Symbol.iterator]() { yield ['grade', this.t.grade]; yield ['section', this.t.section]; } };
+    return { w, m, log, form, ready: m._reload() };
+  };
+
+  it('grade and section are written to the student record, found by id or by the login\'s auth_id', async () => {
+    const { m, log, form, ready } = setup();
+    await ready;
+    await m.submitEditStudent(form('Basic 2', 'B'), 'P2');
+    await m.submitEditStudent(form('Basic 3', 'C'), 'TBD/STU/1');
+    eq(log.student, [['students', 'P2', { grade: 'Basic 2', section: 'B' }], ['students', 'P1', { grade: 'Basic 3', section: 'C' }]]);
+    eq([log.profile.length, log.toasts], [0, ['success', 'success']]);
+  });
+
+  it('a save that matched nothing is reported as a failure', async () => {
+    const { m, log, form, ready } = setup(() => null);
+    await ready;
+    await m.submitEditStudent(form('Basic 2', 'B'), 'P2');
+    await m.deleteStudent('P2');
+    eq(log.toasts, ['danger', 'danger']);
+  });
+
+  it('withdrawing marks the record inactive, and suspends the login only when there is one', async () => {
+    const { m, log, ready } = setup();
+    await ready;
+    await m.deleteStudent('P2');
+    await m.deleteStudent('TBD/STU/1');
+    eq(log.student.map(([, id, p]) => [id, p.status]), [['P2', 'inactive'], ['P1', 'inactive']]);
+    eq(log.profile, [['TBD/STU/1', { status: 'inactive' }]]);
+  });
+
+  it('the Suspended tab lists logins only, not inactive records that have none', async () => {
+    const { m, ready } = setup();
+    await ready;
+    const html = m.renderSuspendedTab();
+    eq([html.includes('TBD/ADM/1'), html.includes('Left')], [true, false]);
+  });
+});
+
 // ── Label tidying ───────────────────────────────────────────
 describe('Older pages lose leading emoji, not words', () => {
   const src = read('js/portal-shell.js');

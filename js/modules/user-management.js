@@ -316,15 +316,18 @@ const userManagementModule = {
       }
     }
 
-    // Listen for data changes to auto-refresh
+    // Listen for data changes to auto-refresh. Remove the previous visit's
+    // handler before replacing it; removing the new one (as this used to) left
+    // a stale listener behind on every visit.
+    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
     this._onDataChange = (e) => {
-      if (['students', 'staff', 'invitations'].includes(e.detail.collection)) {
+      if (isStale()) return;
+      if (['students', 'staff', 'invitations'].includes(e.detail?.collection)) {
         this._mergeDirectoryData().then(() => {
-          if (!isStale()) this._container.innerHTML = this.render();
+          if (!isStale() && this._container) this._container.innerHTML = this.render();
         });
       }
     };
-    window.removeEventListener('datamanager:change', this._onDataChange);
     window.addEventListener('datamanager:change', this._onDataChange);
   },
 
@@ -399,6 +402,11 @@ const userManagementModule = {
 
   _esc(v) {
     return typeof window.escapeHtml === 'function' ? window.escapeHtml(v) : String(v ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+  },
+
+  /** A value for a '…' string inside a double-quoted onclick="…". */
+  _js(v) {
+    return this._esc(escapeJs(v));
   },
 
   /**
@@ -541,7 +549,7 @@ const userManagementModule = {
           <div class="ui-row-title">${e(u.fullName || 'Unnamed')}</div>
           <div class="ui-row-meta">${e([this.ROLE_LABELS[u.role]?.replace(/s$/, '') || u.role, u.id, meta].filter(Boolean).join(' · '))}</div>
         </div>
-        <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUserDetails('${e(u.id)}')">View</button>
+        <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUserDetails('${this._js(u.id)}')">View</button>
       </div>`;
 
     return `
@@ -585,11 +593,13 @@ const userManagementModule = {
     const allUsers = this._users;
 
     // Apply filters and search
+    const q = this.searchQuery.toLowerCase();
     let filteredUsers = allUsers.filter(u => {
-      const matchesSearch = !this.searchQuery ||
-        u.fullName.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-        u.email.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-        u.id.toLowerCase().includes(this.searchQuery.toLowerCase());
+      // A profile can have no name or email; this used to throw on either.
+      const matchesSearch = !q ||
+        String(u.fullName || '').toLowerCase().includes(q) ||
+        String(u.email || '').toLowerCase().includes(q) ||
+        String(u.id || '').toLowerCase().includes(q);
 
       const matchesFilter = this.currentFilter === 'all' || u.role === this.currentFilter || u.status === this.currentFilter;
 
@@ -624,7 +634,7 @@ const userManagementModule = {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-4);">
           <div>
             <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">All Users</h3>
-            <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">Showing ${startIndex + 1}–${Math.min(startIndex + this.itemsPerPage, filteredUsers.length)} of ${filteredUsers.length}</p>
+            <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">${filteredUsers.length ? `Showing ${startIndex + 1}–${Math.min(startIndex + this.itemsPerPage, filteredUsers.length)} of ${filteredUsers.length}` : 'No matches'}</p>
           </div>
           <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:center;">
             <div style="position:relative;">
@@ -635,7 +645,7 @@ const userManagementModule = {
               <input type="text" placeholder="Search by name, email, ID..."
                 style="padding:8px 12px 8px 34px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);
                   font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);background:var(--bg-secondary);"
-                value="${this.searchQuery}"
+                value="${this._esc(this.searchQuery)}"
                 oninput="userManagementModule.searchQuery = this.value; userManagementModule.currentPage = 1; userManagementModule._rerenderTab()"
                 onfocus="this.style.borderColor='var(--brand-navy)'" onblur="this.style.borderColor='#e2e8f0'">
             </div>
@@ -729,7 +739,7 @@ const userManagementModule = {
 
   renderUserRow(user) {
     const e = (v) => this._esc(v ?? '');
-    const id = e(user.id);
+    const id = this._js(user.id);
     const login = this._hasLogin(user);
     const off = user.status === 'inactive' || user.status === 'suspended';
     const role = { admin: 'Administrator', teacher: 'Teacher', staff: 'Office staff', student: 'Pupil', guardian: 'Parent' }[user.role] || user.role;
@@ -751,7 +761,7 @@ const userManagementModule = {
           <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUserDetails('${id}')">View</button>
           ${login ? `
             <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.editUserRole('${id}')">Role</button>
-            <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.resendCredentials('${escapeJs(user.schoolId || user.id)}')">New password</button>
+            <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.resendCredentials('${this._js(user.schoolId || user.id)}')">New password</button>
             <button type="button" class="ui-btn ui-btn-sm${off ? '' : ' pc-danger'}" onclick="userManagementModule.toggleUserStatus('${id}')">${off ? 'Restore' : 'Suspend'}</button>`
           : `<button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.showInviteModal()">Give a login</button>`}
         </div>
@@ -796,7 +806,7 @@ const userManagementModule = {
             <input type="text" placeholder="Search students..."
               style="padding:8px 12px 8px 34px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);
                 font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);"
-              value="${this.searchQuery}"
+              value="${this._esc(this.searchQuery)}"
               oninput="userManagementModule.searchQuery = this.value; userManagementModule.switchTab('students')"
               onfocus="this.style.borderColor='#ea580c'" onblur="this.style.borderColor='#e2e8f0'">
           </div>
@@ -819,25 +829,27 @@ const userManagementModule = {
   },
 
   renderStudentRow(user) {
+    const e = (v) => this._esc(v ?? '');
+    const id = this._js(user.id);
     const sts = user.status === 'active'
       ? { color: '#16a34a', bg: '#f0fdf4', label: 'Active' }
-      : { color: '#6b7280', bg: '#f9fafb', label: user.status || 'Inactive' };
+      : { color: '#6b7280', bg: '#f9fafb', label: e(user.status || 'Inactive') };
     return `
       <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:var(--radius-xl);transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.07)'" onmouseout="this.style.boxShadow='none'">
         <div style="flex-shrink:0;width:46px;height:46px;border-radius:50%;background:#fff7ed;color:#ea580c;
           border:2px solid #ea580c33;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;">
-          ${(user.fullName || user.id).charAt(0).toUpperCase()}
+          ${e(String(user.fullName || user.id || '?').charAt(0).toUpperCase())}
         </div>
         <div style="flex:1.5;min-width:0;">
-          <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${user.fullName || 'N/A'}</div>
-          <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${user.id}</div>
+          <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${e(user.fullName || 'N/A')}</div>
+          <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${e(user.id)}</div>
         </div>
         <div style="flex:2;min-width:0;">
-          <div style="font-size:0.82rem;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user.email || 'N/A'}</div>
+          <div style="font-size:0.82rem;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e(user.email || 'N/A')}</div>
         </div>
         <div style="flex-shrink:0;display:flex;gap:var(--space-2);">
-          ${user.grade ? `<span style="background:#fff7ed;color:#ea580c;border:1px solid #ea580c33;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;">Grade ${user.grade}</span>` : ''}
-          ${user.section ? `<span style="background:var(--bg-primary);color:var(--text-tertiary);border:1px solid var(--border-primary);padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;">Sec ${user.section}</span>` : ''}
+          ${user.grade ? `<span style="background:#fff7ed;color:#ea580c;border:1px solid #ea580c33;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;">Grade ${e(user.grade)}</span>` : ''}
+          ${user.section ? `<span style="background:var(--bg-primary);color:var(--text-tertiary);border:1px solid var(--border-primary);padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;">Sec ${e(user.section)}</span>` : ''}
         </div>
         <span style="display:inline-flex;align-items:center;gap:5px;background:${sts.bg};color:${sts.color};
           border:1px solid ${sts.color}22;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;flex-shrink:0;">
@@ -845,19 +857,19 @@ const userManagementModule = {
           ${sts.label}
         </span>
         <div style="flex-shrink:0;display:flex;gap:6px;">
-          <button onclick="userManagementModule.viewUser('${user.id}')" title="View"
+          <button onclick="userManagementModule.viewUser('${id}')" title="View"
             style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
             onmouseover="this.style.borderColor='#ea580c';this.style.color='#ea580c'"
             onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
-          <button onclick="userManagementModule.editStudent('${user.id}')" title="Edit"
+          <button onclick="userManagementModule.editStudent('${id}')" title="Edit"
             style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
             onmouseover="this.style.borderColor='#ea580c';this.style.color='#ea580c'"
             onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
-          <button onclick="userManagementModule.deleteStudent('${user.id}')" title="Delete"
+          <button onclick="userManagementModule.deleteStudent('${id}')" title="Withdraw" aria-label="Withdraw"
             style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid #fee2e2;background:#fff5f5;color:#dc2626;cursor:pointer;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
           </button>
@@ -1025,10 +1037,12 @@ const userManagementModule = {
       suspended: { color: '#dc2626', bg: '#fef2f2', label: 'Suspended' },
       deleted:   { color: '#64748b', bg: '#f8fafc', label: 'Account deleted' }
     };
-    const rcfg = roleConfig[invitation.role] || { color: '#64748b', bg: '#f8fafc', label: invitation.role || 'Unknown' };
+    const e = (v) => this._esc(v ?? '');
+    const rcfg = roleConfig[invitation.role] || { color: '#64748b', bg: '#f8fafc', label: e(invitation.role || 'Unknown') };
     const scfg = statusConfig[status];
-    const name = invitation.full_name || invitation.metadata?.fullName || 'N/A';
-    const dept = invitation.school_id || invitation.metadata?.department || '';
+    const name = e(invitation.full_name || invitation.metadata?.fullName || 'N/A');
+    const dept = e(invitation.school_id || invitation.metadata?.department || '');
+    const token = this._js(invitation.token);
     const sentDate = new Date(invitation.created_at || invitation.createdAt || Date.now()).toLocaleDateString();
     const lastSeen = user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'not yet';
 
@@ -1045,7 +1059,7 @@ const userManagementModule = {
         <!-- Name + Email -->
         <div style="flex:1.5;min-width:0;">
           <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${name}</div>
-          <div style="font-size:0.75rem;color:var(--text-tertiary);">${invitation.email}</div>
+          <div style="font-size:0.75rem;color:var(--text-tertiary);">${e(invitation.email)}</div>
         </div>
         <div style="flex:1;min-width:0;font-size:0.8rem;color:var(--text-tertiary);">${dept}</div>
 
@@ -1069,20 +1083,20 @@ const userManagementModule = {
         <!--Actions -->
     <div style="flex-shrink:0;display:flex;gap:6px;">
       ${user ? `
-            <button onclick="userManagementModule.viewInvitationDetails('${invitation.token}')" title="View Details"
+            <button onclick="userManagementModule.viewInvitationDetails('${token}')" title="View Details"
               style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
                 border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
               onmouseover="this.style.borderColor='#7c3aed';this.style.color='#7c3aed'"
               onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
-            <button onclick="userManagementModule.resendCredentials('${invitation.school_id}')" title="Email a new password"
+            <button onclick="userManagementModule.resendCredentials('${this._js(invitation.school_id)}')" title="Email a new password"
               style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
                 border-radius:8px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;cursor:pointer;">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
             </button>
           ` : ''}
-      <button onclick="userManagementModule.deleteInvitation('${invitation.token}')" title="Delete"
+      <button onclick="userManagementModule.deleteInvitation('${token}')" title="Delete"
         style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
               border-radius:8px;border:1px solid #fee2e2;background:#fff5f5;color:#dc2626;cursor:pointer;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
@@ -1352,23 +1366,38 @@ const userManagementModule = {
     }
   },
 
+  /**
+   * The students-table row behind a listed pupil. A merged record's id is the
+   * row id; a login points at its row through auth_id. Grade, section and
+   * enrolment status live on this row, not on the login's profile.
+   */
+  _studentRecordFor(user) {
+    if (!user) return null;
+    const rows = dataManager.getAll('students') || [];
+    if (!this._hasLogin(user)) return rows.find(s => s.id === user.id) || null;
+    return rows.find(s => user.authId && (s.authId || s.auth_id) === user.authId) || null;
+  },
+
   editStudent(userId) {
     const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    if (!user) { showToast('Pupil not found', 'danger'); return; }
+    const record = this._studentRecordFor(user);
+    if (!record) { showToast(`${user.fullName} has no student record to edit.`, 'info'); return; }
 
     const content = `
-      <form id="edit-student-form" onsubmit="userManagementModule.submitEditStudent(event, '${userId}')">
+      <form id="edit-student-form" onsubmit="userManagementModule.submitEditStudent(event, '${this._js(userId)}')">
         <div class="grid grid-cols-2 gap-4">
           <div class="form-group">
             <label class="form-label">Grade</label>
             <select class="form-select" name="grade">
-              ${schoolConfig.gradeOptionsHTML(user.grade)}
+              ${schoolConfig.gradeOptionsHTML(record.grade)}
             </select>
           </div>
 
           <div class="form-group">
             <label class="form-label">Section</label>
             <select class="form-select" name="section">
-              ${['A', 'B', 'C', 'D'].map(s => `<option value="${s}" ${user.section === s ? 'selected' : ''}>${s}</option>`).join('')}
+              ${['A', 'B', 'C', 'D'].map(s => `<option value="${s}" ${record.section === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -1380,34 +1409,49 @@ const userManagementModule = {
       </form>
     `;
 
-    showModal(`Edit Student - ${user.fullName}`, content);
+    showModal(`Edit pupil - ${this._esc(user.fullName)}`, content);
   },
 
+  // Grade and section are written to the students table. They used to go to
+  // authManager.updateUser, which only writes profile fields and drops these,
+  // so nothing saved and the page still said "updated".
   async submitEditStudent(event, userId) {
     event.preventDefault();
-    const formData = new FormData(event.target);
-    const data = Object.fromEntries(formData);
+    const data = Object.fromEntries(new FormData(event.target));
+    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    const record = this._studentRecordFor(user);
+    if (!record) { showToast('Not changed: this pupil has no student record to update.', 'danger'); return; }
 
-    await authManager.updateUser(userId, {
-      grade: data.grade,
-      section: data.section
-    });
+    const saved = await dataManager.update('students', record.id, { grade: data.grade, section: data.section });
+    if (!saved) { showToast('Not changed: the student record could not be saved.', 'danger'); return; }
     await this._reload();
 
-    showToast('Student updated successfully', 'success');
-    writeAuditLog('EDIT_STUDENT', userId, `Grade: ${data.grade} | Section: ${data.section} `);
+    showToast('Pupil updated', 'success');
+    writeAuditLog('EDIT_STUDENT', userId, `Grade: ${data.grade} | Section: ${data.section}`);
     closeModal();
     this.switchTab('students');
   },
 
+  // Withdrawal marks the student record inactive; it deletes nothing. It used
+  // to update a profile by the record's id, which matched nothing for a pupil
+  // without a login, and still reported "deleted".
   async deleteStudent(userId) {
-    if (confirm('Are you sure you want to delete this student? This action cannot be undone.')) {
-      await authManager.updateUser(userId, { status: 'inactive' });
-      await this._reload(); // force-refresh after mutation
-      showToast('Student deleted successfully', 'success');
-      writeAuditLog('DELETE_STUDENT', userId, 'Status set to inactive');
-      this.switchTab('students');
+    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    const record = this._studentRecordFor(user);
+    if (!record) { showToast('Not changed: this pupil has no student record.', 'danger'); return; }
+    const login = this._hasLogin(user);
+    if (!confirm(`Withdraw ${user.fullName}? Their record is kept but marked inactive${login ? ', and their login is suspended' : ''}.`)) return;
+
+    const saved = await dataManager.update('students', record.id, { status: 'inactive' });
+    if (!saved) { showToast('Not changed: the student record could not be saved.', 'danger'); return; }
+    if (login) {
+      const result = await authManager.updateUser(user.schoolId, { status: 'inactive' });
+      if (!result?.success) showToast('Record withdrawn, but the login was not suspended: ' + (result?.error || 'unknown error'), 'warning');
     }
+    await this._reload();
+    showToast(`${user.fullName} withdrawn`, 'success');
+    writeAuditLog('WITHDRAW_STUDENT', userId, `Student record set to inactive${login ? '; login suspended' : ''}`);
+    this.switchTab('students');
   },
 
   // ============================================
@@ -1415,7 +1459,10 @@ const userManagementModule = {
   // ============================================
 
   renderSuspendedTab() {
-    const suspendedUsers = this._users.filter(u => u.status === 'suspended' || u.status === 'inactive');
+    // Logins only. An inactive pupil or staff record has no login to restore
+    // or delete; both actions matched nothing and still reported success.
+    const e = (v) => this._esc(v ?? '');
+    const suspendedUsers = this._users.filter(u => this._hasLogin(u) && (u.status === 'suspended' || u.status === 'inactive'));
     const filtered = suspendedUsers.filter(u =>
       !this.searchQuery ||
       (u.fullName || '').toLowerCase().includes(this.searchQuery.toLowerCase()) ||
@@ -1443,7 +1490,8 @@ const userManagementModule = {
       : filtered.map(user => {
           const cfg = roleConfig[user.role] || { color: '#64748b', bg: '#f8fafc', label: user.role || 'User' };
           const statusLabel = user.status === 'suspended' ? 'Suspended' : 'Inactive';
-          const safeName = (user.fullName || '').replace(/'/g, '&#39;');
+          const safeName = this._js(user.fullName || '');
+          const safeId = this._js(user.id);
           return `
             <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);
               background:#fff8f8;border:1px solid #fecaca;border-radius:var(--radius-xl);
@@ -1454,17 +1502,17 @@ const userManagementModule = {
               <div style="flex-shrink:0;width:46px;height:46px;border-radius:50%;
                 background:${cfg.bg};color:${cfg.color};border:2px solid ${cfg.color}33;
                 display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;opacity:0.75;">
-                ${(user.fullName || user.id).charAt(0).toUpperCase()}
+                ${e(String(user.fullName || user.id || '?').charAt(0).toUpperCase())}
               </div>
 
               <div style="flex:1.5;min-width:0;">
-                <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${user.fullName || 'N/A'}</div>
-                <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${user.id}</div>
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${e(user.fullName || 'N/A')}</div>
+                <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${e(user.id)}</div>
               </div>
 
               <div style="flex:2;min-width:0;">
-                <div style="font-size:0.82rem;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user.email || '—'}</div>
-                <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:2px;">${user.department || ''}</div>
+                <div style="font-size:0.82rem;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e(user.email || '—')}</div>
+                <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:2px;">${e(user.department)}</div>
               </div>
 
               <div style="flex-shrink:0;">
@@ -1483,7 +1531,7 @@ const userManagementModule = {
               </div>
 
               <div style="flex-shrink:0;display:flex;gap:6px;">
-                <button onclick="userManagementModule.unsuspendUser('${user.id}')" title="Unsuspend / Reactivate"
+                <button onclick="userManagementModule.unsuspendUser('${safeId}')" title="Unsuspend / Reactivate"
                   style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;
                     border-radius:8px;border:1px solid #bbf7d0;background:#f0fdf4;color:#16a34a;
                     font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;"
@@ -1492,7 +1540,7 @@ const userManagementModule = {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
                   Unsuspend
                 </button>
-                <button onclick="userManagementModule.permanentlyDeleteUser('${user.id}', '${safeName}')" title="Delete Permanently"
+                <button onclick="userManagementModule.permanentlyDeleteUser('${safeId}', '${safeName}')" title="Delete Permanently"
                   style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;
                     border-radius:8px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;
                     font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;"
@@ -1522,7 +1570,7 @@ const userManagementModule = {
             <input type="text" placeholder="Search suspended users..."
               style="padding:8px 12px 8px 34px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);
                 font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);"
-              value="${this.searchQuery}"
+              value="${e(this.searchQuery)}"
               oninput="userManagementModule.searchQuery = this.value; userManagementModule.switchTab('suspended')"
               onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e2e8f0'">
           </div>
@@ -1684,51 +1732,52 @@ const userManagementModule = {
       showToast('User not found', 'danger');
       return;
     }
+    const e = (v) => this._esc(v ?? '');
 
     const content = `
       <div class="grid grid-cols-2 gap-4">
         <div>
           <p class="text-sm text-secondary mb-1">User ID</p>
-          <p class="font-semibold">${user.id}</p>
+          <p class="font-semibold">${e(user.id)}</p>
         </div>
         <div>
           <p class="text-sm text-secondary mb-1">Role</p>
-          <p>${createBadge(user.role, 'info')}</p>
+          <p>${createBadge(e(user.role), 'info')}</p>
         </div>
         <div>
           <p class="text-sm text-secondary mb-1">Full Name</p>
-          <p class="font-semibold">${user.fullName}</p>
+          <p class="font-semibold">${e(user.fullName)}</p>
         </div>
         <div>
           <p class="text-sm text-secondary mb-1">Email</p>
-          <p>${user.email}</p>
+          <p>${e(user.email || '—')}</p>
         </div>
         <div>
           <p class="text-sm text-secondary mb-1">Status</p>
-          <p>${createBadge(user.status, user.status === 'active' ? 'success' : 'secondary')}</p>
+          <p>${createBadge(e(user.status), user.status === 'active' ? 'success' : 'secondary')}</p>
         </div>
         <div>
           <p class="text-sm text-secondary mb-1">Created</p>
-          <p>${new Date(user.createdAt).toLocaleDateString()}</p>
+          <p>${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</p>
         </div>
         ${user.grade ? `
           <div>
             <p class="text-sm text-secondary mb-1">Grade</p>
-            <p>${user.grade}</p>
+            <p>${e(user.grade)}</p>
           </div>
         ` : ''
       }
         ${user.section ? `
           <div>
             <p class="text-sm text-secondary mb-1">Section</p>
-            <p>${user.section}</p>
+            <p>${e(user.section)}</p>
           </div>
         ` : ''
       }
       </div>
     `;
 
-    showModal(`User Details - ${user.fullName}`, content);
+    showModal(`User Details - ${e(user.fullName)}`, content);
   },
 
   async toggleUserStatus(userId) {
@@ -2761,12 +2810,14 @@ const userManagementModule = {
 
   editUserRole(userId) {
     const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    if (!user) { showToast('User not found', 'danger'); return; }
+    const e = (v) => this._esc(v ?? '');
 
     const content = `
-      <form id="edit-role-form" onsubmit="userManagementModule.submitRoleChange(event, '${userId}')">
+      <form id="edit-role-form" onsubmit="userManagementModule.submitRoleChange(event, '${this._js(userId)}')">
         <div class="mb-4">
-          <p><strong>User:</strong> ${user.fullName}</p>
-          <p style="color: var(--text-secondary);">${user.email}</p>
+          <p><strong>User:</strong> ${e(user.fullName)}</p>
+          <p style="color: var(--text-secondary);">${e(user.email)}</p>
         </div>
 
         <div class="form-group">
@@ -2777,11 +2828,6 @@ const userManagementModule = {
             <option value="staff" ${user.role === 'staff' ? 'selected' : ''}>Staff</option>
             <option value="student" ${user.role === 'student' ? 'selected' : ''}>Student</option>
           </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Department</label>
-          <input type="text" class="form-input" name="department" value="${user.department || ''}" placeholder="e.g., Mathematics">
         </div>
 
         <div class="form-actions">
@@ -2843,7 +2889,7 @@ const userManagementModule = {
       this.logAuditEvent('credentials_reissued', result.email || who, `New password issued for ${schoolId}`);
       this._invitations = await authManager.getInvitations(true);
       await this._reload();
-      this.render();
+      if (this._container) this._container.innerHTML = this.render();
 
       showCredentialModal(
         result.fullName || user?.fullName || schoolId,
@@ -2888,24 +2934,13 @@ const userManagementModule = {
     try {
       // 1. Remove the account itself first — delete-user cleans up auth user,
       //    profile and role record together.
+      //    If that fails, stop: this used to log a warning, remove the log row
+      //    anyway and report "Account deleted" while the login still worked.
       if (hasAccount && invitation.school_id) {
-        const { data: { session: supabaseSession } } = await supabaseClient.auth.getSession();
-        const accessToken = supabaseSession?.access_token;
-
-        if (accessToken) {
-          const delRes = await fetch(`${SUPABASE_URL}/functions/v1/delete-user`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${accessToken}`,
-              'apikey': SUPABASE_ANON
-            },
-            body: JSON.stringify({ schoolId: invitation.school_id })
-          });
-          const delData = await delRes.json();
-          if (!delData.success) {
-            console.warn('User deletion warning:', delData.error);
-          }
+        const del = await authManager.deleteUser(invitation.school_id);
+        if (!del?.success) {
+          showToast('Not deleted: ' + (del?.error || 'unknown error'), 'danger');
+          return;
         }
       }
 
@@ -2926,7 +2961,7 @@ const userManagementModule = {
 
       this._invitations = await authManager.getInvitations(true);
       await this._reload();
-      this.render();
+      if (this._container) this._container.innerHTML = this.render();
 
       showToast(hasAccount ? 'Account deleted' : 'Record removed', 'success');
     } catch (error) {
@@ -2984,7 +3019,7 @@ const userManagementModule = {
         </div>
 
         ${user ? `
-          <button class="btn btn-primary" onclick="closeModal(); userManagementModule.resendCredentials('${invitation.school_id}');">
+          <button class="btn btn-primary" onclick="closeModal(); userManagementModule.resendCredentials('${this._js(invitation.school_id)}');">
             Email a new password
           </button>
         ` : ''}
