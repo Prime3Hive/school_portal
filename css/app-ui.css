@@ -1427,3 +1427,9 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
   .cal-evs { display: none; }
   .cal-dots { display: flex; }
 }
+
+/* ============================================
+   MY PROFILE
+   ============================================ */
+.prof-head { display: flex; align-items: center; gap: 14px; }
+.prof-pw { max-width: 720px; }

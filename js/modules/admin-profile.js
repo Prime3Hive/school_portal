@@ -1,6 +1,16 @@
 // ============================================
-// ADMIN PROFILE MODULE
-// Displays and allows editing of the logged-in admin's profile
+// MY PROFILE
+// ============================================
+// The signed-in person's own account: name, contact details, password.
+//
+// Name and contact email live on the profile (profiles). Phone and
+// department are not profile columns: they live on the person's staff row,
+// matched on their login. The old page sent them to updateUser, which
+// dropped them, and then said "saved" whatever happened. Someone with no
+// staff row (an admin account) is not offered them.
+//
+// The contact email is where the school writes to; signing in uses the
+// login ID, so changing it does not change how they sign in.
 // ============================================
 
 const adminProfileModule = {
@@ -8,268 +18,169 @@ const adminProfileModule = {
     currentUser: null,
 
     async init(container) {
+        this._container = container || document.getElementById('main-content');
         this.currentSession = authManager.getSession();
-
-        if (!container) {
-            container = document.getElementById('main-content');
-        }
-        this._container = container;
-
         await dataManager.waitForReady();
         this.currentUser = await authManager.getUserById(this.currentSession.userId);
-
         if (!this.currentUser) {
-            container.innerHTML = `<div class="card" style="text-align:center;padding:var(--space-10);"><p style="color:var(--color-danger);">Could not load profile. Please reload the page.</p></div>`;
+            this._container.innerHTML = `<div class="ui-page"><div class="ui-card"><p class="ui-empty">Your profile could not be loaded. Reload the page to try again.</p></div></div>`;
             return;
         }
-        container.innerHTML = this.render();
+        this._container.innerHTML = this.render();
+    },
+
+    _esc(v) {
+        return typeof window.escapeHtml === 'function'
+            ? window.escapeHtml(v)
+            : String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    },
+
+    /** This person's staff row, if they have one. */
+    staffRow() {
+        const authId = this.currentSession?.supabaseId;
+        return authId ? (dataManager.getAll('staff') || []).find(s => (s.authId || s.auth_id) === authId) || null : null;
+    },
+
+    _date(v, withTime) {
+        if (!v) return '—';
+        const d = new Date(v);
+        return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', ...(withTime ? { hour: '2-digit', minute: '2-digit' } : {}) });
     },
 
     render() {
-        const user = this.currentUser;
-        const session = this.currentSession;
-
-        const lastLogin = user.lastLogin
-            ? new Date(user.lastLogin).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
-            : 'First Login';
-
-        const memberSince = new Date(user.createdAt).toLocaleDateString('en-US', {
-            year: 'numeric', month: 'long', day: 'numeric'
-        });
-
-        const roleColors = {
-            admin: 'danger', teacher: 'primary', staff: 'info', student: 'success'
-        };
+        const u = this.currentUser;
+        const staff = this.staffRow();
+        const e = (v) => this._esc(v ?? '');
+        const role = { admin: 'Administrator', staff: 'Office staff', teacher: 'Teacher', student: 'Pupil', guardian: 'Parent' }[u.role] || u.role;
+        const initials = String(u.fullName || '?').split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 
         return `
-      <div class="module-container animate-fadeIn">
-        <!-- Header -->
-        <div class="module-header">
+      <div class="ui-page">
+        <div class="ui-page-head">
           <div>
-            <h1 class="module-title">👤 My Profile</h1>
-            <p class="module-subtitle">Manage your account information and security settings</p>
+            <h1 class="ui-page-title">My profile</h1>
+            <p class="ui-page-sub">Your details and your password</p>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <!-- Left Column: Profile Card -->
-          <div class="space-y-6">
-            <div class="card" style="text-align: center;">
-              <div style="
-                width: 100px; height: 100px;
-                border-radius: 50%;
-                background: var(--gradient-primary);
-                display: flex; align-items: center; justify-content: center;
-                font-size: 2.5rem; font-weight: 700; color: white;
-                margin: 0 auto var(--space-4);
-              ">
-                ${user.fullName.charAt(0).toUpperCase()}
+        <div class="set-grid">
+          <section class="ui-card">
+            <div class="prof-head">
+              <span class="sd-avatar sr-avatar" aria-hidden="true">${e(initials)}</span>
+              <div>
+                <div class="ui-row-title" style="font-size:1.125rem;">${e(u.fullName)}</div>
+                <div class="sr-chips" style="margin-top:6px;"><span class="ui-chip is-info">${e(role)}</span>${u.status && u.status !== 'active' ? `<span class="ui-chip is-warn">${e(u.status)}</span>` : ''}</div>
               </div>
-              <h2 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-bold); margin-bottom: var(--space-2);">
-                ${user.fullName}
-              </h2>
-              <div style="margin-bottom: var(--space-3);">
-                ${createBadge(user.role.charAt(0).toUpperCase() + user.role.slice(1), roleColors[user.role] || 'secondary')}
-              </div>
-              <p style="font-size: var(--font-size-sm); color: var(--text-secondary);">${user.email}</p>
             </div>
+            <dl class="sr-dl sr-dl-2" style="margin-top:16px;">
+              <div><dt>Login ID</dt><dd>${e(u.id)}</dd></div>
+              <div><dt>Account since</dt><dd>${this._date(u.createdAt)}</dd></div>
+              <div><dt>Last signed in</dt><dd>${u.lastLogin ? this._date(u.lastLogin, true) : 'This is the first time'}</dd></div>
+              ${staff?.department ? `<div><dt>Department</dt><dd>${e(staff.department)}</dd></div>` : ''}
+            </dl>
+          </section>
 
-            <!-- Account Stats -->
-            <div class="card">
-              <h3 style="font-size: var(--font-size-lg); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4);">Account Info</h3>
-              <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3); background: var(--bg-tertiary); border-radius: var(--radius-md);">
-                  <span style="font-size: var(--font-size-sm); color: var(--text-secondary);">User ID</span>
-                  <strong style="font-family: monospace; font-size: var(--font-size-sm);">${user.id}</strong>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3); background: var(--bg-tertiary); border-radius: var(--radius-md);">
-                  <span style="font-size: var(--font-size-sm); color: var(--text-secondary);">Status</span>
-                  ${createBadge(user.status || 'active', user.status === 'active' ? 'success' : 'danger')}
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3); background: var(--bg-tertiary); border-radius: var(--radius-md);">
-                  <span style="font-size: var(--font-size-sm); color: var(--text-secondary);">Member Since</span>
-                  <span style="font-size: var(--font-size-sm);">${memberSince}</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3); background: var(--bg-tertiary); border-radius: var(--radius-md);">
-                  <span style="font-size: var(--font-size-sm); color: var(--text-secondary);">Last Login</span>
-                  <span style="font-size: var(--font-size-sm);">${lastLogin}</span>
-                </div>
-                ${user.department ? `
-                <div style="display: flex; justify-content: space-between; align-items: center; padding: var(--space-3); background: var(--bg-tertiary); border-radius: var(--radius-md);">
-                  <span style="font-size: var(--font-size-sm); color: var(--text-secondary);">Department</span>
-                  <span style="font-size: var(--font-size-sm);">${user.department}</span>
+          <section class="ui-card">
+            <div class="ui-card-head"><h2 class="ui-card-title">Your details</h2></div>
+            <form class="fp-form" onsubmit="adminProfileModule.saveProfile(event)">
+              <label class="form-group"><span class="form-label">Full name</span>
+                <input type="text" id="profileFullName" class="form-input" value="${e(u.fullName)}" required></label>
+              <label class="form-group"><span class="form-label">Contact email</span>
+                <input type="email" id="profileEmail" class="form-input" value="${e(u.email)}" required>
+                <span class="ui-row-meta">Where the school writes to you. You still sign in with your login ID.</span></label>
+              ${staff ? `
+                <div class="fp-grid">
+                  <label class="form-group"><span class="form-label">Phone</span>
+                    <input type="tel" id="profilePhone" class="form-input" value="${e(staff.phone)}" placeholder="0803 000 0000"></label>
+                  <label class="form-group"><span class="form-label">Department</span>
+                    <input type="text" id="profileDepartment" class="form-input" value="${e(staff.department)}"></label>
                 </div>` : ''}
+              <div class="ui-actions" style="justify-content:flex-end;"><button type="submit" class="ui-btn ui-btn-primary">Save</button></div>
+            </form>
+          </section>
+
+          <section class="ui-card set-wide">
+            <div class="ui-card-head"><h2 class="ui-card-title">Change password</h2></div>
+            <form id="passwordForm" class="fp-form prof-pw" onsubmit="adminProfileModule.changePassword(event)">
+              <label class="form-group"><span class="form-label">Current password</span>
+                <input type="password" id="currentPassword" class="form-input" autocomplete="current-password" required></label>
+              <div class="fp-grid">
+                <label class="form-group"><span class="form-label">New password (8 characters or more)</span>
+                  <input type="password" id="newPassword" class="form-input" autocomplete="new-password" required minlength="8"></label>
+                <label class="form-group"><span class="form-label">New password again</span>
+                  <input type="password" id="confirmPassword" class="form-input" autocomplete="new-password" required minlength="8"></label>
               </div>
-            </div>
-          </div>
-
-          <!-- Right Column: Edit Forms -->
-          <div class="lg:col-span-2 space-y-6">
-            <!-- Profile Info Form -->
-            <div class="card">
-              <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
-                ✏️ Edit Profile Information
-              </h3>
-              <form id="profileForm" onsubmit="adminProfileModule.saveProfile(event)">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div class="form-group">
-                    <label class="form-label">Full Name</label>
-                    <input type="text" id="profileFullName" class="form-input"
-                      value="${user.fullName}" required>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Email Address</label>
-                    <input type="email" id="profileEmail" class="form-input"
-                      value="${user.email}" required>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Department</label>
-                    <input type="text" id="profileDepartment" class="form-input"
-                      value="${user.department || ''}" placeholder="e.g. Administration">
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Phone Number</label>
-                    <input type="tel" id="profilePhone" class="form-input"
-                      value="${user.phone || ''}" placeholder="+234-xxx-xxx-xxxx">
-                  </div>
-                </div>
-                <div style="margin-top: var(--space-6); display: flex; justify-content: flex-end;">
-                  <button type="submit" class="btn btn-primary">💾 Save Changes</button>
-                </div>
-              </form>
-            </div>
-
-            <!-- Password Change Form -->
-            <div class="card">
-              <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2);">
-                🔐 Change Password
-              </h3>
-              <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-6);">
-                For security, your current password is required to set a new one.
-              </p>
-              <form id="passwordForm" onsubmit="adminProfileModule.changePassword(event)">
-                <div class="form-group">
-                  <label class="form-label">Current Password</label>
-                  <input type="password" id="currentPassword" class="form-input"
-                    placeholder="Enter your current password" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label">New Password</label>
-                  <input type="password" id="newPassword" class="form-input"
-                    placeholder="Minimum 8 characters" required minlength="8">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Confirm New Password</label>
-                  <input type="password" id="confirmPassword" class="form-input"
-                    placeholder="Re-enter your new password" required minlength="8">
-                </div>
-                <div id="passwordError" style="color: var(--color-danger); font-size: var(--font-size-sm); margin-bottom: var(--space-4); display: none;"></div>
-                <div style="display: flex; justify-content: flex-end;">
-                  <button type="submit" class="btn btn-warning">🔑 Update Password</button>
-                </div>
-              </form>
-            </div>
-
-            <!-- Activity Summary -->
-            <div class="card">
-              <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-4);">
-                📊 Account Activity
-              </h3>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div class="stat-card primary">
-                  <div class="stat-label">Role</div>
-                  <div class="stat-value" style="font-size: var(--font-size-xl);">${user.role.toUpperCase()}</div>
-                </div>
-                <div class="stat-card success">
-                  <div class="stat-label">Permissions</div>
-                  <div class="stat-value" style="font-size: var(--font-size-xl);">
-                    ${Array.isArray(user.permissions) && user.permissions.includes('all') ? 'Full Access' : user.permissions?.length || 0}
-                  </div>
-                </div>
-                <div class="stat-card info">
-                  <div class="stat-label">Account Status</div>
-                  <div class="stat-value" style="font-size: var(--font-size-xl);">${(user.status || 'active').toUpperCase()}</div>
-                </div>
-              </div>
-            </div>
-          </div>
+              <p id="passwordError" class="ui-card-note set-danger" role="alert" hidden></p>
+              <div class="ui-actions" style="justify-content:flex-end;"><button type="submit" class="ui-btn ui-btn-primary">Change password</button></div>
+            </form>
+          </section>
         </div>
-      </div>
-    `;
+      </div>`;
     },
 
     async saveProfile(event) {
         event.preventDefault();
-
+        const btn = event.target.querySelector('[type="submit"]');
         const fullName = document.getElementById('profileFullName').value.trim();
         const email = document.getElementById('profileEmail').value.trim();
-        const department = document.getElementById('profileDepartment').value.trim();
-        const phone = document.getElementById('profilePhone').value.trim();
+        const staff = this.staffRow();
+        if (!fullName || !email) { showToast('Name and email are required', 'error'); return; }
 
-        if (!fullName || !email) {
-            showToast('Name and email are required.', 'error');
-            return;
-        }
-
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
         try {
-            await authManager.updateUser(this.currentSession.userId, { fullName, email, department, phone });
-            this.currentUser = await authManager.getUserById(this.currentSession.userId);
-            showToast('Profile updated successfully!', 'success');
-
-            // Update header name if displayed
-            const userNameEl = document.getElementById('user-name');
-            if (userNameEl) userNameEl.textContent = fullName;
+            const result = await authManager.updateUser(this.currentSession.userId, { fullName, email });
+            if (!result?.success) throw new Error(result?.error || 'the profile could not be saved');
+            if (staff) {
+                const saved = await dataManager.update('staff', staff.id, {
+                    name: fullName,
+                    email,
+                    phone: document.getElementById('profilePhone')?.value.trim() || '',
+                    department: document.getElementById('profileDepartment')?.value.trim() || ''
+                });
+                if (!saved) throw new Error('your name was saved, but your phone and department were not');
+            }
+            this.currentUser = await authManager.getUserById(this.currentSession.userId) || this.currentUser;
+            showToast('Saved', 'success');
+            // The sidebar card was filled from the session at sign-in.
+            const nameEl = document.getElementById('nav-user-name');
+            const avatarEl = document.getElementById('nav-user-avatar');
+            if (nameEl) nameEl.textContent = fullName;
+            if (avatarEl && window.portalShell?.initials) avatarEl.textContent = window.portalShell.initials(fullName);
+            this._container.innerHTML = this.render();
         } catch (err) {
-            showToast('Failed to update profile: ' + err.message, 'error');
+            showToast('Not saved: ' + err.message, 'error');
+            if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
         }
     },
 
     async changePassword(event) {
         event.preventDefault();
-
         const current = document.getElementById('currentPassword').value;
         const newPass = document.getElementById('newPassword').value;
-        const confirm = document.getElementById('confirmPassword').value;
+        const again = document.getElementById('confirmPassword').value;
         const errorEl = document.getElementById('passwordError');
-        const submitBtn = event.target.querySelector('[type="submit"]');
+        const btn = event.target.querySelector('[type="submit"]');
+        const fail = (msg) => { errorEl.textContent = msg; errorEl.hidden = false; };
+        errorEl.hidden = true;
 
-        errorEl.style.display = 'none';
+        if (newPass !== again) return fail('The two new passwords are different.');
+        if (newPass.length < 8) return fail('The new password needs 8 characters or more.');
+        if (newPass === current) return fail('The new password is the same as the current one.');
 
-        if (newPass !== confirm) {
-            errorEl.textContent = 'New passwords do not match.';
-            errorEl.style.display = 'block';
-            return;
-        }
-
-        if (newPass.length < 8) {
-            errorEl.textContent = 'New password must be at least 8 characters.';
-            errorEl.style.display = 'block';
-            return;
-        }
-
-        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Updating...'; }
+        if (btn) { btn.disabled = true; btn.textContent = 'Changing…'; }
         try {
-            const result = await authManager.changePassword(
-                this.currentSession.userId,
-                current,
-                newPass
-            );
-            if (!result.success) {
-                errorEl.textContent = result.error || 'Password change failed.';
-                errorEl.style.display = 'block';
-                return;
-            }
+            const result = await authManager.changePassword(this.currentSession.userId, current, newPass);
+            if (!result.success) return fail(result.error || 'The password could not be changed.');
             document.getElementById('passwordForm').reset();
-            showToast('Password changed successfully!', 'success');
+            showToast('Password changed', 'success');
         } catch (err) {
-            showToast('Failed to change password: ' + err.message, 'error');
+            fail('The password could not be changed: ' + err.message);
         } finally {
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '🔑 Update Password'; }
+            if (btn) { btn.disabled = false; btn.textContent = 'Change password'; }
         }
     }
 };
 
-// Register module globally
 if (typeof window !== 'undefined') {
     window.adminProfileModule = adminProfileModule;
 }
