@@ -342,7 +342,7 @@ class DataManager {
       .reduce((a, p) => a + (p.amount || 0), 0);
     const pendingFees = payments.filter(p => p.status === 'pending' || p.status === 'overdue')
       .reduce((a, p) => a + (p.amount || 0), 0);
-    const lowStockItems = inventory.filter(i => (i.quantity - (i.allocated || 0)) <= (i.minStock || 5)).length;
+    const lowStockItems = inventory.filter(i => { const inStore = Math.max(0, (Number(i.quantity) || 0) - (Number(i.allocated) || 0)); const min = Number(i.minStock) || 0; return inStore === 0 || (min > 0 && inStore <= min); }).length;
 
     return {
       totalStudents, activeStudents, totalStaff, teachingStaff,

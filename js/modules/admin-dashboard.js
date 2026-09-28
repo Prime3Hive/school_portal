@@ -178,9 +178,10 @@ const adminDashboardModule = {
     const pendingApps = applications.filter(a => a.status === 'pending');
     const noPhone = active.filter(s => !this._hasFamilyPhone(s));
     const lowStock = inventory.filter(i => {
+      // Same rule as Inventory: none in store, or at/below a minimum above 0.
       const min = Number(i.minStock ?? i.min_stock) || 0;
-      if (min <= 0) return false;
-      return (Number(i.quantity) || 0) - (Number(i.allocated) || 0) <= min;
+      const inStore = Math.max(0, (Number(i.quantity) || 0) - (Number(i.allocated) || 0));
+      return inStore === 0 || (min > 0 && inStore <= min);
     });
 
     const classKeys = new Set(active.map(s => `${s.grade || ''}|${s.section || ''}`).filter(k => k !== '|'));

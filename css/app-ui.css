@@ -1334,3 +1334,19 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
   #main-content .st-table td:first-child { width: 55%; }
   #main-content table.st-table { display: table; width: 100%; min-width: 0; }
 }
+
+/* ============================================
+   INVENTORY
+   ============================================ */
+.inv-table td:first-child .ui-row-meta { display: block; }
+.inv-count { max-height: 55vh; overflow-y: auto; }
+.inv-req { align-items: flex-start; }
+.inv-req .ui-dot { margin-top: 6px; }
+.inv-req .ui-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+@media (max-width: 640px) {
+  #main-content table.inv-table { display: table; width: 100%; min-width: 0; }
+  #main-content .inv-table th:nth-child(3), #main-content .inv-table td:nth-child(3),
+  #main-content .inv-table th:nth-child(4), #main-content .inv-table td:nth-child(4) { display: none; }
+  .inv-req { flex-wrap: wrap; }
+}

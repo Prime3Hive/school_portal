@@ -402,6 +402,41 @@ describe('Staff: who counts as a teacher', () => {
   it('people without a login are counted', () => eq(f.noLogin, 3));
 });
 
+// ── Inventory ───────────────────────────────────────────────
+describe('Inventory: stock, value and low stock', () => {
+  const data = {
+    inventory: [
+      { id: 'I1', name: 'Markers', quantity: 40, allocated: 10, minStock: 30, unitCost: 500 },   // 30 in store = min → low
+      { id: 'I2', name: 'Chairs', quantity: 20, allocated: 20, minStock: 0, unitCost: 12000 },   // none in store → out
+      { id: 'I3', name: 'Globes', quantity: 5, allocated: 0, min_stock: 2, unit_price: 8000 },   // older price field
+      { id: 'I4', name: 'Balls', quantity: '8', allocated: null, minStock: 0, unitCost: '1500.50' }
+    ],
+    inventoryAssignments: [
+      { id: 'A1', status: 'active', expectedReturnDate: '2026-09-25' },
+      { id: 'A2', status: 'active', expectedReturnDate: '2026-09-26' },
+      { id: 'A3', status: 'returned', expectedReturnDate: '2026-01-01' }
+    ]
+  };
+  const w = sandbox('2026-09-26T09:00:00', data, ['js/modules/inventory.js']);
+  const m = w.inventoryModule;
+  const f = m.figures();
+  const [I1, I2, I3, I4] = data.inventory;
+
+  it('in store = held - on loan; empty fields count as 0', () => eq([I1, I2, I3, I4].map(i => m.inStore(i)), [30, 0, 5, 8]));
+  it('value = held × unit cost, loaned items included, older unit_price read', () => eq([I1, I2, I3, I4].map(i => m.value(i)), [20000, 240000, 40000, 12004]));
+  it('stock value is the sum', () => eq(f.value, 312004));
+  it('low = none in store, or at/below a minimum above 0', () => eq(f.low.map(i => i.id), ['I1', 'I2']));
+  it('overdue = past the due day, not on it; returned loans never overdue', () => eq(f.overdue.map(a => a.id), ['A1']));
+  it('receiving stock averages the unit cost by quantity: 10 @ 500 + 30 @ 700 = 650', () => eq(m.averageCost(10, 500, 30, 700), 650));
+  it('receiving into an empty item takes the new cost', () => eq(m.averageCost(0, 500, 12, 800), 800));
+  it('a returned loan leaves "on loan"; only a lost one leaves the stock held', () => {
+    eq([m.returnEffect(I1, 4, 'good'), m.returnEffect(I1, 4, 'lost')], [{ allocated: 6, quantity: 40 }, { allocated: 6, quantity: 36 }]);
+  });
+  it('CSV cells keep commas and quotes inside quotes', () => {
+    eq(m.parseCSV('name,unit\r\n"Pens, blue","box ""A"""\n\nRulers,pcs'), [['name', 'unit'], ['Pens, blue', 'box "A"'], ['Rulers', 'pcs']]);
+  });
+});
+
 // ── Label tidying ───────────────────────────────────────────
 describe('Older pages lose leading emoji, not words', () => {
   const src = read('js/portal-shell.js');

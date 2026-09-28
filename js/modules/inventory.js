@@ -1,1668 +1,1097 @@
 // ============================================
-// INVENTORY MANAGEMENT MODULE
-// Stages 1-4: bug fixes, search, overdue,
-// restock, procurement, CSV import, stock count
+// INVENTORY
+// ============================================
+// Items, requests to buy, items on loan, and the stock history.
+//
+// The figures:
+//   in store  = quantity - on loan (allocated)
+//   low       = none in store, or in store at or below a minimum above 0
+//   value     = quantity x unit cost (items on loan still belong to the school)
+//   restock   = the unit cost becomes the average of the stock held and the
+//               stock received, weighted by quantity, so value = what was paid
+//
+// Quantity only changes through Adjust stock, a stock count, a request being
+// received, or an item returned as lost, and each writes a history line.
+//
+// Column notes (data-manager whitelist): requests have no supplier or
+// requested_date column, so the supplier goes into notes and the date is
+// created_at; assignments keep the return condition in condition_in and the
+// return note appended to notes.
 // ============================================
 
 const inventoryModule = {
   _container: null,
-  _tab: 'registry',
-  _filter: 'all',
-  _search: '',
-  _historyFilters: null,
+  _tab: 'items',
+  _f: { q: '', cat: 'all', low: false },
+  _hist: { from: '', to: '', type: 'all', q: '' },
 
   CATEGORIES: [
-    { value: 'textbooks',     label: 'Textbooks',     icon: '📚' },
-    { value: 'furniture',     label: 'Furniture',      icon: '🪑' },
-    { value: 'lab-equipment', label: 'Lab Equipment',  icon: '🔬' },
-    { value: 'electronics',   label: 'Electronics',    icon: '💻' },
-    { value: 'stationery',    label: 'Stationery',     icon: '✏️' },
-    { value: 'sports',        label: 'Sports',         icon: '⚽' },
-    { value: 'other',         label: 'Other',          icon: '📦' },
+    { value: 'textbooks',     label: 'Textbooks' },
+    { value: 'furniture',     label: 'Furniture' },
+    { value: 'lab-equipment', label: 'Lab equipment' },
+    { value: 'electronics',   label: 'Electronics' },
+    { value: 'stationery',    label: 'Stationery' },
+    { value: 'sports',        label: 'Sports' },
+    { value: 'other',         label: 'Other' },
   ],
-
-  _esc(s) {
-    const d = document.createElement('div');
-    d.textContent = String(s ?? '');
-    return d.innerHTML;
-  },
-
-  _categoryOptions(selected = '') {
-    return this.CATEGORIES.map(c =>
-      `<option value="${c.value}" ${selected === c.value ? 'selected' : ''}>${c.icon} ${c.label}</option>`
-    ).join('');
-  },
 
   async init(container) {
     this._container = container;
-    this._tab = 'registry';
-    this._filter = 'all';
-    this._search = '';
-    this._historyFilters = null;
     await dataManager.waitForReady();
     this.render();
+    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
     this._onDataChange = (e) => {
-      if (['inventory', 'inventoryRequests', 'inventoryAssignments', 'inventoryHistory'].includes(e.detail?.collection)) {
-        this.render();
-      }
+      if (['inventory', 'inventoryRequests', 'inventoryAssignments', 'inventoryHistory'].includes(e.detail?.collection)) this.render();
     };
-    window.removeEventListener('datamanager:change', this._onDataChange);
     window.addEventListener('datamanager:change', this._onDataChange);
   },
 
-  render() {
-    if (!this._container) return;
-    const inventory    = dataManager.getAll('inventory');
-    const requests     = dataManager.getAll('inventoryRequests');
-    const assignments  = dataManager.getAll('inventoryAssignments');
-    const now          = new Date();
-
-    const pendingReqs   = requests.filter(r => r.status === 'pending').length;
-    const activeAssign  = assignments.filter(a => a.status === 'active').length;
-    const overdueAssign = assignments.filter(a => a.status === 'active' && a.expectedReturnDate && new Date(a.expectedReturnDate) < now).length;
-    const lowStockCount = inventory.filter(i => (i.quantity - i.allocated) <= i.minStock).length;
-    const totalValue    = inventory.reduce((sum, i) => sum + ((i.unitCost || 0) * i.quantity), 0);
-
-    this._container.innerHTML = `
-      <div class="animate-fadeIn">
-        <div class="flex justify-between items-start mb-6" style="flex-wrap:wrap;gap:var(--space-3);">
-          <div>
-            <h2 class="page-title" style="margin-bottom:var(--space-2);">Inventory Management</h2>
-            <p class="page-description">Track assets, manage requests and assignments</p>
-          </div>
-          <div class="flex gap-3" style="flex-wrap:wrap;">
-            <button class="btn btn-ghost btn-sm" onclick="inventoryModule.importCSV()">⬆️ Import CSV</button>
-            <button class="btn btn-ghost btn-sm" onclick="inventoryModule.exportInventory()">📊 Export</button>
-            <button class="btn btn-secondary" onclick="inventoryModule.showRequestModal()">📝 Request Item</button>
-            <button class="btn btn-primary" onclick="inventoryModule.showAssignModal()">📤 Assign Item</button>
-            <button class="btn btn-success" onclick="inventoryModule.showAddItemModal()">➕ Add Item</button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-          ${this._statCard('Total Items', inventory.length, 'primary', 'registry')}
-          ${this._statCard('Low Stock', lowStockCount, lowStockCount > 0 ? 'danger' : 'success', 'registry', 'low-stock')}
-          ${this._statCard('Pending Requests', pendingReqs, pendingReqs > 0 ? 'warning' : 'primary', 'requests')}
-          ${this._statCard(overdueAssign > 0 ? `Active / ${overdueAssign} Overdue` : 'Active Assignments', activeAssign, overdueAssign > 0 ? 'danger' : 'info', 'assignments')}
-          ${this._statCard('Total Value', '₦' + totalValue.toLocaleString(), 'success', null)}
-        </div>
-
-        <div style="border-bottom:1px solid var(--border-primary);margin-bottom:var(--space-6);">
-          <div style="display:flex;gap:var(--space-4);flex-wrap:wrap;">
-            ${this._tabBtn('registry', '📋 Registry')}
-            ${this._tabBtn('requests', `📝 Requests${pendingReqs > 0 ? ` <span style="background:var(--color-danger);color:white;padding:1px 7px;border-radius:999px;font-size:0.7rem;">${pendingReqs}</span>` : ''}`)}
-            ${this._tabBtn('assignments', `👥 Assignments${overdueAssign > 0 ? ` <span style="background:var(--color-danger);color:white;padding:1px 7px;border-radius:999px;font-size:0.7rem;">${overdueAssign}</span>` : ''}`)}
-            ${this._tabBtn('history', '📊 History')}
-          </div>
-        </div>
-
-        <div id="inv-tab-content">${this.renderTabContent()}</div>
-      </div>
-    `;
+  cleanup() {
+    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
   },
 
-  _tabBtn(tab, label) {
-    return `<button class="profile-tab ${this._tab === tab ? 'active' : ''}" onclick="inventoryModule.switchTab('${tab}')">${label}</button>`;
+  // ── Helpers and figures ───────────────────────────────────
+
+  _esc(s) {
+    return typeof window.escapeHtml === 'function'
+      ? window.escapeHtml(s)
+      : String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   },
 
-  _statCard(label, value, type, tab, subFilter) {
-    const click  = tab ? `onclick="inventoryModule._goToTab('${tab}','${subFilter || ''}')"` : '';
-    const hover  = tab ? `onmouseover="this.style.transform='translateY(-3px)'" onmouseout="this.style.transform=''"` : '';
-    return `<div class="stat-card ${type}" style="cursor:${tab ? 'pointer' : 'default'};transition:transform 0.2s;" ${click} ${hover}>
-      <div class="stat-label">${label}</div>
-      <div class="stat-value">${value}</div>
-      ${tab ? `<div style="font-size:0.7rem;color:var(--text-tertiary);margin-top:4px;">Click to view →</div>` : ''}
-    </div>`;
+  num(v) {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : 0;
   },
 
-  _goToTab(tab, subFilter) {
-    this._tab = tab;
-    if (subFilter) this._filter = subFilter;
-    this.render();
+  money(n) {
+    return '₦' + Math.round(Number(n) || 0).toLocaleString('en-NG');
   },
 
-  renderTabContent() {
-    switch (this._tab) {
-      case 'registry':    return this.renderRegistryTab();
-      case 'requests':    return this.renderRequestsTab();
-      case 'assignments': return this.renderAssignmentsTab();
-      case 'history':     return this.renderHistoryTab();
-      default:            return this.renderRegistryTab();
-    }
+  date(v) {
+    if (!v) return '—';
+    const d = new Date(v);
+    return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   },
+
+  who() {
+    const s = window.authManager?.getSession?.() || {};
+    return { id: s.userId || s.supabaseId || 'unknown', name: s.fullName || 'Admin' };
+  },
+
+  catLabel(v) {
+    return this.CATEGORIES.find(c => c.value === v)?.label || (v ? String(v) : 'Other');
+  },
+
+  catOptions(selected = '') {
+    return this.CATEGORIES.map(c => `<option value="${c.value}" ${selected === c.value ? 'selected' : ''}>${c.label}</option>`).join('');
+  },
+
+  qty(i)       { return this.num(i.quantity); },
+  onLoan(i)    { return this.num(i.allocated); },
+  inStore(i)   { return Math.max(0, this.qty(i) - this.onLoan(i)); },
+  minStock(i)  { return this.num(i.minStock ?? i.min_stock); },
+  unitCost(i)  { return this.num(i.unitCost ?? i.unit_cost ?? i.unitPrice ?? i.unit_price); },
+  value(i)     { return this.qty(i) * this.unitCost(i); },
+  isOut(i)     { return this.inStore(i) === 0; },
+  isLow(i)     { return this.isOut(i) || (this.minStock(i) > 0 && this.inStore(i) <= this.minStock(i)); },
+  unit(i)      { return i.unit || ''; },
+
+  /** Unit cost after receiving `addQty` at `addCost`: the quantity-weighted average. */
+  averageCost(oldQty, oldCost, addQty, addCost) {
+    const total = oldQty + addQty;
+    if (total <= 0) return addCost || oldCost || 0;
+    return Math.round(((oldQty * oldCost + addQty * addCost) / total) * 100) / 100;
+  },
+
+  isOverdue(a, now = new Date()) {
+    const due = a.expectedReturnDate || a.expected_return_date;
+    if (a.status !== 'active' || !due) return false;
+    return new Date(String(due).slice(0, 10) + 'T23:59:59') < now;
+  },
+
+  items()       { return dataManager.getAll('inventory') || []; },
+  requests()    { return dataManager.getAll('inventoryRequests') || []; },
+  assignments() { return dataManager.getAll('inventoryAssignments') || []; },
+
+  figures() {
+    const items = this.items();
+    const active = this.assignments().filter(a => a.status === 'active');
+    return {
+      items,
+      value: items.reduce((a, i) => a + this.value(i), 0),
+      low: items.filter(i => this.isLow(i)),
+      out: items.filter(i => this.isOut(i)),
+      pending: this.requests().filter(r => r.status === 'pending'),
+      approved: this.requests().filter(r => r.status === 'approved'),
+      active,
+      overdue: active.filter(a => this.isOverdue(a))
+    };
+  },
+
+  /** Save quantity/allocated together with the matching `available` column. */
+  async _saveStock(item, changes) {
+    const next = { ...item, ...changes };
+    next.available = Math.max(0, this.num(next.quantity) - this.num(next.allocated));
+    return dataManager.update('inventory', item.id, next);
+  },
+
+  async _log(type, item, quantity, details = {}) {
+    await dataManager.logInventoryTransaction(type, item.id, item.name, quantity, this.who().name, details);
+  },
+
+  // ── Page ─────────────────────────────────────────────────
 
   switchTab(tab) {
     this._tab = tab;
     this.render();
   },
 
-  // ── REGISTRY TAB ──────────────────────────────────────────────────────────
+  render() {
+    if (!this._container) return;
+    if (window.app?.currentModule && window.app.currentModule !== 'inventory') return;
+    const f = this.figures();
+    const kpi = (label, value, sub, onclick) => `
+      <button type="button" class="ui-card ui-kpi" onclick="${onclick}">
+        <span class="ui-kpi-label">${label}</span><span class="ui-kpi-value">${value}</span><span class="ui-kpi-sub">${sub}</span>
+      </button>`;
+    const tabs = [
+      ['items', 'Items'],
+      ['requests', `Requests${f.pending.length ? ` (${f.pending.length})` : ''}`],
+      ['loans', `On loan${f.active.length ? ` (${f.active.length})` : ''}`],
+      ['history', 'History']
+    ];
 
-  renderRegistryTab() {
-    const all = dataManager.getAll('inventory');
-    const e   = this._esc.bind(this);
-    const now = new Date();
-
-    let items = all;
-    if (this._filter === 'low-stock') {
-      items = all.filter(i => (i.quantity - i.allocated) <= i.minStock);
-    } else if (this._filter !== 'all') {
-      items = all.filter(i => i.category === this._filter);
-    }
-    if (this._search) {
-      const q = this._search.toLowerCase();
-      items = items.filter(i =>
-        (i.name || '').toLowerCase().includes(q) ||
-        (i.location || '').toLowerCase().includes(q) ||
-        (i.supplier || '').toLowerCase().includes(q) ||
-        (i.category || '').toLowerCase().includes(q)
-      );
-    }
-
-    const chipDefs = [{ value: 'all', label: 'All', icon: '📋' }, { value: 'low-stock', label: 'Low Stock', icon: '⚠️' }, ...this.CATEGORIES];
-
-    return `
-      <div class="card mb-4">
-        <div class="flex justify-between items-center mb-4" style="flex-wrap:wrap;gap:var(--space-3);">
-          <h3 style="margin:0;font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);">Items Registry</h3>
-          <div class="flex gap-2" style="flex-wrap:wrap;">
-            <button class="btn btn-ghost btn-sm" onclick="inventoryModule.showStockCountModal()">🔢 Stock Count</button>
-            <button class="btn btn-success btn-sm" onclick="inventoryModule.showAddItemModal()">➕ Add Item</button>
-          </div>
-        </div>
-
-        <div class="flex gap-3 mb-4" style="flex-wrap:wrap;">
-          <input type="text" class="form-input" placeholder="Search name, location, supplier…"
-            value="${e(this._search)}" style="flex:1;min-width:200px;"
-            oninput="inventoryModule._search=this.value;document.getElementById('inv-tab-content').innerHTML=inventoryModule.renderRegistryTab()">
-          ${this._search || this._filter !== 'all' ? `<button class="btn btn-ghost btn-sm" onclick="inventoryModule._search='';inventoryModule._filter='all';inventoryModule.render()">✕ Clear</button>` : ''}
-        </div>
-
-        <div class="flex flex-wrap gap-2">
-          ${chipDefs.map(c => `
-            <button class="btn btn-ghost btn-sm ${this._filter === c.value ? 'active' : ''}"
-              onclick="inventoryModule._filter='${c.value}';document.getElementById('inv-tab-content').innerHTML=inventoryModule.renderRegistryTab()">
-              ${c.icon} ${c.label}
-            </button>`).join('')}
-        </div>
-      </div>
-
-      ${items.length === 0 ? `
-        <div class="empty-state">
-          <div class="empty-state-icon">📦</div>
-          <h3 class="empty-state-title">No Items Found</h3>
-          <p class="empty-state-description">${this._search || this._filter !== 'all' ? 'Try adjusting your search or filter.' : 'Add items to start tracking inventory.'}</p>
-          ${!this._search && this._filter === 'all' ? `<button class="btn btn-primary mt-4" onclick="inventoryModule.showAddItemModal()">➕ Add First Item</button>` : ''}
-        </div>
-      ` : `
-        <div class="table-container">
-          <table class="table">
-            <thead>
-              <tr>
-                <th>Item Name</th>
-                <th>Category</th>
-                <th>Total Qty</th>
-                <th>Allocated</th>
-                <th>Available</th>
-                <th>Min Stock</th>
-                <th>Unit Cost</th>
-                <th>Total Value</th>
-                <th>Location</th>
-                <th>Supplier</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${items.map(item => {
-                const avail = item.quantity - item.allocated;
-                const isLow = avail <= item.minStock;
-                const cat   = this.CATEGORIES.find(c => c.value === item.category);
-                return `
-                  <tr style="${isLow ? 'background:rgba(239,68,68,0.03)' : ''}">
-                    <td style="font-weight:var(--font-weight-semibold);">${e(item.name)}</td>
-                    <td>${createBadge((cat ? cat.icon + ' ' : '') + (cat ? cat.label : e(item.category)), 'info')}</td>
-                    <td>${item.quantity} ${e(item.unit)}</td>
-                    <td>${item.allocated} ${e(item.unit)}</td>
-                    <td style="color:${isLow ? 'var(--color-danger)' : 'var(--color-success)'};font-weight:var(--font-weight-semibold);">${avail} ${e(item.unit)}</td>
-                    <td>${item.minStock} ${e(item.unit)}</td>
-                    <td>${formatCurrency(item.unitCost || 0)}</td>
-                    <td style="font-weight:var(--font-weight-semibold);">${formatCurrency((item.unitCost || 0) * item.quantity)}</td>
-                    <td>${e(item.location || '—')}</td>
-                    <td>${e(item.supplier || '—')}</td>
-                    <td>${createBadge(isLow ? 'Low Stock' : 'In Stock', isLow ? 'danger' : 'success')}</td>
-                    <td>
-                      <div class="table-actions">
-                        <button class="table-action-btn" onclick="inventoryModule.viewItemDetails('${item.id}')" title="View Details">👁️</button>
-                        <button class="table-action-btn" onclick="inventoryModule.showRestockModal('${item.id}')" title="Restock / Adjust">📥</button>
-                        <button class="table-action-btn" onclick="inventoryModule.showEditItemModal('${item.id}')" title="Edit">✏️</button>
-                        <button class="table-action-btn" onclick="inventoryModule.deleteItem('${item.id}')" title="Delete">🗑️</button>
-                      </div>
-                    </td>
-                  </tr>`;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-        <div style="margin-top:var(--space-3);font-size:0.8rem;color:var(--text-tertiary);">
-          Showing ${items.length} of ${all.length} items
-        </div>
-      `}
-    `;
-  },
-
-  // ── REQUESTS TAB ──────────────────────────────────────────────────────────
-
-  renderRequestsTab() {
-    const requests = dataManager.getAll('inventoryRequests');
-    const pending  = requests.filter(r => r.status === 'pending');
-    const approved = requests.filter(r => r.status === 'approved');
-    const fulfilled= requests.filter(r => r.status === 'fulfilled');
-    const rejected = requests.filter(r => r.status === 'rejected');
-    return `<div>
-      ${this._reqSection('Pending Requests', pending)}
-      ${this._reqSection('Approved — Awaiting Fulfillment', approved)}
-      ${fulfilled.length > 0 ? this._reqSection('Fulfilled', fulfilled) : ''}
-      ${rejected.length > 0 ? this._reqSection('Rejected', rejected) : ''}
-    </div>`;
-  },
-
-  _reqSection(title, items) {
-    return `
-      <h3 style="font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);margin-bottom:var(--space-4);color:var(--text-primary);">${title} (${items.length})</h3>
-      ${items.length === 0
-        ? `<div class="card mb-6" style="text-align:center;padding:var(--space-8);"><p style="color:var(--text-secondary);">None</p></div>`
-        : `<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">${items.map(r => this.renderRequestCard(r)).join('')}</div>`
-      }
-    `;
-  },
-
-  renderRequestCard(req) {
-    const e = this._esc.bind(this);
-    const statusColors   = { pending: 'warning', approved: 'success', rejected: 'danger', fulfilled: 'primary' };
-    const priorityColors = { urgent: 'danger', high: 'warning', medium: 'info', low: 'success' };
-    const cat     = this.CATEGORIES.find(c => c.value === req.category);
-    const existing = dataManager.getAll('inventory').find(i => (i.name || '').toLowerCase() === (req.itemName || '').toLowerCase());
-
-    return `
-      <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--space-4);">
+    this._container.innerHTML = `
+      <div class="ui-page">
+        <div class="ui-page-head">
           <div>
-            <h4 style="font-size:var(--font-size-lg);font-weight:var(--font-weight-semibold);color:var(--text-primary);margin-bottom:var(--space-2);">${e(req.itemName)}</h4>
-            <div style="display:flex;gap:var(--space-2);flex-wrap:wrap;">
-              ${createBadge(req.status, statusColors[req.status] || 'info')}
-              ${createBadge(req.priority || 'medium', priorityColors[req.priority] || 'info')}
-              ${createBadge((cat ? cat.icon + ' ' : '') + (cat ? cat.label : e(req.category)), 'info')}
-              ${existing ? `<span style="font-size:0.72rem;color:#d97706;background:rgba(217,119,6,0.1);padding:2px 8px;border-radius:999px;border:1px solid rgba(217,119,6,0.3);">⚠️ Already in stock</span>` : ''}
-            </div>
+            <h1 class="ui-page-title">Inventory</h1>
+            <p class="ui-page-sub">${f.items.length} item${f.items.length === 1 ? '' : 's'} · ${this.money(f.value)} in stock</p>
+          </div>
+          <div class="ui-actions">
+            <button type="button" class="ui-btn" onclick="inventoryModule.importCSV()">Import CSV</button>
+            <button type="button" class="ui-btn" onclick="inventoryModule.exportInventory()">Export</button>
+            <button type="button" class="ui-btn" onclick="inventoryModule.showRequestModal()">Request an item</button>
+            <button type="button" class="ui-btn" onclick="inventoryModule.showAssignModal()">Lend an item</button>
+            <button type="button" class="ui-btn ui-btn-primary" onclick="inventoryModule.showAddItemModal()">Add item</button>
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);margin-bottom:var(--space-3);">
-          <div><p style="color:var(--text-secondary);font-size:var(--font-size-sm);">Quantity</p><p style="font-weight:var(--font-weight-semibold);">${req.quantity} units</p></div>
-          <div><p style="color:var(--text-secondary);font-size:var(--font-size-sm);">Est. Cost</p><p style="font-weight:var(--font-weight-semibold);">${formatCurrency(req.estimatedCost)}</p></div>
-          ${req.supplier ? `<div style="grid-column:1/-1;"><p style="color:var(--text-secondary);font-size:var(--font-size-sm);">Supplier</p><p style="font-weight:var(--font-weight-semibold);">${e(req.supplier)}</p></div>` : ''}
+        <div class="ui-grid-4">
+          ${kpi('Stock value', this.money(f.value), 'quantity × unit cost', "inventoryModule._f = { q: '', cat: 'all', low: false }; inventoryModule.switchTab('items')")}
+          ${kpi('Low or out', f.low.length, f.out.length ? `${f.out.length} out of stock` : 'at or below minimum', "inventoryModule._f = { q: '', cat: 'all', low: true }; inventoryModule.switchTab('items')")}
+          ${kpi('Requests waiting', f.pending.length, f.approved.length ? `${f.approved.length} approved, not received` : 'to approve or reject', "inventoryModule.switchTab('requests')")}
+          ${kpi('On loan', f.active.length, f.overdue.length ? `${f.overdue.length} overdue` : 'none overdue', "inventoryModule.switchTab('loans')")}
         </div>
 
-        <div style="margin-bottom:var(--space-3);">
-          <p style="color:var(--text-secondary);font-size:var(--font-size-sm);margin-bottom:var(--space-1);">Justification</p>
-          <p style="color:var(--text-primary);font-size:var(--font-size-sm);">${e(req.justification)}</p>
+        <div role="tablist" aria-label="Inventory" class="sr-tabs">
+          ${tabs.map(([id, label]) => `<button type="button" role="tab" aria-selected="${this._tab === id}" class="sr-tab${this._tab === id ? ' is-on' : ''}" onclick="inventoryModule.switchTab('${id}')">${label}</button>`).join('')}
         </div>
 
-        <p style="color:var(--text-tertiary);font-size:var(--font-size-xs);margin-bottom:var(--space-3);">
-          Requested by ${e(req.requestedByName)} · ${timeAgo(req.requestedDate)}
-          ${req.reviewedBy ? ` · Reviewed ${timeAgo(req.reviewedDate)}${req.reviewNotes ? ` · ${e(req.reviewNotes)}` : ''}` : ''}
-        </p>
-
-        ${req.status === 'pending' ? `
-          <div style="display:flex;gap:var(--space-2);">
-            <button class="btn btn-primary btn-sm" onclick="inventoryModule.approveRequest('${req.id}')" style="flex:1;">✓ Approve</button>
-            <button class="btn btn-ghost btn-sm" onclick="inventoryModule.editRequest('${req.id}')">✏️ Edit</button>
-            <button class="btn btn-danger btn-sm" onclick="inventoryModule.rejectRequest('${req.id}')">✗ Reject</button>
-          </div>
-        ` : req.status === 'approved' ? `
-          <button class="btn btn-success btn-sm" style="width:100%;" onclick="inventoryModule.fulfillRequest('${req.id}')">📥 Add to Inventory</button>
-        ` : ''}
-      </div>
-    `;
+        <div id="inv-tab-content">${this.renderTabContent()}</div>
+      </div>`;
   },
 
-  // ── ASSIGNMENTS TAB ───────────────────────────────────────────────────────
-
-  renderAssignmentsTab() {
-    const assignments = dataManager.getAll('inventoryAssignments');
-    const now      = new Date();
-    const active   = assignments.filter(a => a.status === 'active');
-    const overdue  = active.filter(a => a.expectedReturnDate && new Date(a.expectedReturnDate) < now);
-    const onTime   = active.filter(a => !a.expectedReturnDate || new Date(a.expectedReturnDate) >= now);
-    const returned = assignments.filter(a => a.status === 'returned');
-
-    return `<div>
-      ${overdue.length > 0 ? `
-        <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);border-radius:var(--radius-lg);padding:var(--space-4);margin-bottom:var(--space-6);display:flex;gap:var(--space-3);align-items:center;">
-          <span style="font-size:1.5rem;">⚠️</span>
-          <div>
-            <strong style="color:#dc2626;">${overdue.length} overdue assignment${overdue.length > 1 ? 's' : ''}</strong>
-            <p style="margin:4px 0 0;font-size:0.85rem;color:var(--text-secondary);">These items are past their expected return date.</p>
-          </div>
-        </div>
-        <h3 style="font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);margin-bottom:var(--space-4);color:#dc2626;">⚠️ Overdue (${overdue.length})</h3>
-        <div class="table-container mb-8">${this.renderAssignmentsTable(overdue)}</div>
-      ` : ''}
-
-      <h3 style="font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);margin-bottom:var(--space-4);color:var(--text-primary);">Active Assignments (${onTime.length})</h3>
-      ${onTime.length === 0
-        ? `<div class="card mb-6" style="text-align:center;padding:var(--space-8);"><p style="color:var(--text-secondary);">No active assignments</p></div>`
-        : `<div class="table-container mb-8">${this.renderAssignmentsTable(onTime)}</div>`
-      }
-
-      ${returned.length > 0 ? `
-        <h3 style="font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);margin-bottom:var(--space-4);color:var(--text-primary);">Returned (${returned.length})</h3>
-        <div class="table-container">${this.renderAssignmentsTable(returned)}</div>
-      ` : ''}
-    </div>`;
-  },
-
-  renderAssignmentsTable(assignments) {
-    const e   = this._esc.bind(this);
-    const now = new Date();
-    return `
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Item</th><th>Assigned To</th><th>Type</th><th>Qty</th>
-            <th>Assigned</th><th>Expected Return</th><th>Condition</th><th>Status</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${assignments.map(a => {
-            const isOverdue = a.status === 'active' && a.expectedReturnDate && new Date(a.expectedReturnDate) < now;
-            return `
-              <tr style="${isOverdue ? 'background:rgba(239,68,68,0.05)' : ''}">
-                <td style="font-weight:var(--font-weight-semibold);">${e(a.itemName)}</td>
-                <td>${e(a.assigneeName)}</td>
-                <td>${createBadge(a.assigneeType, a.assigneeType === 'staff' ? 'primary' : a.assigneeType === 'student' ? 'success' : 'info')}</td>
-                <td>${a.quantity}</td>
-                <td>${formatDate(a.assignedDate)}</td>
-                <td style="${isOverdue ? 'color:#dc2626;font-weight:700;' : ''}">
-                  ${a.expectedReturnDate ? formatDate(a.expectedReturnDate) + (isOverdue ? ' ⚠️' : '') : '—'}
-                </td>
-                <td>${createBadge(a.condition || 'good', a.condition === 'good' ? 'success' : a.condition === 'damaged' ? 'danger' : 'warning')}</td>
-                <td>${createBadge(isOverdue ? 'Overdue' : a.status, isOverdue ? 'danger' : a.status === 'active' ? 'success' : 'info')}</td>
-                <td>
-                  <div class="table-actions">
-                    <button class="table-action-btn" onclick="inventoryModule.viewAssignment('${a.id}')" title="View">👁️</button>
-                    ${a.status === 'active' ? `<button class="table-action-btn" onclick="inventoryModule.returnItem('${a.id}')" title="Return">↩️</button>` : ''}
-                  </div>
-                </td>
-              </tr>`;
-          }).join('')}
-        </tbody>
-      </table>
-    `;
-  },
-
-  // ── HISTORY TAB ───────────────────────────────────────────────────────────
-
-  renderHistoryTab() {
-    const history = dataManager.getAll('inventoryHistory') || [];
-    if (!this._historyFilters) {
-      this._historyFilters = { dateFrom: '', dateTo: '', type: 'all', searchTerm: '' };
-    }
-
-    let filtered = history;
-    if (this._historyFilters.dateFrom) filtered = filtered.filter(h => new Date(h.timestamp) >= new Date(this._historyFilters.dateFrom));
-    if (this._historyFilters.dateTo)   filtered = filtered.filter(h => new Date(h.timestamp) <= new Date(this._historyFilters.dateTo + 'T23:59:59'));
-    if (this._historyFilters.type !== 'all') filtered = filtered.filter(h => h.type === this._historyFilters.type);
-    if (this._historyFilters.searchTerm) {
-      const q = this._historyFilters.searchTerm.toLowerCase();
-      filtered = filtered.filter(h => (h.itemName || '').toLowerCase().includes(q) || (h.userName || '').toLowerCase().includes(q));
-    }
-    filtered = [...filtered].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-    const txTypes = ['all', 'addition', 'restock', 'assignment', 'return', 'stock-count', 'adjustment', 'edit', 'delete'];
-
-    return `
-      <div class="card mb-6">
-        <h3 style="font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);margin-bottom:var(--space-4);">Usage History & Analytics</h3>
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-          <div class="form-group">
-            <label class="form-label">From</label>
-            <input type="date" class="form-input" value="${this._historyFilters.dateFrom}" onchange="inventoryModule._historyFilters.dateFrom=this.value;inventoryModule.render()">
-          </div>
-          <div class="form-group">
-            <label class="form-label">To</label>
-            <input type="date" class="form-input" value="${this._historyFilters.dateTo}" onchange="inventoryModule._historyFilters.dateTo=this.value;inventoryModule.render()">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Type</label>
-            <select class="form-select" onchange="inventoryModule._historyFilters.type=this.value;inventoryModule.render()">
-              ${txTypes.map(t => `<option value="${t}" ${this._historyFilters.type === t ? 'selected' : ''}>${t === 'all' ? 'All Types' : t.replace(/-/g,' ').replace(/\b\w/g, c => c.toUpperCase())}</option>`).join('')}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Search</label>
-            <input type="text" class="form-input" placeholder="Item or user…" value="${this._historyFilters.searchTerm}" oninput="inventoryModule._historyFilters.searchTerm=this.value;inventoryModule.render()">
-          </div>
-        </div>
-        <div class="flex gap-3">
-          <button class="btn btn-ghost btn-sm" onclick="inventoryModule._historyFilters=null;inventoryModule.render()">Clear Filters</button>
-          <button class="btn btn-primary btn-sm" onclick="inventoryModule.exportHistory('excel')">📊 Export Excel</button>
-          <button class="btn btn-secondary btn-sm" onclick="inventoryModule.exportHistory('pdf')">📄 Export PDF</button>
-        </div>
-      </div>
-
-      <div class="card">
-        <h4 style="font-size:var(--font-size-lg);font-weight:var(--font-weight-semibold);margin-bottom:var(--space-4);">
-          Transactions (${filtered.length})
-        </h4>
-        ${filtered.length === 0 ? `
-          <div class="empty-state">
-            <div class="empty-state-icon">📋</div>
-            <h3 class="empty-state-title">No Transactions</h3>
-            <p class="empty-state-description">No history matches your filters</p>
-          </div>
-        ` : `<div style="max-height:600px;overflow-y:auto;">${filtered.map(h => this.renderHistoryItem(h)).join('')}</div>`}
-      </div>
-    `;
-  },
-
-  renderHistoryItem(tx) {
-    const e = this._esc.bind(this);
-    const cfgMap = {
-      addition:      { icon: '➕', color: 'success' },
-      restock:       { icon: '📥', color: 'success' },
-      assignment:    { icon: '📤', color: 'info'    },
-      return:        { icon: '↩️', color: 'success' },
-      request:       { icon: '📝', color: 'warning' },
-      'stock-count': { icon: '🔢', color: 'primary' },
-      adjustment:    { icon: '🔧', color: 'warning' },
-      edit:          { icon: '✏️', color: 'primary' },
-      delete:        { icon: '🗑️', color: 'danger'  },
-    };
-    const cfg = cfgMap[tx.type] || { icon: '📋', color: 'primary' };
-    const detailStr = tx.details && typeof tx.details === 'object'
-      ? Object.entries(tx.details).filter(([, v]) => v !== null && v !== undefined && v !== '').map(([k, v]) => `${k}: ${v}`).join(' · ')
-      : '';
-
-    return `
-      <div style="padding:var(--space-4);border-bottom:1px solid var(--border-primary);display:flex;gap:var(--space-4);align-items:start;">
-        <div style="font-size:1.5rem;flex-shrink:0;">${cfg.icon}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:var(--space-1);flex-wrap:wrap;gap:var(--space-2);">
-            <div>
-              <p style="font-weight:var(--font-weight-semibold);color:var(--text-primary);margin-bottom:2px;">${e(tx.itemName || '—')}</p>
-              <p style="color:var(--text-secondary);font-size:var(--font-size-sm);">${e(this._txDescription(tx))}</p>
-              ${detailStr ? `<p style="color:var(--text-tertiary);font-size:0.75rem;margin-top:2px;">${e(detailStr)}</p>` : ''}
-            </div>
-            <div style="text-align:right;flex-shrink:0;">
-              ${createBadge(tx.type.replace(/-/g, ' '), cfg.color)}
-              <p style="color:var(--text-tertiary);font-size:0.7rem;margin-top:4px;white-space:nowrap;">${formatDate(tx.timestamp)}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  _txDescription(tx) {
-    const who = tx.userName || 'System';
-    switch (tx.type) {
-      case 'addition':    return `${tx.quantity} units added by ${who}`;
-      case 'restock':     return `${tx.quantity} units restocked by ${who}`;
-      case 'assignment':  return `${tx.quantity} units assigned to ${tx.details?.assigneeName || 'user'} by ${who}`;
-      case 'return':      return `${tx.quantity} units returned by ${tx.details?.assigneeName || 'user'}`;
-      case 'request':     return `Request for ${tx.quantity} units by ${who}`;
-      case 'stock-count': return `Physical count: system ${tx.details?.systemQty} → counted ${tx.details?.countedQty} (variance: ${tx.details?.variance > 0 ? '+' : ''}${tx.details?.variance})`;
-      case 'adjustment':  return `${tx.details?.adjustType || 'adjustment'} of ${tx.quantity} units by ${who}`;
-      case 'edit':        return `Item details updated by ${who}`;
-      case 'delete':      return `Item removed by ${who}`;
-      default:            return `Transaction by ${who}`;
+  renderTabContent() {
+    switch (this._tab) {
+      case 'requests': return this.requestsHTML();
+      case 'loans':    return this.loansHTML();
+      case 'history':  return this.historyHTML();
+      default:         return this.itemsHTML();
     }
   },
 
-  // ── ADD ITEM ──────────────────────────────────────────────────────────────
+  _redrawTab(focusId) {
+    const box = document.getElementById('inv-tab-content');
+    if (box) box.innerHTML = this.renderTabContent();
+    if (focusId) { const i = document.getElementById(focusId); if (i) { i.focus(); i.setSelectionRange?.(i.value.length, i.value.length); } }
+  },
+
+  // ── Items ────────────────────────────────────────────────
+
+  setFilter(field, value) {
+    this._f[field] = value;
+    this._redrawTab(field === 'q' ? 'inv-q' : null);
+  },
+
+  itemsHTML() {
+    const all = this.items();
+    const q = this._f.q.trim().toLowerCase();
+    const rows = all
+      .filter(i => this._f.cat === 'all' || (i.category || 'other') === this._f.cat)
+      .filter(i => !this._f.low || this.isLow(i))
+      .filter(i => !q || [i.name, i.location, i.supplier, this.catLabel(i.category)].some(v => String(v || '').toLowerCase().includes(q)))
+      .sort((a, b) => (this.isLow(b) - this.isLow(a)) || String(a.name || '').localeCompare(String(b.name || '')));
+    const shownValue = rows.reduce((a, i) => a + this.value(i), 0);
+
+    return `
+      <div class="ui-card sd-filters">
+        <label class="sd-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5"/></svg>
+          <input id="inv-q" type="search" aria-label="Search items" placeholder="Search by name, place or supplier" value="${this._esc(this._f.q)}" oninput="inventoryModule.setFilter('q', this.value)">
+        </label>
+        <select class="sd-select" aria-label="Category" onchange="inventoryModule.setFilter('cat', this.value)">
+          <option value="all">All categories</option>${this.catOptions(this._f.cat)}
+        </select>
+        <select class="sd-select" aria-label="Stock" onchange="inventoryModule.setFilter('low', this.value === 'low')">
+          <option value="all">All stock levels</option>
+          <option value="low" ${this._f.low ? 'selected' : ''}>Low or out only</option>
+        </select>
+        <button type="button" class="ui-btn" onclick="inventoryModule.showStockCountModal()">Stock count</button>
+      </div>
+
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="ui-card-head">
+          <h2 class="ui-card-title">${rows.length} of ${all.length} item${all.length === 1 ? '' : 's'}</h2>
+          <span class="ui-card-note">${this.money(shownValue)}</span>
+        </div>
+        ${rows.length ? `
+          <table class="pc-table sr-table fp-table inv-table fp-clickable">
+            <thead><tr><th>Item</th><th>In store</th><th>On loan</th><th>Unit cost</th><th>Value</th><th>Stock</th></tr></thead>
+            <tbody>${rows.map(i => `
+              <tr tabindex="0" onclick="inventoryModule.viewItemDetails('${this._esc(i.id)}')" onkeydown="if(event.key==='Enter')inventoryModule.viewItemDetails('${this._esc(i.id)}')">
+                <td><strong>${this._esc(i.name || 'Unnamed')}</strong><span class="ui-row-meta">${this._esc([this.catLabel(i.category), i.location].filter(Boolean).join(' · '))}</span></td>
+                <td>${this.inStore(i)} ${this._esc(this.unit(i))}</td>
+                <td>${this.onLoan(i) || '—'}</td>
+                <td>${this.money(this.unitCost(i))}</td>
+                <td>${this.money(this.value(i))}</td>
+                <td>${this.isOut(i) ? '<span class="ui-chip is-warn">Out</span>' : this.isLow(i) ? '<span class="ui-chip is-warn">Low</span>' : '<span class="ui-chip is-good">OK</span>'}</td>
+              </tr>`).join('')}</tbody>
+          </table>`
+        : `<p class="ui-empty">${all.length ? 'No item matches.' : 'No items yet. Use "Add item" or "Import CSV".'}</p>`}
+      </section>`;
+  },
+
+  viewItemDetails(itemId) {
+    const item = dataManager.getById('inventory', itemId);
+    if (!item) return;
+    const loans = this.assignments().filter(a => (a.itemId || a.item_id) === itemId && a.status === 'active');
+    const id = this._esc(itemId);
+    const u = this._esc(this.unit(item));
+    createModal(this._esc(item.name || 'Item'), `
+      <div class="fp-owes">
+        <div><span class="ui-row-meta">In store</span><strong>${this.inStore(item)} ${u}</strong></div>
+        <div><span class="ui-row-meta">On loan</span><strong>${this.onLoan(item)} ${u}</strong></div>
+        <div><span class="ui-row-meta">Total held</span><strong>${this.qty(item)} ${u}</strong></div>
+        <div><span class="ui-row-meta">Value</span><strong>${this.money(this.value(item))}</strong></div>
+      </div>
+      <dl class="sr-dl sr-dl-2" style="margin-top:16px;">
+        ${[['Category', this.catLabel(item.category)], ['Unit cost', this.money(this.unitCost(item))], ['Minimum in store', `${this.minStock(item)} ${this.unit(item)}`],
+           ['Kept at', item.location || '—'], ['Supplier', item.supplier || '—'], ['Added', this.date(item.dateAdded || item.createdAt)]]
+          .map(([k, v]) => `<div><dt>${k}</dt><dd>${this._esc(v)}</dd></div>`).join('')}
+      </dl>
+      ${item.description ? `<p class="ui-card-note" style="margin-top:12px;">${this._esc(item.description)}</p>` : ''}
+      ${loans.length ? `
+        <h3 class="ui-card-title" style="margin-top:18px;font-size:0.9375rem;">On loan to</h3>
+        ${loans.map(a => `<div class="ui-row"><span class="ui-dot ${this.isOverdue(a) ? 'is-urgent' : ''}" aria-hidden="true"></span><div class="ui-row-main"><div class="ui-row-title">${this._esc(a.assigneeName)}</div><div class="ui-row-meta">${this.num(a.quantity)} ${u} · since ${this.date(a.assignedDate || a.createdAt)}${this.isOverdue(a) ? ' · overdue' : ''}</div></div></div>`).join('')}` : ''}
+      <div class="ui-actions" style="justify-content:flex-end;margin-top:18px;flex-wrap:wrap;">
+        <button type="button" class="ui-btn" onclick="closeModal(this); inventoryModule.deleteItem('${id}')">Delete</button>
+        <button type="button" class="ui-btn" onclick="closeModal(this); inventoryModule.showEditItemModal('${id}')">Edit details</button>
+        <button type="button" class="ui-btn" onclick="closeModal(this); inventoryModule.showAssignModal('${id}')">Lend</button>
+        <button type="button" class="ui-btn ui-btn-primary" onclick="closeModal(this); inventoryModule.showRestockModal('${id}')">Adjust stock</button>
+      </div>`, 'large');
+  },
+
+  // ── Add, edit, delete ────────────────────────────────────
+
+  _itemForm(item = null) {
+    const e = (v) => this._esc(v ?? '');
+    return `
+      <form class="fp-form" onsubmit="inventoryModule.${item ? `submitEditItem(event, '${e(item.id)}')` : 'submitAddItem(event)'}">
+        <div class="fp-grid">
+          <label class="form-group"><span class="form-label">Name</span><input type="text" class="form-input" name="name" required value="${e(item?.name)}" placeholder="e.g. Whiteboard markers"></label>
+          <label class="form-group"><span class="form-label">Category</span><select class="form-select" name="category" required><option value="">Choose…</option>${this.catOptions(item?.category)}</select></label>
+          ${item ? `
+            <div class="form-group"><span class="form-label">Quantity held</span><div class="fp-who"><strong>${this.qty(item)} ${e(this.unit(item))}</strong><span class="ui-row-meta">Change it with Adjust stock, so it is recorded.</span></div></div>`
+          : `<label class="form-group"><span class="form-label">Quantity</span><input type="number" class="form-input" name="quantity" required min="0" step="1" placeholder="100"></label>`}
+          <label class="form-group"><span class="form-label">Unit</span><input type="text" class="form-input" name="unit" required value="${e(item?.unit)}" placeholder="pieces, boxes, packs"></label>
+          <label class="form-group"><span class="form-label">Minimum to keep in store</span><input type="number" class="form-input" name="minStock" required min="0" step="1" value="${item ? this.minStock(item) : ''}" placeholder="10"></label>
+          <label class="form-group"><span class="form-label">Unit cost (₦)</span><input type="number" class="form-input" name="unitCost" min="0" step="0.01" value="${item ? this.unitCost(item) : ''}" placeholder="500"></label>
+          <label class="form-group"><span class="form-label">Kept at</span><input type="text" class="form-input" name="location" value="${e(item?.location)}" placeholder="Store room A"></label>
+          <label class="form-group"><span class="form-label">Supplier</span><input type="text" class="form-input" name="supplier" value="${e(item?.supplier)}"></label>
+        </div>
+        <label class="form-group"><span class="form-label">Notes</span><textarea class="form-textarea" name="description" rows="2">${e(item?.description)}</textarea></label>
+        <div class="ui-actions" style="justify-content:flex-end;">
+          <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn-primary">${item ? 'Save' : 'Add item'}</button>
+        </div>
+      </form>`;
+  },
 
   showAddItemModal() {
-    const content = `
-      <form id="add-item-form" onsubmit="inventoryModule.submitAddItem(event)">
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Item Name *</label>
-            <input type="text" class="form-input" name="name" required placeholder="e.g., Whiteboard Markers">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Category *</label>
-            <select class="form-select" name="category" required>
-              <option value="">Select Category</option>
-              ${this._categoryOptions()}
-            </select>
-          </div>
-        </div>
-        <div class="grid grid-cols-3 gap-4">
-          <div class="form-group">
-            <label class="form-label">Quantity *</label>
-            <input type="number" class="form-input" name="quantity" required min="0" placeholder="100">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Unit *</label>
-            <input type="text" class="form-input" name="unit" required placeholder="pieces, boxes…">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Min Stock Level *</label>
-            <input type="number" class="form-input" name="minStock" required min="0" placeholder="10">
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Unit Cost (₦)</label>
-            <input type="number" class="form-input" name="unitCost" min="0" step="0.01" placeholder="500">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Location / Storage</label>
-            <input type="text" class="form-input" name="location" placeholder="Store Room A">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Supplier / Vendor</label>
-          <input type="text" class="form-input" name="supplier" placeholder="e.g., XYZ Supplies Ltd">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Description</label>
-          <textarea class="form-textarea" name="description" rows="2" placeholder="Specifications, notes…"></textarea>
-        </div>
-        <div class="flex gap-3 mt-6">
-          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary flex-1">Add Item</button>
-        </div>
-      </form>
-    `;
-    createModal('Add New Item', content);
+    createModal('Add an item', this._itemForm(), 'large');
   },
 
   async submitAddItem(event) {
     event.preventDefault();
-    const f       = new FormData(event.target);
-    const session = authManager?.getSession();
-    const itemData = {
-      name:        f.get('name'),
-      category:    f.get('category'),
-      quantity:    parseInt(f.get('quantity')),
-      unit:        f.get('unit'),
-      minStock:    parseInt(f.get('minStock')),
-      unitCost:    parseFloat(f.get('unitCost')) || 0,
-      location:    f.get('location') || '',
-      supplier:    f.get('supplier') || '',
-      description: f.get('description') || '',
-      allocated:   0,
-      dateAdded:   new Date().toISOString(),
+    const f = new FormData(event.target);
+    const quantity = Math.max(0, parseInt(f.get('quantity'), 10) || 0);
+    const data = {
+      name: String(f.get('name')).trim(),
+      category: f.get('category'),
+      quantity,
+      allocated: 0,
+      available: quantity,
+      unit: String(f.get('unit')).trim(),
+      minStock: Math.max(0, parseInt(f.get('minStock'), 10) || 0),
+      unitCost: Math.max(0, this.num(f.get('unitCost'))),
+      location: String(f.get('location') || '').trim(),
+      supplier: String(f.get('supplier') || '').trim(),
+      description: String(f.get('description') || '').trim(),
+      dateAdded: new Date().toISOString()
     };
-    const newItem = await dataManager.create('inventory', itemData);
-    if (!newItem) return;
-    await dataManager.logInventoryTransaction('addition', newItem.id, newItem.name, newItem.quantity, session?.fullName || 'Admin', { unitCost: newItem.unitCost, category: newItem.category, supplier: newItem.supplier });
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_ADDED', newItem.name, `Category: ${newItem.category} | Qty: ${newItem.quantity} | Cost: ₦${(newItem.unitCost || 0).toLocaleString()}`);
-    showToast('Item added successfully!', 'success');
+    if (this.items().some(i => String(i.name || '').toLowerCase() === data.name.toLowerCase())) {
+      showToast(`"${data.name}" is already listed. Use Adjust stock to add to it.`, 'warning');
+      return;
+    }
+    const item = await dataManager.create('inventory', data);
+    if (!item) return;
+    await this._log('addition', item, quantity, { unitCost: data.unitCost, supplier: data.supplier });
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_ADDED', data.name, `Qty: ${quantity} | Unit cost: ₦${data.unitCost}`);
     closeModal();
+    showToast(`${data.name} added`, 'success');
     this.render();
   },
 
-  // ── EDIT ITEM ─────────────────────────────────────────────────────────────
-
   showEditItemModal(itemId) {
     const item = dataManager.getById('inventory', itemId);
-    if (!item) return;
-    const e = this._esc.bind(this);
-    const content = `
-      <form id="edit-item-form" onsubmit="inventoryModule.submitEditItem(event,'${itemId}')">
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Item Name *</label>
-            <input type="text" class="form-input" name="name" required value="${e(item.name)}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Category *</label>
-            <select class="form-select" name="category" required>
-              ${this._categoryOptions(item.category)}
-            </select>
-          </div>
-        </div>
-        <div class="grid grid-cols-3 gap-4">
-          <div class="form-group">
-            <label class="form-label">Quantity *</label>
-            <input type="number" class="form-input" name="quantity" required min="${item.allocated}" value="${item.quantity}">
-            <p class="form-help">Min: ${item.allocated} (currently allocated)</p>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Unit *</label>
-            <input type="text" class="form-input" name="unit" required value="${e(item.unit)}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Min Stock Level *</label>
-            <input type="number" class="form-input" name="minStock" required min="0" value="${item.minStock}">
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Unit Cost (₦)</label>
-            <input type="number" class="form-input" name="unitCost" min="0" step="0.01" value="${item.unitCost || 0}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Location / Storage</label>
-            <input type="text" class="form-input" name="location" value="${e(item.location || '')}">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Supplier / Vendor</label>
-          <input type="text" class="form-input" name="supplier" value="${e(item.supplier || '')}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Description</label>
-          <textarea class="form-textarea" name="description" rows="2">${e(item.description || '')}</textarea>
-        </div>
-        <div class="flex gap-3 mt-6">
-          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary flex-1">Save Changes</button>
-        </div>
-      </form>
-    `;
-    createModal('Edit Item', content);
+    if (item) createModal(`Edit · ${this._esc(item.name)}`, this._itemForm(item), 'large');
   },
 
   async submitEditItem(event, itemId) {
     event.preventDefault();
-    const f       = new FormData(event.target);
-    const session = authManager?.getSession();
-    const item    = dataManager.getById('inventory', itemId);
+    const item = dataManager.getById('inventory', itemId);
+    if (!item) return;
+    const f = new FormData(event.target);
     const updates = {
       ...item,
-      name:        f.get('name'),
-      category:    f.get('category'),
-      quantity:    parseInt(f.get('quantity')),
-      unit:        f.get('unit'),
-      minStock:    parseInt(f.get('minStock')),
-      unitCost:    parseFloat(f.get('unitCost')) || 0,
-      location:    f.get('location') || '',
-      supplier:    f.get('supplier') || '',
-      description: f.get('description') || '',
+      name: String(f.get('name')).trim(),
+      category: f.get('category'),
+      unit: String(f.get('unit')).trim(),
+      minStock: Math.max(0, parseInt(f.get('minStock'), 10) || 0),
+      unitCost: Math.max(0, this.num(f.get('unitCost'))),
+      location: String(f.get('location') || '').trim(),
+      supplier: String(f.get('supplier') || '').trim(),
+      description: String(f.get('description') || '').trim()
     };
-    const result = await dataManager.update('inventory', itemId, updates);
-    if (!result) return;
-    await dataManager.logInventoryTransaction('edit', itemId, updates.name, updates.quantity, session?.fullName || 'Admin', { changes: 'Item details updated' });
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_UPDATED', updates.name, `Category: ${updates.category} | Qty: ${updates.quantity}`);
-    showToast('Item updated successfully!', 'success');
+    if (!(await dataManager.update('inventory', itemId, updates))) return;
+    const costNote = this.unitCost(item) !== updates.unitCost ? { unitCost: `${this.unitCost(item)} → ${updates.unitCost}` } : {};
+    await this._log('edit', updates, 0, { changes: 'Details updated', ...costNote });
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_UPDATED', updates.name, 'Details updated');
     closeModal();
+    showToast('Saved', 'success');
     this.render();
   },
-
-  // ── DELETE ITEM ───────────────────────────────────────────────────────────
 
   deleteItem(itemId) {
     const item = dataManager.getById('inventory', itemId);
     if (!item) return;
-    if (item.allocated > 0) { showToast('Cannot delete item with active assignments', 'danger'); return; }
-    createModal('Confirm Delete', `
-      <p>Are you sure you want to delete <strong>${this._esc(item.name)}</strong>?</p>
-      <p style="color:var(--text-secondary);font-size:0.85rem;margin-top:var(--space-2);">This action cannot be undone.</p>
-      <div class="flex gap-3 mt-6">
-        <button class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-danger flex-1" onclick="inventoryModule._confirmDelete('${itemId}')">Delete</button>
-      </div>
-    `);
+    if (this.onLoan(item) > 0) { showToast(`${item.name} has ${this.onLoan(item)} on loan. Record the returns first.`, 'warning'); return; }
+    createModal('Delete item', `
+      <p>Delete <strong>${this._esc(item.name)}</strong> (${this.qty(item)} ${this._esc(this.unit(item))}, ${this.money(this.value(item))})? Its history stays.</p>
+      <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+        <button type="button" class="ui-btn ui-btn-primary" onclick="inventoryModule._confirmDelete('${this._esc(itemId)}')">Delete</button>
+      </div>`);
   },
 
   async _confirmDelete(itemId) {
     const item = dataManager.getById('inventory', itemId);
     closeModal();
+    if (!item) return;
     await dataManager.delete('inventory', itemId);
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_DELETED', item.name, `Category: ${item.category} | Qty was: ${item.quantity}`);
-    showToast('Item deleted', 'success');
+    await this._log('delete', item, this.qty(item), { value: this.value(item) });
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_DELETED', item.name, `Qty was: ${this.qty(item)}`);
+    showToast(`${item.name} deleted`, 'success');
     this.render();
   },
 
-  // ── RESTOCK / STOCK ADJUSTMENT ────────────────────────────────────────────
+  // ── Stock adjustments ────────────────────────────────────
 
   showRestockModal(itemId) {
     const item = dataManager.getById('inventory', itemId);
     if (!item) return;
-    const e = this._esc.bind(this);
-    const content = `
-      <form id="restock-form" onsubmit="inventoryModule.submitRestock(event,'${itemId}')">
-        <div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:var(--space-4);margin-bottom:var(--space-4);">
-          <p style="font-weight:var(--font-weight-semibold);font-size:var(--font-size-lg);margin-bottom:var(--space-1);">${e(item.name)}</p>
-          <div style="display:flex;gap:var(--space-4);font-size:0.85rem;color:var(--text-secondary);flex-wrap:wrap;">
-            <span>Stock: <strong>${item.quantity} ${e(item.unit)}</strong></span>
-            <span>Allocated: <strong>${item.allocated} ${e(item.unit)}</strong></span>
-            <span>Available: <strong>${item.quantity - item.allocated} ${e(item.unit)}</strong></span>
-          </div>
+    const u = this._esc(this.unit(item));
+    createModal(`Adjust stock · ${this._esc(item.name)}`, `
+      <form class="fp-form" onsubmit="inventoryModule.submitRestock(event, '${this._esc(itemId)}')">
+        <div class="fp-owes">
+          <div><span class="ui-row-meta">Held</span><strong>${this.qty(item)} ${u}</strong></div>
+          <div><span class="ui-row-meta">In store</span><strong>${this.inStore(item)} ${u}</strong></div>
         </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Adjustment Type *</label>
+        <div class="fp-grid">
+          <label class="form-group"><span class="form-label">What happened</span>
             <select class="form-select" name="adjustType" required>
-              <option value="restock">➕ Restock (Add units)</option>
-              <option value="writeoff">➖ Write-off / Loss</option>
-              <option value="correction">🔧 Correction (Set exact qty)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Quantity *</label>
-            <input type="number" class="form-input" name="quantity" required min="1" placeholder="e.g., 50">
-          </div>
+              <option value="restock">Received more</option>
+              <option value="writeoff">Used up, lost or damaged</option>
+              <option value="correction">Correct the count to an exact number</option>
+            </select></label>
+          <label class="form-group"><span class="form-label">Quantity</span><input type="number" class="form-input" name="quantity" required min="0" step="1"></label>
+          <label class="form-group"><span class="form-label">Unit cost paid (₦, when receiving)</span><input type="number" class="form-input" name="unitCost" min="0" step="0.01" placeholder="${this.unitCost(item)}"></label>
+          <label class="form-group"><span class="form-label">Supplier</span><input type="text" class="form-input" name="supplier" value="${this._esc(item.supplier || '')}"></label>
         </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Unit Cost (₦) <span style="font-size:0.75rem;color:var(--text-tertiary);">restock only</span></label>
-            <input type="number" class="form-input" name="unitCost" min="0" step="0.01" value="${item.unitCost || 0}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Supplier</label>
-            <input type="text" class="form-input" name="supplier" value="${e(item.supplier || '')}" placeholder="Vendor name">
-          </div>
+        <label class="form-group"><span class="form-label">Reason</span><textarea class="form-textarea" name="reason" required rows="2"></textarea></label>
+        <p class="ui-card-note">When receiving, the unit cost becomes the average of what is held and what came in.</p>
+        <div class="ui-actions" style="justify-content:flex-end;">
+          <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn-primary">Save</button>
         </div>
-
-        <div class="form-group">
-          <label class="form-label">Reason / Notes *</label>
-          <textarea class="form-textarea" name="reason" required rows="2" placeholder="e.g., Received from supplier, annual restock…"></textarea>
-        </div>
-
-        <div class="flex gap-3 mt-6">
-          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary flex-1">Apply Adjustment</button>
-        </div>
-      </form>
-    `;
-    createModal('Stock Adjustment — ' + this._esc(item.name), content);
+      </form>`);
   },
 
   async submitRestock(event, itemId) {
     event.preventDefault();
-    const f          = new FormData(event.target);
-    const session    = authManager?.getSession();
-    const item       = dataManager.getById('inventory', itemId);
-    const adjustType = f.get('adjustType');
-    const qty        = parseInt(f.get('quantity'));
-    const newUnitCost= parseFloat(f.get('unitCost')) || item.unitCost || 0;
-    const supplier   = f.get('supplier') || item.supplier || '';
-    const reason     = f.get('reason');
+    const item = dataManager.getById('inventory', itemId);
+    if (!item) return;
+    const f = new FormData(event.target);
+    const type = f.get('adjustType');
+    const n = Math.max(0, parseInt(f.get('quantity'), 10) || 0);
+    const reason = String(f.get('reason') || '').trim();
+    const supplier = String(f.get('supplier') || '').trim() || item.supplier || '';
+    const held = this.qty(item), loan = this.onLoan(item), cost = this.unitCost(item);
 
-    let newQty;
-    if (adjustType === 'restock') {
-      newQty = item.quantity + qty;
-    } else if (adjustType === 'writeoff') {
-      const avail = item.quantity - item.allocated;
-      if (qty > avail) { showToast(`Cannot write off more than available (${avail} ${item.unit})`, 'danger'); return; }
-      newQty = item.quantity - qty;
+    let quantity = held, unitCost = cost, change;
+    if (type === 'restock') {
+      if (!n) { showToast('Enter how many came in', 'warning'); return; }
+      const paid = f.get('unitCost') === '' ? cost : this.num(f.get('unitCost'));
+      quantity = held + n;
+      unitCost = this.averageCost(held, cost, n, paid);
+      change = n;
+    } else if (type === 'writeoff') {
+      if (!n) { showToast('Enter how many to take off', 'warning'); return; }
+      if (n > this.inStore(item)) { showToast(`Only ${this.inStore(item)} ${this.unit(item)} are in store. Items on loan are written off when returned as lost.`, 'warning'); return; }
+      quantity = held - n;
+      change = -n;
     } else {
-      // correction: qty is the new absolute quantity
-      if (qty < item.allocated) { showToast(`Cannot set qty below allocated count (${item.allocated})`, 'danger'); return; }
-      newQty = qty;
+      if (n < loan) { showToast(`${loan} are on loan, so the count cannot be below ${loan}.`, 'warning'); return; }
+      quantity = n;
+      change = n - held;
     }
-
-    const updates = { ...item, quantity: newQty, unitCost: newUnitCost, supplier };
-    const result  = await dataManager.update('inventory', itemId, updates);
-    if (!result) return;
-
-    await dataManager.logInventoryTransaction('adjustment', itemId, item.name, qty, session?.fullName || 'Admin', { adjustType, reason, supplier });
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_STOCK_ADJUSTED', item.name, `Type: ${adjustType} | Qty: ${adjustType === 'restock' ? '+' : ''}${qty} | Reason: ${reason}`);
-    showToast('Stock adjusted successfully!', 'success');
+    if (!(await this._saveStock(item, { quantity, unitCost, supplier }))) return;
+    await this._log(type === 'restock' ? 'restock' : 'adjustment', item, Math.abs(change), { adjustType: type, change, from: held, to: quantity, unitCost, reason });
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_STOCK_ADJUSTED', item.name, `${type}: ${held} → ${quantity} | ${reason}`);
     closeModal();
+    showToast(`${item.name}: ${held} → ${quantity} ${this.unit(item)}`, 'success');
     this.render();
   },
 
-  // ── PHYSICAL STOCK COUNT ──────────────────────────────────────────────────
-
   showStockCountModal() {
-    const inventory = dataManager.getAll('inventory');
-    if (inventory.length === 0) { showToast('No items to count', 'info'); return; }
-    const e = this._esc.bind(this);
-
-    const rows = inventory.map(item => `
-      <tr id="scount-row-${item.id}">
-        <td style="font-weight:600;">${e(item.name)}</td>
-        <td style="color:var(--text-secondary);">${e(item.unit)}</td>
-        <td style="color:var(--text-secondary);" data-sys="${item.quantity}">${item.quantity}</td>
-        <td>
-          <input type="number" min="0" class="form-input" style="width:90px;padding:4px 8px;"
-            name="count_${item.id}" placeholder="${item.quantity}"
-            oninput="inventoryModule._liveVariance('${item.id}',this.value,${item.quantity})">
-        </td>
-        <td id="scount-var-${item.id}" style="font-size:0.8rem;color:var(--text-tertiary);">—</td>
-      </tr>
-    `).join('');
-
-    createModal('Physical Stock Count', `
-      <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:var(--space-4);">
-        Enter the physically counted quantity for each item. Leave blank to skip.
-      </p>
-      <form id="stock-count-form" onsubmit="inventoryModule.submitStockCount(event)">
-        <div style="max-height:400px;overflow-y:auto;">
-          <table class="table">
-            <thead>
-              <tr><th>Item</th><th>Unit</th><th>System Qty</th><th>Counted Qty</th><th>Variance</th></tr>
-            </thead>
-            <tbody>${rows}</tbody>
+    const items = [...this.items()].sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    if (!items.length) { showToast('No items to count', 'info'); return; }
+    createModal('Stock count', `
+      <form onsubmit="inventoryModule.submitStockCount(event)">
+        <p class="ui-card-note" style="margin-bottom:12px;">Enter what is physically held (in store plus on loan). Leave an item blank to skip it.</p>
+        <div class="inv-count">
+          <table class="pc-table sr-table fp-table">
+            <thead><tr><th>Item</th><th>Recorded</th><th>Counted</th><th>Difference</th></tr></thead>
+            <tbody>${items.map(i => `
+              <tr>
+                <td>${this._esc(i.name)} <span class="ui-row-meta">${this._esc(this.unit(i))}</span></td>
+                <td>${this.qty(i)}</td>
+                <td><input type="number" min="0" step="1" class="fp-in fp-amt" style="width:90px;" name="count_${this._esc(i.id)}" aria-label="Counted ${this._esc(i.name)}" oninput="inventoryModule._liveVariance('${this._esc(i.id)}', this.value, ${this.qty(i)})"></td>
+                <td id="scount-var-${this._esc(i.id)}">—</td>
+              </tr>`).join('')}</tbody>
           </table>
         </div>
-        <div class="flex gap-3 mt-6">
-          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-success flex-1">Apply Corrections</button>
+        <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+          <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn-primary">Save the count</button>
         </div>
-      </form>
-    `);
+      </form>`, 'large');
   },
 
-  _liveVariance(itemId, value, systemQty) {
+  _liveVariance(itemId, value, recorded) {
     const cell = document.getElementById(`scount-var-${itemId}`);
     if (!cell) return;
-    const counted = parseInt(value);
-    if (isNaN(counted)) { cell.textContent = '—'; cell.style.color = 'var(--text-tertiary)'; return; }
-    const v = counted - systemQty;
-    cell.textContent = (v > 0 ? '+' : '') + v;
-    cell.style.color = v === 0 ? 'var(--color-success)' : v > 0 ? 'var(--color-info)' : 'var(--color-danger)';
+    const n = parseInt(value, 10);
+    cell.textContent = isNaN(n) ? '—' : (n - recorded > 0 ? '+' : '') + (n - recorded);
   },
 
   async submitStockCount(event) {
     event.preventDefault();
-    const session   = authManager?.getSession();
-    const inventory = dataManager.getAll('inventory');
-    const form      = event.target;
-    let corrections = 0;
-
-    for (const item of inventory) {
-      const input = form.querySelector(`[name="count_${item.id}"]`);
+    let changed = 0;
+    const skipped = [];
+    for (const item of this.items()) {
+      const input = event.target.querySelector(`[name="count_${CSS.escape(item.id)}"]`);
       if (!input || input.value === '') continue;
-      const counted = parseInt(input.value);
-      if (isNaN(counted) || counted === item.quantity) continue;
-      if (counted < item.allocated) {
-        showToast(`Skipped ${item.name}: counted qty (${counted}) is below allocated (${item.allocated})`, 'warning');
-        continue;
-      }
-      const variance = counted - item.quantity;
-      await dataManager.update('inventory', item.id, { ...item, quantity: counted });
-      await dataManager.logInventoryTransaction('stock-count', item.id, item.name, Math.abs(variance), session?.fullName || 'Admin', { systemQty: item.quantity, countedQty: counted, variance });
-      if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_STOCK_COUNT', item.name, `System: ${item.quantity} → Counted: ${counted} (variance: ${variance > 0 ? '+' : ''}${variance})`);
-      corrections++;
+      const counted = parseInt(input.value, 10);
+      if (isNaN(counted) || counted === this.qty(item)) continue;
+      if (counted < this.onLoan(item)) { skipped.push(item.name); continue; }
+      const from = this.qty(item);
+      await this._saveStock(item, { quantity: counted });
+      await this._log('stock-count', item, Math.abs(counted - from), { systemQty: from, countedQty: counted, variance: counted - from });
+      if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_STOCK_COUNT', item.name, `${from} → ${counted}`);
+      changed++;
     }
-
     closeModal();
-    showToast(corrections > 0 ? `Stock count applied: ${corrections} item${corrections > 1 ? 's' : ''} corrected` : 'No corrections needed — all counts match', corrections > 0 ? 'success' : 'info');
+    if (skipped.length) showToast(`Not changed (count below what is on loan): ${skipped.join(', ')}`, 'warning');
+    showToast(changed ? `${changed} item${changed === 1 ? '' : 's'} corrected` : 'Every count matched', changed ? 'success' : 'info');
     this.render();
   },
 
-  // ── REQUEST ACTIONS ───────────────────────────────────────────────────────
+  // ── Requests ─────────────────────────────────────────────
+
+  requestsHTML() {
+    const all = this.requests();
+    const by = (s) => all.filter(r => r.status === s).sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0));
+    const section = (title, list, empty) => `
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="ui-card-head"><h2 class="ui-card-title">${title}</h2><span class="ui-card-note">${list.length}</span></div>
+        ${list.length ? list.map(r => this.requestRow(r)).join('') : `<p class="ui-empty">${empty}</p>`}
+      </section>`;
+    const done = [...by('fulfilled'), ...by('rejected')].slice(0, 20);
+    return `
+      <div class="ui-actions" style="margin-top:16px;"><button type="button" class="ui-btn" onclick="inventoryModule.showRequestModal()">Request an item</button></div>
+      ${section('Waiting for a decision', by('pending'), 'No requests waiting.')}
+      ${section('Approved, not yet received', by('approved'), 'Nothing on order.')}
+      ${done.length ? section('Recently closed', done, '') : ''}`;
+  },
+
+  requestRow(r) {
+    const e = (v) => this._esc(v);
+    const id = e(r.id);
+    const est = this.num(r.estimatedCost);
+    const inStock = this.items().find(i => String(i.name || '').toLowerCase() === String(r.itemName || '').toLowerCase());
+    const tone = r.priority === 'urgent' ? 'is-urgent' : r.priority === 'high' ? 'is-warn' : '';
+    const label = { pending: 'Waiting', approved: 'Approved', fulfilled: 'Received', rejected: 'Rejected' }[r.status] || r.status;
+    return `
+      <div class="ui-row inv-req">
+        <span class="ui-dot ${tone}" aria-hidden="true"></span>
+        <div class="ui-row-main">
+          <div class="ui-row-title">${e(r.itemName)} · ${this.num(r.quantity)}${est ? ` · about ${this.money(est)}` : ''}</div>
+          <div class="ui-row-meta">${e(r.priority || 'medium')} priority · ${e(r.requestedByName || 'someone')} · ${this.date(r.requestedDate || r.createdAt || r.created_at)}${inStock ? ` · ${this.inStore(inStock)} already in store` : ''}</div>
+          ${r.justification ? `<div class="ui-row-meta">${e(r.justification)}</div>` : ''}
+          ${r.notes ? `<div class="ui-row-meta">${e(r.notes)}</div>` : ''}
+          ${r.status === 'rejected' && r.reviewNotes ? `<div class="ui-row-meta">Reason: ${e(r.reviewNotes)}</div>` : ''}
+        </div>
+        ${r.status === 'pending' ? `
+          <div class="ui-actions">
+            <button type="button" class="ui-btn ui-btn-sm" onclick="inventoryModule.editRequest('${id}')">Edit</button>
+            <button type="button" class="ui-btn ui-btn-sm" onclick="inventoryModule.rejectRequest('${id}')">Reject</button>
+            <button type="button" class="ui-btn ui-btn-sm ui-btn-primary" onclick="inventoryModule.approveRequest('${id}')">Approve</button>
+          </div>`
+        : r.status === 'approved' ? `<button type="button" class="ui-btn ui-btn-sm ui-btn-primary" onclick="inventoryModule.fulfillRequest('${id}')">Mark received</button>`
+        : `<span class="ui-chip ${r.status === 'fulfilled' ? 'is-good' : ''}">${e(label)}</span>`}
+      </div>`;
+  },
+
+  _requestForm(r = null) {
+    const e = (v) => this._esc(v ?? '');
+    return `
+      <form class="fp-form" onsubmit="inventoryModule.${r ? `submitEditRequest(event, '${e(r.id)}')` : 'submitRequest(event)'}">
+        <label class="form-group"><span class="form-label">Item</span><input type="text" class="form-input" name="itemName" required value="${e(r?.itemName)}" list="inv-names"></label>
+        <datalist id="inv-names">${this.items().map(i => `<option value="${e(i.name)}">`).join('')}</datalist>
+        <div class="fp-grid">
+          <label class="form-group"><span class="form-label">Category</span><select class="form-select" name="category" required><option value="">Choose…</option>${this.catOptions(r?.category)}</select></label>
+          <label class="form-group"><span class="form-label">Priority</span><select class="form-select" name="priority">${['low', 'medium', 'high', 'urgent'].map(p => `<option value="${p}" ${(r?.priority || 'medium') === p ? 'selected' : ''}>${p[0].toUpperCase() + p.slice(1)}</option>`).join('')}</select></label>
+          <label class="form-group"><span class="form-label">Quantity</span><input type="number" class="form-input" name="quantity" required min="1" step="1" value="${e(r?.quantity)}"></label>
+          <label class="form-group"><span class="form-label">Estimated total cost (₦)</span><input type="number" class="form-input" name="estimatedCost" required min="0" value="${r ? this.num(r.estimatedCost) : ''}"></label>
+        </div>
+        <label class="form-group"><span class="form-label">Preferred supplier</span><input type="text" class="form-input" name="supplier" value="${e(String(r?.notes || '').replace(/^Preferred supplier: /, ''))}"></label>
+        <label class="form-group"><span class="form-label">Why it is needed</span><textarea class="form-textarea" name="justification" required rows="3">${e(r?.justification)}</textarea></label>
+        <div class="ui-actions" style="justify-content:flex-end;">
+          <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn-primary">${r ? 'Save' : 'Send request'}</button>
+        </div>
+      </form>`;
+  },
+
+  _readRequest(f) {
+    const supplier = String(f.get('supplier') || '').trim();
+    return {
+      itemName: String(f.get('itemName')).trim(),
+      category: f.get('category'),
+      priority: f.get('priority') || 'medium',
+      quantity: Math.max(1, parseInt(f.get('quantity'), 10) || 1),
+      estimatedCost: Math.max(0, this.num(f.get('estimatedCost'))),
+      justification: String(f.get('justification') || '').trim(),
+      notes: supplier ? `Preferred supplier: ${supplier}` : ''
+    };
+  },
 
   showRequestModal() {
-    const content = `
-      <form id="request-form" onsubmit="inventoryModule.submitRequest(event)">
-        <div class="form-group">
-          <label class="form-label">Item Name *</label>
-          <input type="text" class="form-input" name="itemName" required placeholder="e.g., Whiteboard Markers">
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Category *</label>
-            <select class="form-select" name="category" required>
-              <option value="">Select Category</option>
-              ${this._categoryOptions()}
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Priority *</label>
-            <select class="form-select" name="priority" required>
-              <option value="medium" selected>Medium</option>
-              <option value="low">Low</option>
-              <option value="high">High</option>
-              <option value="urgent">Urgent</option>
-            </select>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Quantity *</label>
-            <input type="number" class="form-input" name="quantity" required min="1" placeholder="50">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Estimated Cost (₦) *</label>
-            <input type="number" class="form-input" name="estimatedCost" required min="0" placeholder="25000">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Preferred Supplier</label>
-          <input type="text" class="form-input" name="supplier" placeholder="e.g., XYZ Supplies Ltd">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Justification *</label>
-          <textarea class="form-textarea" name="justification" required placeholder="Explain why this item is needed…" rows="3"></textarea>
-        </div>
-        <div class="flex gap-3 mt-6">
-          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary flex-1">Submit Request</button>
-        </div>
-      </form>
-    `;
-    createModal('Request Inventory Item', content);
+    createModal('Request an item', this._requestForm(), 'large');
   },
 
   async submitRequest(event) {
     event.preventDefault();
-    const f       = new FormData(event.target);
-    const session = authManager?.getSession();
-    const reqData = {
-      itemName:        f.get('itemName'),
-      category:        f.get('category'),
-      quantity:        parseInt(f.get('quantity')),
-      estimatedCost:   parseInt(f.get('estimatedCost')),
-      supplier:        f.get('supplier') || '',
-      justification:   f.get('justification'),
-      priority:        f.get('priority'),
-      requestedBy:     session?.userId || session?.supabaseId || 'unknown',
-      requestedByName: session?.fullName || 'Current User',
-      requestedDate:   new Date().toISOString(),
-      status:          'pending',
-      reviewedBy:      null,
-      reviewedDate:    null,
-      reviewNotes:     null,
-    };
-    const result = await dataManager.create('inventoryRequests', reqData);
-    if (!result) return;
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_REQUEST_CREATED', reqData.itemName, `Qty: ${reqData.quantity} | Priority: ${reqData.priority}`);
-    showToast('Request submitted successfully!', 'success');
+    const me = this.who();
+    const data = { ...this._readRequest(new FormData(event.target)), requestedBy: me.id, requestedByName: me.name, status: 'pending' };
+    if (!(await dataManager.create('inventoryRequests', data))) return;
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_REQUEST_CREATED', data.itemName, `Qty: ${data.quantity} | Priority: ${data.priority}`);
     closeModal();
+    showToast('Request sent', 'success');
     this._tab = 'requests';
     this.render();
   },
 
+  editRequest(requestId) {
+    const r = dataManager.getById('inventoryRequests', requestId);
+    if (r) createModal('Edit request', this._requestForm(r), 'large');
+  },
+
+  async submitEditRequest(event, requestId) {
+    event.preventDefault();
+    const r = dataManager.getById('inventoryRequests', requestId);
+    if (!r) return;
+    await dataManager.update('inventoryRequests', requestId, { ...r, ...this._readRequest(new FormData(event.target)) });
+    closeModal();
+    showToast('Request saved', 'success');
+    this.render();
+  },
+
   async approveRequest(requestId) {
-    const req     = dataManager.getById('inventoryRequests', requestId);
-    const session = authManager?.getSession();
-    await dataManager.update('inventoryRequests', requestId, {
-      ...req,
-      status:       'approved',
-      reviewedBy:   session?.userId || 'admin',
-      reviewedDate: new Date().toISOString(),
-      reviewNotes:  'Approved',
-    });
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_REQUEST_APPROVED', req.itemName, `Requested by: ${req.requestedByName} | Qty: ${req.quantity}`);
-    showToast('Request approved! Click "Add to Inventory" to fulfil it.', 'success');
+    const r = dataManager.getById('inventoryRequests', requestId);
+    if (!r) return;
+    await dataManager.update('inventoryRequests', requestId, { ...r, status: 'approved', reviewedBy: this.who().id, reviewedDate: new Date().toISOString(), reviewNotes: 'Approved' });
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_REQUEST_APPROVED', r.itemName, `By: ${r.requestedByName} | Qty: ${r.quantity}`);
+    showToast('Approved. Use "Mark received" when it arrives.', 'success');
     this.render();
   },
 
   rejectRequest(requestId) {
-    const req = dataManager.getById('inventoryRequests', requestId);
-    if (!req) return;
-    createModal('Reject Request', `
-      <p>Rejecting request for <strong>${this._esc(req.itemName)}</strong>.</p>
-      <div class="form-group mt-4">
-        <label class="form-label">Reason for rejection *</label>
-        <textarea class="form-textarea" id="reject-reason" rows="3" placeholder="Explain why this request is being rejected…"></textarea>
-      </div>
-      <div class="flex gap-3 mt-6">
-        <button class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-danger flex-1" onclick="inventoryModule._confirmReject('${requestId}')">Reject</button>
-      </div>
-    `);
+    const r = dataManager.getById('inventoryRequests', requestId);
+    if (!r) return;
+    createModal('Reject request', `
+      <p>Reject the request for <strong>${this._esc(r.itemName)}</strong>?</p>
+      <label class="form-group" style="margin-top:12px;"><span class="form-label">Reason</span><textarea class="form-textarea" id="reject-reason" rows="3"></textarea></label>
+      <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+        <button type="button" class="ui-btn ui-btn-primary" onclick="inventoryModule._confirmReject('${this._esc(requestId)}')">Reject</button>
+      </div>`);
   },
 
   async _confirmReject(requestId) {
     const reason = document.getElementById('reject-reason')?.value?.trim();
-    if (!reason) { showToast('Please enter a rejection reason', 'warning'); return; }
-    const req     = dataManager.getById('inventoryRequests', requestId);
-    const session = authManager?.getSession();
+    if (!reason) { showToast('Give a reason', 'warning'); return; }
+    const r = dataManager.getById('inventoryRequests', requestId);
     closeModal();
-    await dataManager.update('inventoryRequests', requestId, {
-      ...req,
-      status:       'rejected',
-      reviewedBy:   session?.userId || 'admin',
-      reviewedDate: new Date().toISOString(),
-      reviewNotes:  reason,
-    });
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_REQUEST_REJECTED', req.itemName, `Reason: ${reason}`);
+    if (!r) return;
+    await dataManager.update('inventoryRequests', requestId, { ...r, status: 'rejected', reviewedBy: this.who().id, reviewedDate: new Date().toISOString(), reviewNotes: reason });
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_REQUEST_REJECTED', r.itemName, `Reason: ${reason}`);
     showToast('Request rejected', 'info');
     this.render();
   },
 
   fulfillRequest(requestId) {
-    const req      = dataManager.getById('inventoryRequests', requestId);
-    if (!req) return;
-    const e        = this._esc.bind(this);
-    const existing = dataManager.getAll('inventory').find(i => (i.name || '').toLowerCase() === (req.itemName || '').toLowerCase());
-
-    createModal('Add to Inventory', `
-      ${existing
-        ? `<div style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);padding:var(--space-3);margin-bottom:var(--space-4);font-size:0.85rem;color:#92400e;">⚠️ <strong>${e(existing.name)}</strong> already exists (${existing.quantity} ${e(existing.unit)}). Received units will be added to current stock.</div>`
-        : `<p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:var(--space-4);">Creating new inventory item: <strong>${e(req.itemName)}</strong></p>`
-      }
-      <form id="fulfill-form" onsubmit="inventoryModule.submitFulfillRequest(event,'${requestId}')">
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Quantity Received *</label>
-            <input type="number" class="form-input" name="quantity" required min="1" value="${req.quantity}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Unit Cost (₦)</label>
-            <input type="number" class="form-input" name="unitCost" min="0" step="0.01" value="${req.quantity > 0 ? (req.estimatedCost / req.quantity).toFixed(2) : 0}">
-          </div>
+    const r = dataManager.getById('inventoryRequests', requestId);
+    if (!r) return;
+    const e = (v) => this._esc(v ?? '');
+    const existing = this.items().find(i => String(i.name || '').toLowerCase() === String(r.itemName || '').toLowerCase());
+    const each = this.num(r.quantity) ? Math.round((this.num(r.estimatedCost) / this.num(r.quantity)) * 100) / 100 : 0;
+    createModal(`Received · ${e(r.itemName)}`, `
+      <form class="fp-form" onsubmit="inventoryModule.submitFulfillRequest(event, '${e(requestId)}')">
+        <p class="ui-card-note">${existing ? `Adds to the ${this.qty(existing)} ${e(this.unit(existing))} already held.` : 'Creates a new item.'}</p>
+        <div class="fp-grid">
+          <label class="form-group"><span class="form-label">Quantity received</span><input type="number" class="form-input" name="quantity" required min="1" step="1" value="${this.num(r.quantity)}"></label>
+          <label class="form-group"><span class="form-label">Unit cost paid (₦)</span><input type="number" class="form-input" name="unitCost" min="0" step="0.01" value="${each}"></label>
+          <label class="form-group"><span class="form-label">Supplier</span><input type="text" class="form-input" name="supplier" value="${e(String(r.notes || '').replace(/^Preferred supplier: /, ''))}"></label>
+          <label class="form-group"><span class="form-label">Kept at</span><input type="text" class="form-input" name="location" value="${e(existing?.location)}"></label>
+          ${existing ? '' : `
+            <label class="form-group"><span class="form-label">Unit</span><input type="text" class="form-input" name="unit" required value="pieces"></label>
+            <label class="form-group"><span class="form-label">Minimum to keep in store</span><input type="number" class="form-input" name="minStock" min="0" value="5"></label>`}
         </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Supplier</label>
-            <input type="text" class="form-input" name="supplier" value="${e(req.supplier || '')}" placeholder="Vendor name">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Location / Storage</label>
-            <input type="text" class="form-input" name="location" value="${existing ? e(existing.location || '') : ''}" placeholder="Store Room A">
-          </div>
+        <div class="ui-actions" style="justify-content:flex-end;">
+          <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn-primary">Add to stock</button>
         </div>
-        ${!existing ? `
-          <div class="grid grid-cols-2 gap-4">
-            <div class="form-group">
-              <label class="form-label">Unit *</label>
-              <input type="text" class="form-input" name="unit" required value="pieces" placeholder="pieces, boxes…">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Min Stock Level</label>
-              <input type="number" class="form-input" name="minStock" min="0" value="5">
-            </div>
-          </div>
-        ` : `<input type="hidden" name="unit" value="${e(existing.unit)}"><input type="hidden" name="minStock" value="${existing.minStock}">`}
-        <div class="flex gap-3 mt-6">
-          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-success flex-1">📥 Add to Inventory</button>
-        </div>
-      </form>
-    `);
+      </form>`, 'large');
   },
 
   async submitFulfillRequest(event, requestId) {
     event.preventDefault();
-    const f       = new FormData(event.target);
-    const session = authManager?.getSession();
-    const req     = dataManager.getById('inventoryRequests', requestId);
-    const qty     = parseInt(f.get('quantity'));
-    const unitCost= parseFloat(f.get('unitCost')) || 0;
-    const supplier= f.get('supplier') || '';
-    const location= f.get('location') || '';
-
-    const existing = dataManager.getAll('inventory').find(i => (i.name || '').toLowerCase() === (req.itemName || '').toLowerCase());
+    const r = dataManager.getById('inventoryRequests', requestId);
+    if (!r) return;
+    const f = new FormData(event.target);
+    const n = Math.max(1, parseInt(f.get('quantity'), 10) || 1);
+    const paid = Math.max(0, this.num(f.get('unitCost')));
+    const supplier = String(f.get('supplier') || '').trim();
+    const location = String(f.get('location') || '').trim();
+    const existing = this.items().find(i => String(i.name || '').toLowerCase() === String(r.itemName || '').toLowerCase());
 
     if (existing) {
-      await dataManager.update('inventory', existing.id, {
-        ...existing,
-        quantity: existing.quantity + qty,
-        unitCost: unitCost || existing.unitCost,
-        supplier: supplier || existing.supplier,
-        location: location || existing.location,
-      });
-      await dataManager.logInventoryTransaction('restock', existing.id, existing.name, qty, session?.fullName || 'Admin', { source: 'request', requestId, supplier });
+      const held = this.qty(existing);
+      const unitCost = this.averageCost(held, this.unitCost(existing), n, paid || this.unitCost(existing));
+      await this._saveStock(existing, { quantity: held + n, unitCost, supplier: supplier || existing.supplier, location: location || existing.location });
+      await this._log('restock', existing, n, { source: 'request', from: held, to: held + n, unitCost, supplier });
     } else {
-      const newItem = await dataManager.create('inventory', {
-        name:        req.itemName,
-        category:    req.category,
-        quantity:    qty,
-        unit:        f.get('unit') || 'pieces',
-        minStock:    parseInt(f.get('minStock')) || 5,
-        unitCost,
-        supplier,
-        location,
-        description: req.justification || '',
-        allocated:   0,
-        dateAdded:   new Date().toISOString(),
+      const item = await dataManager.create('inventory', {
+        name: r.itemName, category: r.category || 'other', quantity: n, allocated: 0, available: n,
+        unit: String(f.get('unit') || 'pieces').trim(), minStock: Math.max(0, parseInt(f.get('minStock'), 10) || 0),
+        unitCost: paid, supplier, location, description: r.justification || '', dateAdded: new Date().toISOString()
       });
-      if (!newItem) return;
-      await dataManager.logInventoryTransaction('addition', newItem.id, newItem.name, qty, session?.fullName || 'Admin', { source: 'request', requestId, supplier });
-      if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_ADDED', newItem.name, `Via approved request | Qty: ${qty}`);
+      if (!item) return;
+      await this._log('addition', item, n, { source: 'request', unitCost: paid, supplier });
     }
-
-    await dataManager.update('inventoryRequests', requestId, { ...req, status: 'fulfilled' });
+    await dataManager.update('inventoryRequests', requestId, { ...r, status: 'fulfilled' });
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_REQUEST_FULFILLED', r.itemName, `Qty: ${n} | Unit cost: ₦${paid}`);
     closeModal();
-    showToast(`${req.itemName} added to inventory!`, 'success');
+    showToast(`${n} ${r.itemName} added to stock`, 'success');
     this.render();
   },
 
-  editRequest(requestId) {
-    const req = dataManager.getById('inventoryRequests', requestId);
-    if (!req) return;
-    const e = this._esc.bind(this);
-    const content = `
-      <form id="edit-request-form" onsubmit="inventoryModule.submitEditRequest(event,'${requestId}')">
-        <div class="form-group">
-          <label class="form-label">Item Name *</label>
-          <input type="text" class="form-input" name="itemName" required value="${e(req.itemName)}">
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Category *</label>
-            <select class="form-select" name="category" required>
-              ${this._categoryOptions(req.category)}
-            </select>
+  // ── Loans ────────────────────────────────────────────────
+
+  loansHTML() {
+    const all = this.assignments();
+    const active = all.filter(a => a.status === 'active').sort((a, b) => (this.isOverdue(b) - this.isOverdue(a)) || new Date(a.expectedReturnDate || '9999') - new Date(b.expectedReturnDate || '9999'));
+    const returned = all.filter(a => a.status === 'returned').sort((a, b) => new Date(b.returnedDate || 0) - new Date(a.returnedDate || 0)).slice(0, 20);
+    const row = (a) => {
+      const id = this._esc(a.id);
+      const due = a.expectedReturnDate || a.expected_return_date;
+      const back = a.conditionIn || a.condition_in;
+      return `
+        <div class="ui-row">
+          <span class="ui-dot ${this.isOverdue(a) ? 'is-urgent' : a.status === 'active' ? 'is-info' : ''}" aria-hidden="true"></span>
+          <div class="ui-row-main">
+            <div class="ui-row-title">${this._esc(a.itemName)} · ${this.num(a.quantity)} to ${this._esc(a.assigneeName)}</div>
+            <div class="ui-row-meta">${this._esc(a.assigneeType || '')} · lent ${this.date(a.assignedDate || a.createdAt)}${a.status === 'active'
+              ? (due ? ` · due ${this.date(due)}${this.isOverdue(a) ? ' · overdue' : ''}` : ' · no return date')
+              : ` · returned ${this.date(a.returnedDate || a.returned_date)}${back ? ` · ${this._esc(back)}` : ''}`}</div>
+            ${a.notes ? `<div class="ui-row-meta">${this._esc(a.notes)}</div>` : ''}
           </div>
-          <div class="form-group">
-            <label class="form-label">Priority *</label>
-            <select class="form-select" name="priority" required>
-              ${['low','medium','high','urgent'].map(p => `<option value="${p}" ${req.priority === p ? 'selected' : ''}>${p.charAt(0).toUpperCase()+p.slice(1)}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Quantity *</label>
-            <input type="number" class="form-input" name="quantity" required min="1" value="${req.quantity}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Estimated Cost (₦) *</label>
-            <input type="number" class="form-input" name="estimatedCost" required min="0" value="${req.estimatedCost}">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Preferred Supplier</label>
-          <input type="text" class="form-input" name="supplier" value="${e(req.supplier || '')}">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Justification *</label>
-          <textarea class="form-textarea" name="justification" required rows="3">${e(req.justification)}</textarea>
-        </div>
-        <div class="flex gap-3 mt-6">
-          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary flex-1">Save Changes</button>
-        </div>
-      </form>
-    `;
-    createModal('Edit Request', content);
+          ${a.status === 'active' ? `<button type="button" class="ui-btn ui-btn-sm" onclick="inventoryModule.returnItem('${id}')">Record return</button>` : ''}
+        </div>`;
+    };
+    return `
+      <div class="ui-actions" style="margin-top:16px;"><button type="button" class="ui-btn" onclick="inventoryModule.showAssignModal()">Lend an item</button></div>
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="ui-card-head"><h2 class="ui-card-title">On loan now</h2><span class="ui-card-note">${active.length}</span></div>
+        ${active.length ? active.map(row).join('') : '<p class="ui-empty">Nothing is on loan.</p>'}
+      </section>
+      ${returned.length ? `
+        <section class="ui-card" style="margin-top:16px;">
+          <div class="ui-card-head"><h2 class="ui-card-title">Recently returned</h2></div>
+          ${returned.map(row).join('')}
+        </section>` : ''}`;
   },
 
-  async submitEditRequest(event, requestId) {
-    event.preventDefault();
-    const f   = new FormData(event.target);
-    const req = dataManager.getById('inventoryRequests', requestId);
-    await dataManager.update('inventoryRequests', requestId, {
-      ...req,
-      itemName:      f.get('itemName'),
-      category:      f.get('category'),
-      quantity:      parseInt(f.get('quantity')),
-      estimatedCost: parseInt(f.get('estimatedCost')),
-      justification: f.get('justification'),
-      priority:      f.get('priority'),
-      supplier:      f.get('supplier') || '',
-    });
-    showToast('Request updated!', 'success');
-    closeModal();
-    this.render();
+  _assigneeOptions(type) {
+    const e = (v) => this._esc(v ?? '');
+    const active = (s) => String(s.status || 'active').toLowerCase() === 'active';
+    if (type === 'student') {
+      return (dataManager.getAll('students') || []).filter(active).sort((a, b) => String(a.name).localeCompare(String(b.name)))
+        .map(s => `<option value="${e(s.id)}" data-name="${e(s.name)}">${e(s.name)} · ${e([s.grade, s.section].filter(Boolean).join(' '))}</option>`).join('');
+    }
+    if (type === 'classroom') {
+      return (window.schoolConfig?.getAllGrades() || []).flatMap(g => (g.sections || ['A']).map(sec => {
+        const label = `${g.name} ${sec}`;
+        return `<option value="classroom-${e(g.name)}-${e(sec)}" data-name="${e(label)}">${e(label)}</option>`;
+      })).join('');
+    }
+    return (dataManager.getAll('staff') || []).filter(active).sort((a, b) => String(a.name).localeCompare(String(b.name)))
+      .map(s => `<option value="${e(s.id)}" data-name="${e(s.name)}">${e(s.name)}</option>`).join('');
   },
-
-  // ── ASSIGNMENT ACTIONS ────────────────────────────────────────────────────
 
   showAssignModal(preSelectItemId) {
-    const inventory = dataManager.getAll('inventory');
-    const staff     = dataManager.getAll('staff');
-    const e         = this._esc.bind(this);
-
-    const content = `
-      <form id="assign-form" onsubmit="inventoryModule.submitAssignment(event)">
-        <div class="form-group">
-          <label class="form-label">Select Item *</label>
+    const items = this.items().filter(i => this.inStore(i) > 0 || i.id === preSelectItemId).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    if (!items.length) { showToast('Nothing is in store to lend', 'info'); return; }
+    createModal('Lend an item', `
+      <form id="assign-form" class="fp-form" onsubmit="inventoryModule.submitAssignment(event)">
+        <label class="form-group"><span class="form-label">Item</span>
           <select class="form-select" name="itemId" required onchange="inventoryModule.updateAvailableQty(this.value)">
-            <option value="">Choose an item</option>
-            ${inventory.map(item => {
-              const avail = item.quantity - item.allocated;
-              return `<option value="${item.id}" data-available="${avail}" data-name="${e(item.name)}" ${preSelectItemId === item.id ? 'selected' : ''}>${e(item.name)} (${avail} available)</option>`;
-            }).join('')}
-          </select>
+            <option value="">Choose…</option>
+            ${items.map(i => `<option value="${this._esc(i.id)}" ${preSelectItemId === i.id ? 'selected' : ''}>${this._esc(i.name)} (${this.inStore(i)} in store)</option>`).join('')}
+          </select></label>
+        <div class="fp-grid">
+          <label class="form-group"><span class="form-label">Lend to</span>
+            <select class="form-select" name="assigneeType" onchange="inventoryModule.toggleAssigneeType(this.value)">
+              <option value="staff">A staff member</option><option value="student">A pupil</option><option value="classroom">A classroom</option>
+            </select></label>
+          <label class="form-group"><span class="form-label">Who</span>
+            <select class="form-select" name="assigneeId" id="assignee-select" required><option value="">Choose…</option>${this._assigneeOptions('staff')}</select></label>
+          <label class="form-group"><span class="form-label">Quantity</span><input type="number" class="form-input" name="quantity" id="assign-quantity" required min="1" step="1" value="1"><span class="ui-row-meta" id="available-qty-help"></span></label>
+          <label class="form-group"><span class="form-label">Condition going out</span>
+            <select class="form-select" name="condition"><option value="good">Good</option><option value="fair">Fair</option><option value="damaged">Damaged</option></select></label>
+          <label class="form-group"><span class="form-label">Due back</span><input type="date" class="form-input" name="expectedReturnDate"></label>
         </div>
-
-        <div class="form-group">
-          <label class="form-label">Assign To *</label>
-          <div style="display:flex;gap:var(--space-4);margin-bottom:var(--space-3);flex-wrap:wrap;">
-            <label class="form-checkbox"><input type="radio" name="assigneeType" value="staff" checked onchange="inventoryModule.toggleAssigneeType('staff')"><span>Staff</span></label>
-            <label class="form-checkbox"><input type="radio" name="assigneeType" value="student" onchange="inventoryModule.toggleAssigneeType('student')"><span>Student</span></label>
-            <label class="form-checkbox"><input type="radio" name="assigneeType" value="classroom" onchange="inventoryModule.toggleAssigneeType('classroom')"><span>Classroom</span></label>
-          </div>
-          <select class="form-select" name="assigneeId" id="assignee-select" required>
-            <option value="">Select staff member</option>
-            ${staff.map(s => `<option value="${s.id}" data-name="${e(s.name)}">${e(s.name)} — ${e(s.subject || s.role || '')}</option>`).join('')}
-          </select>
+        <label class="form-group"><span class="form-label">Notes</span><textarea class="form-textarea" name="notes" rows="2"></textarea></label>
+        <div class="ui-actions" style="justify-content:flex-end;">
+          <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+          <button type="submit" class="ui-btn ui-btn-primary">Lend</button>
         </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Quantity *</label>
-            <input type="number" class="form-input" name="quantity" required min="1" value="1" id="assign-quantity">
-            <p class="form-help" id="available-qty-help" style="color:var(--text-tertiary);">Select an item first</p>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Condition *</label>
-            <select class="form-select" name="condition" required>
-              <option value="good">Good</option>
-              <option value="fair">Fair</option>
-              <option value="damaged">Damaged</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Expected Return Date</label>
-          <input type="date" class="form-input" name="expectedReturnDate">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Notes</label>
-          <textarea class="form-textarea" name="notes" rows="2" placeholder="Purpose, location, instructions…"></textarea>
-        </div>
-
-        <div class="flex gap-3 mt-6">
-          <button type="button" class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary flex-1">Assign Item</button>
-        </div>
-      </form>
-    `;
-    createModal('Assign Inventory Item', content);
-    if (preSelectItemId) {
-      Promise.resolve().then(() => this.updateAvailableQty(preSelectItemId));
-    }
+      </form>`, 'large');
+    if (preSelectItemId) this.updateAvailableQty(preSelectItemId);
   },
 
   toggleAssigneeType(type) {
     const select = document.getElementById('assignee-select');
-    if (!select) return;
-    const e = this._esc.bind(this);
-    if (type === 'staff') {
-      const staff = dataManager.getAll('staff');
-      select.innerHTML = `<option value="">Select staff member</option>` +
-        staff.map(s => `<option value="${s.id}" data-name="${e(s.name)}">${e(s.name)} — ${e(s.subject || s.role || '')}</option>`).join('');
-    } else if (type === 'student') {
-      const students = dataManager.getAll('students');
-      select.innerHTML = `<option value="">Select student</option>` +
-        students.map(s => `<option value="${s.id}" data-name="${e(s.name || s.fullName)}">${e(s.name || s.fullName)} — ${e(s.grade || '')}</option>`).join('');
-    } else {
-      const classes = dataManager.getAll('classes') || [];
-      if (classes.length > 0) {
-        select.innerHTML = `<option value="">Select classroom</option>` +
-          classes.map(c => `<option value="classroom-${c.grade}-${c.section}" data-name="${e(c.grade)}-${e(c.section)}">${e(c.grade)}-${e(c.section)} (${e(c.room || 'No room')})</option>`).join('');
-      } else {
-        const allGrades = window.schoolConfig?.getAllGrades() || [];
-        select.innerHTML = `<option value="">Select classroom</option>` +
-          allGrades.flatMap(g => (g.sections || ['A']).map(s =>
-            `<option value="classroom-${g.code}-${s}" data-name="${e(g.name)}-${s}">${e(g.name)}-${s}</option>`
-          )).join('');
-      }
-    }
+    if (select) select.innerHTML = `<option value="">Choose…</option>${this._assigneeOptions(type)}`;
   },
 
   updateAvailableQty(itemId) {
-    if (!itemId) return;
-    const item  = dataManager.getById('inventory', itemId);
+    const item = itemId && dataManager.getById('inventory', itemId);
     if (!item) return;
-    const avail = item.quantity - item.allocated;
-    const help  = document.getElementById('available-qty-help');
-    const qty   = document.getElementById('assign-quantity');
-    if (help) { help.textContent = `Available: ${avail} ${item.unit}`; help.style.color = avail > 0 ? 'var(--color-success)' : 'var(--color-danger)'; }
-    if (qty) qty.max = avail;
+    const help = document.getElementById('available-qty-help');
+    const qty = document.getElementById('assign-quantity');
+    if (help) help.textContent = `${this.inStore(item)} ${this.unit(item)} in store`;
+    if (qty) qty.max = this.inStore(item);
   },
 
   async submitAssignment(event) {
     event.preventDefault();
-    const f       = new FormData(event.target);
-    const session = authManager?.getSession(); // FIXED: declare session locally
-    const itemId  = f.get('itemId');
-    const qty     = parseInt(f.get('quantity'));
-    const item    = dataManager.getById('inventory', itemId);
-    if (!item) { showToast('Item not found', 'error'); return; }
-
-    const avail = item.quantity - item.allocated;
-    if (qty > avail) { showToast(`Only ${avail} ${item.unit} available`, 'danger'); return; }
-
-    const assigneeId     = f.get('assigneeId');
-    const assigneeType   = f.get('assigneeType');
-    const assigneeSelect = document.querySelector(`#assignee-select option[value="${assigneeId}"]`);
-    const assigneeName   = assigneeSelect?.dataset?.name || assigneeId;
-
-    const assignmentData = {
-      itemId,
-      itemName:           item.name,
-      assignedTo:         assigneeId,
-      assigneeType,
-      assigneeName,
-      quantity:           qty,
-      assignedDate:       new Date().toISOString(),
-      assignedBy:         session?.userId || session?.supabaseId || 'unknown',
-      assignedByName:     session?.fullName || 'Admin',
-      expectedReturnDate: f.get('expectedReturnDate') || null,
-      returnedDate:       null,
-      status:             'active',
-      condition:          f.get('condition'),
-      returnCondition:    null,
-      returnNotes:        null,
-      notes:              f.get('notes') || '',
+    const f = new FormData(event.target);
+    const item = dataManager.getById('inventory', f.get('itemId'));
+    if (!item) { showToast('Choose an item', 'warning'); return; }
+    const n = Math.max(1, parseInt(f.get('quantity'), 10) || 1);
+    if (n > this.inStore(item)) { showToast(`Only ${this.inStore(item)} ${this.unit(item)} in store`, 'warning'); return; }
+    const assigneeId = f.get('assigneeId');
+    const opt = [...(document.getElementById('assignee-select')?.options || [])].find(o => o.value === assigneeId);
+    const me = this.who();
+    const data = {
+      itemId: item.id, itemName: item.name, assignedTo: assigneeId, assigneeType: f.get('assigneeType'),
+      assigneeName: opt?.dataset?.name || assigneeId, quantity: n, assignedDate: new Date().toISOString(),
+      assignedBy: me.id, assignedByName: me.name, expectedReturnDate: f.get('expectedReturnDate') || null,
+      status: 'active', condition: f.get('condition'), conditionOut: f.get('condition'), notes: String(f.get('notes') || '').trim()
     };
-
-    // ATOMIC: create assignment first, then update allocated
-    const newAssignment = await dataManager.create('inventoryAssignments', assignmentData);
-    if (!newAssignment) return;
-    await dataManager.update('inventory', itemId, { ...item, allocated: item.allocated + qty });
-    await dataManager.logInventoryTransaction('assignment', itemId, item.name, qty, session?.fullName || 'Admin', { assigneeName, assigneeType });
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_ASSIGNED', item.name, `To: ${assigneeName} (${assigneeType}) | Qty: ${qty}`);
-    showToast('Item assigned successfully!', 'success');
+    if (!(await dataManager.create('inventoryAssignments', data))) return;
+    await this._saveStock(item, { allocated: this.onLoan(item) + n });
+    await this._log('assignment', item, n, { assigneeName: data.assigneeName, assigneeType: data.assigneeType });
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_ASSIGNED', item.name, `To: ${data.assigneeName} | Qty: ${n}`);
     closeModal();
-    this._tab = 'assignments';
+    showToast(`${n} ${item.name} lent to ${data.assigneeName}`, 'success');
+    this._tab = 'loans';
     this.render();
   },
 
   returnItem(assignmentId) {
     const a = dataManager.getById('inventoryAssignments', assignmentId);
-    if (!a) { showToast('Assignment not found', 'error'); return; }
-    if (a.status === 'returned') { showToast('Already returned', 'warning'); return; }
-    const e = this._esc.bind(this);
-    createModal('Return Item', `
-      <p>Returning <strong>${e(a.itemName)}</strong> from <strong>${e(a.assigneeName)}</strong>.</p>
-      <div class="form-group mt-4">
-        <label class="form-label">Return Condition *</label>
+    if (!a || a.status !== 'active') return;
+    createModal('Record a return', `
+      <p>${this._esc(a.itemName)} · ${this.num(a.quantity)} from <strong>${this._esc(a.assigneeName)}</strong></p>
+      <label class="form-group" style="margin-top:12px;"><span class="form-label">Condition</span>
         <select class="form-select" id="return-condition">
-          <option value="good">Good — no damage</option>
-          <option value="fair">Fair — minor wear</option>
-          <option value="damaged">Damaged</option>
-          <option value="lost">Lost / Missing</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label">Notes</label>
-        <textarea class="form-textarea" id="return-notes" rows="2" placeholder="Any notes about the return…"></textarea>
-      </div>
-      <div class="flex gap-3 mt-6">
-        <button class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary flex-1" onclick="inventoryModule._confirmReturn('${assignmentId}')">Confirm Return</button>
-      </div>
-    `);
+          <option value="good">Good</option><option value="fair">Fair, some wear</option><option value="damaged">Damaged</option>
+          <option value="lost">Lost, not returned</option>
+        </select></label>
+      <label class="form-group"><span class="form-label">Notes</span><textarea class="form-textarea" id="return-notes" rows="2"></textarea></label>
+      <p class="ui-card-note">"Lost" takes the items off the stock held; the others go back into the store.</p>
+      <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+        <button type="button" class="ui-btn ui-btn-primary" onclick="inventoryModule._confirmReturn('${this._esc(assignmentId)}')">Save</button>
+      </div>`);
+  },
+
+  /** What a return does to the item: every unit leaves "on loan"; lost ones also leave "held". */
+  returnEffect(item, loanQty, condition) {
+    const n = this.num(loanQty);
+    return {
+      allocated: Math.max(0, this.onLoan(item) - n),
+      quantity: condition === 'lost' ? Math.max(0, this.qty(item) - n) : this.qty(item)
+    };
   },
 
   async _confirmReturn(assignmentId) {
     const condition = document.getElementById('return-condition')?.value || 'good';
-    const notes     = document.getElementById('return-notes')?.value || '';
-    const a         = dataManager.getById('inventoryAssignments', assignmentId);
-    const session   = authManager?.getSession();
+    const note = document.getElementById('return-notes')?.value?.trim() || '';
+    const a = dataManager.getById('inventoryAssignments', assignmentId);
     closeModal();
-
+    if (!a || a.status !== 'active') return;
     await dataManager.update('inventoryAssignments', assignmentId, {
-      ...a,
-      status:          'returned',
-      returnedDate:    new Date().toISOString(),
-      returnCondition: condition,
-      returnNotes:     notes,
+      ...a, status: 'returned', returnedDate: new Date().toISOString(), conditionIn: condition,
+      notes: [a.notes, note ? `Returned: ${note}` : ''].filter(Boolean).join(' · ')
     });
-
-    const item = dataManager.getById('inventory', a.itemId);
+    const item = dataManager.getById('inventory', a.itemId || a.item_id);
     if (item) {
-      await dataManager.update('inventory', item.id, { ...item, allocated: Math.max(0, (item.allocated || 0) - (a.quantity || 0)) });
+      await this._saveStock(item, this.returnEffect(item, a.quantity, condition));
+      await this._log('return', item, this.num(a.quantity), { assigneeName: a.assigneeName, returnCondition: condition, notes: note });
     }
-
-    await dataManager.logInventoryTransaction('return', a.itemId, a.itemName, a.quantity, session?.fullName || 'Admin', { assigneeName: a.assigneeName, returnCondition: condition, notes });
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_RETURNED', a.itemName, `From: ${a.assigneeName} | Condition: ${condition}`);
-    showToast('Item returned successfully!', 'success');
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_ITEM_RETURNED', a.itemName, `From: ${a.assigneeName} | ${condition}`);
+    showToast(condition === 'lost' ? `${a.quantity} ${a.itemName} written off as lost` : 'Return recorded', 'success');
     this.render();
   },
 
-  // ── VIEW MODALS ───────────────────────────────────────────────────────────
+  // ── History ──────────────────────────────────────────────
 
-  viewItemDetails(itemId) {
-    const item  = dataManager.getById('inventory', itemId);
-    if (!item) return;
-    const actives = dataManager.getAll('inventoryAssignments').filter(a => a.itemId === itemId && a.status === 'active');
-    const e   = this._esc.bind(this);
-    const cat = this.CATEGORIES.find(c => c.value === item.category);
+  TX_LABELS: { addition: 'Added', restock: 'Received', assignment: 'Lent', return: 'Returned', 'stock-count': 'Stock count', adjustment: 'Adjusted', edit: 'Edited', delete: 'Deleted' },
 
-    const metaRows = [
-      ['Unit Cost',   formatCurrency(item.unitCost || 0)],
-      ['Total Value', formatCurrency((item.unitCost || 0) * item.quantity)],
-      ['Min Stock',   `${item.minStock} ${e(item.unit)}`],
-      ['Location',    e(item.location || '—')],
-      ['Supplier',    e(item.supplier || '—')],
-      ['Date Added',  formatDate(item.dateAdded || '')],
-    ];
+  _filteredHistory() {
+    const h = this._hist, q = h.q.trim().toLowerCase();
+    return (dataManager.getAll('inventoryHistory') || [])
+      .filter(x => !h.from || new Date(x.timestamp) >= new Date(h.from))
+      .filter(x => !h.to || new Date(x.timestamp) <= new Date(h.to + 'T23:59:59'))
+      .filter(x => h.type === 'all' || x.type === h.type)
+      .filter(x => !q || [x.itemName, x.userName].some(v => String(v || '').toLowerCase().includes(q)))
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+  },
 
-    const content = `
-      <div style="display:grid;gap:var(--space-4);">
-        <div style="display:flex;justify-content:space-between;align-items:start;">
-          <div>
-            <h3 style="font-size:var(--font-size-xl);font-weight:var(--font-weight-bold);margin-bottom:var(--space-2);">${e(item.name)}</h3>
-            ${createBadge((cat ? cat.icon + ' ' : '') + (cat ? cat.label : e(item.category)), 'info')}
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="closeModal();inventoryModule.showEditItemModal('${item.id}')">✏️ Edit</button>
-        </div>
+  setHist(field, value) {
+    this._hist[field] = value;
+    this._redrawTab(field === 'q' ? 'inv-hq' : null);
+  },
 
-        <div class="grid grid-cols-3 gap-4">
-          ${[['Total Stock', `${item.quantity} ${e(item.unit)}`], ['Allocated', `${item.allocated} ${e(item.unit)}`], ['Available', `${item.quantity - item.allocated} ${e(item.unit)}`]]
-            .map(([l, v]) => `<div style="background:var(--bg-secondary);border-radius:var(--radius-md);padding:var(--space-3);text-align:center;"><p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;">${l}</p><p style="font-size:1.2rem;font-weight:700;">${v}</p></div>`).join('')}
-        </div>
-
-        <div class="grid grid-cols-2 gap-3">
-          ${metaRows.map(([l, v]) => `<div><p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:2px;">${l}</p><p style="font-weight:600;">${v}</p></div>`).join('')}
-        </div>
-
-        ${item.description ? `<div><p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;">Description</p><p>${e(item.description)}</p></div>` : ''}
-
-        ${actives.length > 0 ? `
-          <div>
-            <h4 style="font-size:var(--font-size-md);font-weight:var(--font-weight-semibold);margin-bottom:var(--space-3);">Active Assignments (${actives.length})</h4>
-            ${actives.map(a => `
-              <div style="padding:var(--space-3);background:var(--bg-tertiary);border-radius:var(--radius-md);margin-bottom:var(--space-2);">
-                <p style="font-weight:600;">${e(a.assigneeName)}</p>
-                <p style="font-size:0.8rem;color:var(--text-secondary);">${a.quantity} ${e(item.unit)} · ${e(a.assigneeType)} · ${formatDate(a.assignedDate)}</p>
-              </div>
-            `).join('')}
-          </div>
-        ` : ''}
-
-        <div class="flex gap-3">
-          <button class="btn btn-secondary flex-1" onclick="closeModal();inventoryModule.showRestockModal('${item.id}')">📥 Adjust Stock</button>
-          <button class="btn btn-primary flex-1" onclick="closeModal();inventoryModule.showAssignModal('${item.id}')">📤 Assign</button>
-        </div>
+  historyHTML() {
+    const rows = this._filteredHistory();
+    const h = this._hist;
+    return `
+      <div class="ui-card sd-filters" style="margin-top:16px;">
+        <label class="sd-search">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5"/></svg>
+          <input id="inv-hq" type="search" aria-label="Search history" placeholder="Item or person" value="${this._esc(h.q)}" oninput="inventoryModule.setHist('q', this.value)">
+        </label>
+        <select class="sd-select" aria-label="Kind" onchange="inventoryModule.setHist('type', this.value)">
+          <option value="all">Everything</option>
+          ${Object.entries(this.TX_LABELS).map(([k, l]) => `<option value="${k}" ${h.type === k ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>
+        <input type="date" class="sd-select" aria-label="From" value="${this._esc(h.from)}" onchange="inventoryModule.setHist('from', this.value)">
+        <input type="date" class="sd-select" aria-label="To" value="${this._esc(h.to)}" onchange="inventoryModule.setHist('to', this.value)">
+        <button type="button" class="ui-btn" onclick="inventoryModule.exportHistory('excel')">Export</button>
       </div>
-    `;
-    createModal('Item Details', content);
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="ui-card-head"><h2 class="ui-card-title">${rows.length} entr${rows.length === 1 ? 'y' : 'ies'}</h2></div>
+        ${rows.length ? rows.slice(0, 200).map(x => `
+          <div class="ui-row">
+            <div class="ui-row-main">
+              <div class="ui-row-title">${this._esc(x.itemName || '—')}</div>
+              <div class="ui-row-meta">${this._esc(this._txDescription(x))}</div>
+            </div>
+            <span class="ui-row-meta" style="white-space:nowrap;">${this.date(x.timestamp)}</span>
+          </div>`).join('') : '<p class="ui-empty">Nothing matches.</p>'}
+        ${rows.length > 200 ? `<p class="ui-card-note">Showing the latest 200. Export for the rest.</p>` : ''}
+      </section>`;
   },
 
-  viewAssignment(assignmentId) {
-    const a = dataManager.getById('inventoryAssignments', assignmentId);
-    if (!a) return;
-    const e   = this._esc.bind(this);
-    const now = new Date();
-    const isOverdue = a.status === 'active' && a.expectedReturnDate && new Date(a.expectedReturnDate) < now;
-
-    const rows = [
-      ['Assigned To',  e(a.assigneeName)],
-      ['Type',         a.assigneeType === 'staff' ? 'Staff Member' : a.assigneeType === 'student' ? 'Student' : 'Classroom'],
-      ['Quantity',     String(a.quantity)],
-      ['Condition',    e(a.condition || '—')],
-      ['Assigned Date',formatDate(a.assignedDate)],
-      ['Expected Return', a.expectedReturnDate ? formatDate(a.expectedReturnDate) + (isOverdue ? ' ⚠️ Overdue' : '') : 'Not specified'],
-      ['Assigned By',  e(a.assignedByName || '—')],
-      ...(a.status === 'returned' ? [['Returned Date', formatDate(a.returnedDate)], ['Return Condition', e(a.returnCondition || '—')]] : []),
-    ];
-
-    const content = `
-      <div style="display:grid;gap:var(--space-4);">
-        <div>
-          <p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;">Item</p>
-          <p style="font-size:1.25rem;font-weight:700;">${e(a.itemName)}</p>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          ${rows.map(([l, v]) => `<div style="${isOverdue && l === 'Expected Return' ? 'grid-column:1/-1' : ''}"><p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:2px;">${l}</p><p style="font-weight:600;${isOverdue && l === 'Expected Return' ? 'color:#dc2626;' : ''}">${v}</p></div>`).join('')}
-        </div>
-        ${a.notes ? `<div><p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;">Notes</p><p>${e(a.notes)}</p></div>` : ''}
-        ${a.returnNotes ? `<div><p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;">Return Notes</p><p>${e(a.returnNotes)}</p></div>` : ''}
-        <div>
-          <p style="color:var(--text-secondary);font-size:0.8rem;margin-bottom:4px;">Status</p>
-          ${createBadge(isOverdue ? 'Overdue' : a.status, isOverdue ? 'danger' : a.status === 'active' ? 'success' : 'info')}
-        </div>
-      </div>
-    `;
-    createModal('Assignment Details', content);
+  _txDescription(tx) {
+    const who = tx.userName || 'System';
+    const d = tx.details || {};
+    const n = tx.quantity;
+    switch (tx.type) {
+      case 'addition':    return `${n} added by ${who}`;
+      case 'restock':     return `${n} received by ${who}${d.to != null ? ` (${d.from} → ${d.to})` : ''}`;
+      case 'assignment':  return `${n} lent to ${d.assigneeName || 'someone'} by ${who}`;
+      case 'return':      return `${n} returned by ${d.assigneeName || 'someone'}${d.returnCondition ? `, ${d.returnCondition}` : ''}`;
+      case 'stock-count': return `Counted by ${who}: ${d.systemQty} recorded, ${d.countedQty} found (${d.variance > 0 ? '+' : ''}${d.variance})`;
+      case 'adjustment':  return d.to != null
+        ? `${d.adjustType === 'writeoff' ? 'Written off' : 'Corrected'} by ${who}: ${d.from} → ${d.to}${d.reason ? ` · ${d.reason}` : ''}`
+        : `${d.adjustType || 'Adjustment'} of ${n} by ${who}${d.reason ? ` · ${d.reason}` : ''}`;
+      case 'edit':        return `Details changed by ${who}`;
+      case 'delete':      return `Deleted by ${who}`;
+      default:            return `${tx.type || 'Change'} by ${who}`;
+    }
   },
 
-  assignItemQuick(itemId) {
-    this.showAssignModal(itemId);
+  // ── Export and import ────────────────────────────────────
+
+  async _xlsx() {
+    if (typeof XLSX === 'undefined') await window.loadLib('xlsx');
   },
 
-  // ── EXPORT & IMPORT ───────────────────────────────────────────────────────
+  /** Stops a spreadsheet treating a cell as a formula. */
+  _cell(v) {
+    return typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  },
 
   async exportInventory() {
-    const inventory = dataManager.getAll('inventory');
-    if (inventory.length === 0) { showToast('No items to export', 'info'); return; }
-    if (typeof XLSX === 'undefined') {
-      showToast('Loading Excel library…', 'info');
-      try { await window.loadLib('xlsx'); } catch { showToast('Failed to load Excel library', 'error'); return; }
-    }
-    const data = inventory.map(item => ({
-      'Name':           item.name,
-      'Category':       item.category,
-      'Total Qty':      item.quantity,
-      'Allocated':      item.allocated,
-      'Available':      item.quantity - item.allocated,
-      'Unit':           item.unit,
-      'Min Stock':      item.minStock,
-      'Unit Cost (₦)':  item.unitCost || 0,
-      'Total Value (₦)':(item.unitCost || 0) * item.quantity,
-      'Location':       item.location || '',
-      'Supplier':       item.supplier || '',
-      'Description':    item.description || '',
-      'Date Added':     formatDate(item.dateAdded || ''),
+    const items = this.items();
+    if (!items.length) { showToast('No items to export', 'info'); return; }
+    try { await this._xlsx(); } catch (_) { showToast('Could not load the spreadsheet library', 'error'); return; }
+    const rows = items.map(i => ({
+      Name: this._cell(i.name), Category: this.catLabel(i.category), Held: this.qty(i), 'On loan': this.onLoan(i), 'In store': this.inStore(i),
+      Unit: this._cell(i.unit || ''), Minimum: this.minStock(i), 'Unit cost (NGN)': this.unitCost(i), 'Value (NGN)': this.value(i),
+      'Kept at': this._cell(i.location || ''), Supplier: this._cell(i.supplier || ''), Notes: this._cell(i.description || '')
     }));
-    const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
-    XLSX.writeFile(wb, `inventory_${new Date().toISOString().split('T')[0]}.xlsx`);
-    showToast('Inventory exported!', 'success');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Inventory');
+    XLSX.writeFile(wb, `inventory_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  },
+
+  async exportHistory() {
+    const rows = this._filteredHistory();
+    if (!rows.length) { showToast('Nothing to export', 'info'); return; }
+    try { await this._xlsx(); } catch (_) { showToast('Could not load the spreadsheet library', 'error'); return; }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows.map(x => ({
+      Date: this.date(x.timestamp), Kind: this.TX_LABELS[x.type] || x.type, Item: this._cell(x.itemName), Quantity: x.quantity, By: this._cell(x.userName), What: this._cell(this._txDescription(x))
+    }))), 'History');
+    XLSX.writeFile(wb, `inventory_history_${new Date().toISOString().slice(0, 10)}.xlsx`);
+  },
+
+  /** Splits CSV text into rows of cells, honouring quotes ("a, b" and "" for a quote). */
+  parseCSV(text) {
+    const rows = [];
+    let row = [], cell = '', quoted = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (quoted) {
+        if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+        else if (ch === '"') quoted = false;
+        else cell += ch;
+      } else if (ch === '"') quoted = true;
+      else if (ch === ',') { row.push(cell.trim()); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+        row.push(cell.trim()); cell = '';
+        if (row.some(c => c !== '')) rows.push(row);
+        row = [];
+      } else cell += ch;
+    }
+    row.push(cell.trim());
+    if (row.some(c => c !== '')) rows.push(row);
+    return rows;
   },
 
   importCSV() {
-    createModal('Import Inventory from CSV', `
-      <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:var(--space-3);">
-        CSV columns: <code>name, category, quantity, unit, minStock, unitCost, location, supplier, description</code>
-      </p>
-      <p style="color:#92400e;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);padding:var(--space-3);font-size:0.82rem;margin-bottom:var(--space-4);">
-        ⚠️ Items with the same name will be updated; new names will be created.
-      </p>
-      <div class="form-group">
-        <label class="form-label">CSV File *</label>
-        <input type="file" class="form-input" id="csv-import-file" accept=".csv" style="padding:8px;"
-          onchange="inventoryModule._previewCSV(this)">
-      </div>
+    createModal('Import items from CSV', `
+      <p class="ui-card-note">Columns: <code>name, category, quantity, unit, minStock, unitCost, location, supplier, description</code>.
+      A name already listed updates that item's details; a different quantity is recorded as a stock count.</p>
+      <label class="form-group" style="margin-top:12px;"><span class="form-label">CSV file</span><input type="file" class="form-input" id="csv-import-file" accept=".csv,text/csv" onchange="inventoryModule._previewCSV(this)"></label>
       <div id="csv-preview"></div>
-      <div class="flex gap-3 mt-6">
-        <button class="btn btn-ghost flex-1" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary flex-1" onclick="inventoryModule._processCSVImport()">Import</button>
-      </div>
-    `);
+      <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+        <button type="button" class="ui-btn ui-btn-primary" onclick="inventoryModule._processCSVImport()">Import</button>
+      </div>`);
   },
 
-  _previewCSV(input) {
+  async _previewCSV(input) {
     const file = input.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const lines = ev.target.result.split('\n').slice(0, 6).join('\n');
-      const preview = document.getElementById('csv-preview');
-      if (preview) {
-        preview.innerHTML = `<p style="font-size:0.75rem;color:var(--text-tertiary);margin:var(--space-3) 0 4px;">Preview (first 5 rows):</p>
-          <pre style="font-size:0.72rem;background:var(--bg-secondary);padding:var(--space-3);border-radius:var(--radius-md);overflow-x:auto;white-space:pre-wrap;word-break:break-all;">${this._esc(lines)}</pre>`;
-      }
-    };
-    reader.readAsText(file);
+    const box = document.getElementById('csv-preview');
+    if (!file || !box) return;
+    const rows = this.parseCSV(await file.text());
+    box.innerHTML = rows.length > 1
+      ? `<p class="ui-card-note">${rows.length - 1} row${rows.length === 2 ? '' : 's'}. First: ${this._esc(rows[1].slice(0, 4).join(' · '))}</p>`
+      : '<p class="ui-card-note">The file has no rows under the header.</p>';
   },
 
   async _processCSVImport() {
-    const fileInput = document.getElementById('csv-import-file');
-    const file = fileInput?.files?.[0];
-    if (!file) { showToast('Please select a CSV file', 'warning'); return; }
+    const file = document.getElementById('csv-import-file')?.files?.[0];
+    if (!file) { showToast('Choose a CSV file', 'warning'); return; }
+    const rows = this.parseCSV(await file.text());
+    if (rows.length < 2) { showToast('The file has no rows', 'warning'); return; }
+    const heads = rows[0].map(h => h.toLowerCase().replace(/[^a-z]/g, ''));
+    const valid = this.CATEGORIES.map(c => c.value);
+    let created = 0, updated = 0, skipped = 0;
 
-    const session  = authManager?.getSession();
-    const text     = await file.text();
-    const lines    = text.split('\n').map(l => l.trim()).filter(Boolean);
-    if (lines.length < 2) { showToast('CSV appears empty', 'warning'); return; }
-
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/[^a-z]/g, ''));
-    const existing = dataManager.getAll('inventory');
-    let created = 0, updated = 0, errors = 0;
-    const validCats = this.CATEGORIES.map(c => c.value);
-
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
-      const row    = {};
-      headers.forEach((h, idx) => { row[h] = values[idx] || ''; });
-      if (!row.name || !row.category) { errors++; continue; }
-
-      const itemData = {
-        name:        row.name,
-        category:    validCats.includes(row.category) ? row.category : 'other',
-        quantity:    parseInt(row.quantity) || 0,
-        unit:        row.unit || 'pieces',
-        minStock:    parseInt(row.minstock || '5') || 5,
-        unitCost:    parseFloat(row.unitcost || '0') || 0,
-        location:    row.location || '',
-        supplier:    row.supplier || '',
-        description: row.description || '',
+    for (const values of rows.slice(1)) {
+      const r = {};
+      heads.forEach((h, k) => { r[h] = values[k] ?? ''; });
+      if (!r.name) { skipped++; continue; }
+      const details = {
+        name: r.name,
+        category: valid.includes(r.category) ? r.category : 'other',
+        unit: r.unit || 'pieces',
+        minStock: Math.max(0, parseInt(r.minstock, 10) || 0),
+        unitCost: Math.max(0, this.num(r.unitcost)),
+        location: r.location || '',
+        supplier: r.supplier || '',
+        description: r.description || ''
       };
-
-      const match = existing.find(e => (e.name || '').toLowerCase() === itemData.name.toLowerCase());
+      const quantity = Math.max(0, parseInt(r.quantity, 10) || 0);
+      const match = this.items().find(i => String(i.name || '').toLowerCase() === r.name.toLowerCase());
       if (match) {
-        await dataManager.update('inventory', match.id, { ...match, ...itemData });
+        const from = this.qty(match);
+        const to = r.quantity === '' ? from : Math.max(quantity, this.onLoan(match));
+        await this._saveStock(match, { ...details, quantity: to });
+        if (to !== from) await this._log('stock-count', match, Math.abs(to - from), { systemQty: from, countedQty: to, variance: to - from, source: 'CSV import' });
         updated++;
       } else {
-        await dataManager.create('inventory', { ...itemData, allocated: 0, dateAdded: new Date().toISOString() });
-        created++;
+        const item = await dataManager.create('inventory', { ...details, quantity, allocated: 0, available: quantity, dateAdded: new Date().toISOString() });
+        if (item) { await this._log('addition', item, quantity, { source: 'CSV import' }); created++; } else skipped++;
       }
     }
-
-    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_CSV_IMPORTED', file.name, `Created: ${created} | Updated: ${updated} | Errors: ${errors}`);
+    if (typeof writeAuditLog === 'function') writeAuditLog('INVENTORY_CSV_IMPORTED', file.name, `Created: ${created} | Updated: ${updated} | Skipped: ${skipped}`);
     closeModal();
-    showToast(`Import complete: ${created} created, ${updated} updated${errors > 0 ? `, ${errors} skipped` : ''}`, 'success');
+    showToast(`Imported: ${created} new, ${updated} updated${skipped ? `, ${skipped} skipped` : ''}`, 'success');
     this.render();
-  },
-
-  async exportHistory(format) {
-    const history = dataManager.getAll('inventoryHistory') || [];
-    if (format === 'excel') await this._exportHistoryExcel(history);
-    else await this._exportHistoryPDF(history);
-  },
-
-  async _exportHistoryExcel(history) {
-    if (typeof XLSX === 'undefined') {
-      showToast('Loading Excel library…', 'info');
-      try { await window.loadLib('xlsx'); } catch { showToast('Failed to load Excel library', 'error'); return; }
-    }
-    const data = history.map(h => ({
-      'Date':    formatDate(h.timestamp),
-      'Type':    h.type,
-      'Item':    h.itemName,
-      'Qty':     h.quantity,
-      'User':    h.userName,
-      'Details': h.details && typeof h.details === 'object' ? Object.entries(h.details).map(([k,v]) => `${k}: ${v}`).join('; ') : '',
-    }));
-    const ws = XLSX.utils.json_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'History');
-    XLSX.writeFile(wb, `inventory_history_${new Date().toISOString().split('T')[0]}.xlsx`);
-    showToast('History exported!', 'success');
-  },
-
-  async _exportHistoryPDF(history) {
-    if (typeof window.jspdf === 'undefined') {
-      showToast('Loading PDF library…', 'info');
-      try { await window.loadLib('jspdf'); } catch { showToast('Failed to load PDF library', 'error'); return; }
-    }
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
-    doc.setFontSize(18); doc.text('Inventory History', 14, 20);
-    doc.setFontSize(10); doc.text(`Generated: ${formatDate(new Date().toISOString())}`, 14, 30);
-    doc.text(`Total transactions: ${history.length}`, 14, 36);
-    let y = 50;
-    history.slice(0, 60).forEach(h => {
-      if (y > 275) { doc.addPage(); y = 20; }
-      doc.text(`${formatDate(h.timestamp)}  [${h.type}]  ${h.itemName}  (${h.quantity})  by ${h.userName}`, 14, y);
-      y += 7;
-    });
-    doc.save(`inventory_history_${new Date().toISOString().split('T')[0]}.pdf`);
-    showToast('PDF exported!', 'success');
-  },
+  }
 };
 
 window.inventoryModule = inventoryModule;
