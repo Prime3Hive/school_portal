@@ -99,16 +99,18 @@ ${school} Administration`;
  */
 function showCredentialModal(recipientName, recipientEmail, role, loginId, password, emailSent, emailMessage) {
   const school = window.schoolConfig?.name || 'TBD International Academy';
+  // Everything below lands in HTML; the name and email come from a form.
+  const h = (v) => (window.escapeHtml ? window.escapeHtml(v) : String(v ?? ''));
   const portal = `${window.location.origin}/login.html`;
 
   const emailStatus = emailSent
     ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#dcfce7;border:1px solid #86efac;border-radius:10px;margin-bottom:16px;">
          <span style="font-size:1.1rem;">✅</span>
-         <span style="color:#166534;font-size:0.85rem;">Invitation email sent to <strong>${recipientEmail}</strong></span>
+         <span style="color:#166534;font-size:0.85rem;">Invitation email sent to <strong>${h(recipientEmail)}</strong></span>
        </div>`
     : `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fef9c3;border:1px solid #fde047;border-radius:10px;margin-bottom:16px;">
          <span style="font-size:1.1rem;">⚠️</span>
-         <span style="color:#854d0e;font-size:0.85rem;">${emailMessage || 'Email could not be sent.'}  Please share credentials manually.</span>
+         <span style="color:#854d0e;font-size:0.85rem;">${h(emailMessage || 'Email could not be sent.')}  Please share credentials manually.</span>
        </div>`;
 
   const emailBody = `Dear ${recipientName},\n\nWelcome to ${school}! Your ${role.toLowerCase()} portal account has been created.\n\nPlease use the credentials below to log in:\n\n  Portal URL : ${portal}\n  Login ID   : ${loginId}\n  Password   : ${password}\n\nImportant:\n- You will be prompted to change your password on first login.\n- Keep your credentials confidential.\n\nBest regards,\n${school} Administration`;
@@ -133,13 +135,13 @@ function showCredentialModal(recipientName, recipientEmail, role, loginId, passw
         </div>
         <div style="display:grid;grid-template-columns:100px 1fr;gap:8px 12px;font-size:0.88rem;">
           <span style="color:#6366f1;font-weight:600;">Name</span>
-          <span style="color:#1e293b;font-weight:600;">${recipientName}</span>
+          <span style="color:var(--text-primary);font-weight:600;">${h(recipientName)}</span>
           <span style="color:#6366f1;font-weight:600;">Login ID</span>
-          <code style="background:var(--bg-secondary);padding:2px 10px;border-radius:6px;font-family:'Courier New',monospace;font-weight:700;border:1px solid var(--border-primary);color:var(--text-primary);">${loginId}</code>
+          <code style="background:var(--bg-secondary);padding:2px 10px;border-radius:6px;font-family:'Courier New',monospace;font-weight:700;border:1px solid var(--border-primary);color:var(--text-primary);">${h(loginId)}</code>
           <span style="color:#6366f1;font-weight:600;">Password</span>
-          <code style="background:var(--bg-secondary);padding:2px 10px;border-radius:6px;font-family:'Courier New',monospace;font-weight:700;border:1px solid var(--border-primary);color:var(--text-primary);">${password}</code>
+          <code style="background:var(--bg-secondary);padding:2px 10px;border-radius:6px;font-family:'Courier New',monospace;font-weight:700;border:1px solid var(--border-primary);color:var(--text-primary);">${h(password)}</code>
           <span style="color:#6366f1;font-weight:600;">Role</span>
-          <span style="color:#1e293b;">${role}</span>
+          <span style="color:var(--text-primary);">${h(role)}</span>
           <span style="color:#6366f1;font-weight:600;">Portal</span>
           <a href="${portal}" style="color:#4f46e5;text-decoration:underline;font-size:0.82rem;">${portal}</a>
         </div>
@@ -161,14 +163,14 @@ function showCredentialModal(recipientName, recipientEmail, role, loginId, passw
       </div>
 
       <!-- Email Template (collapsible) -->
-      <details style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
-        <summary style="padding:10px 14px;cursor:pointer;font-size:0.85rem;font-weight:600;color:#475569;background:#f8fafc;user-select:none;">
+      <details style="border:1px solid var(--border-primary);border-radius:10px;overflow:hidden;">
+        <summary style="padding:10px 14px;cursor:pointer;font-size:0.85rem;font-weight:600;color:var(--text-secondary);background:var(--bg-primary);user-select:none;">
           📧 View Email Template
         </summary>
-        <div style="padding:12px 14px;background:white;">
+        <div style="padding:12px 14px;background:var(--bg-secondary);">
           <textarea id="cred-email-body" rows="10" readonly
-            style="width:100%;font-family:monospace;font-size:0.82rem;padding:12px;background:#f8fafc;border:1px solid #e2e8f0;
-                   border-radius:8px;color:#334155;resize:vertical;line-height:1.6;box-sizing:border-box;">${emailBody}</textarea>
+            style="width:100%;font-family:monospace;font-size:0.82rem;padding:12px;background:var(--bg-primary);border:1px solid var(--border-primary);
+                   border-radius:8px;color:var(--text-primary);resize:vertical;line-height:1.6;box-sizing:border-box;">${h(emailBody)}</textarea>
           <button class="btn btn-secondary" style="width:100%;margin-top:8px;font-size:0.85rem;"
             onclick="navigator.clipboard.writeText(document.getElementById('cred-email-body').value);showToast('Email template copied!','success');">
             📋 Copy Email Template
@@ -306,13 +308,6 @@ const userManagementModule = {
     try {
       console.log('[UM] #' + myId + ' rendering tab:', this.currentTab);
       container.innerHTML = this.render();
-      if (this.currentTab === 'overview') {
-        setTimeout(() => {
-          if (!isStale()) {
-            try { this.initializeCharts(); } catch (e) { console.error('[UM] chart init failed:', e); }
-          }
-        }, 150);
-      }
       console.log('[UM] #' + myId + ' init complete');
     } catch (e) {
       console.error('[UM] render failed:', e);
@@ -347,12 +342,18 @@ const userManagementModule = {
 
     const seenEmails = new Set(this._users.map(u => (u.email || '').toLowerCase()).filter(Boolean));
     const seenIds = new Set(this._users.map(u => u.id).filter(Boolean));
+    // A pupil's or staff member's record points at their login through
+    // auth_id; without this check a person with a login was also listed as a
+    // separate "no login" record whenever the emails differed.
+    const loginIds = new Set(this._users.filter(u => u._source !== 'directory').map(u => u.authId).filter(Boolean));
+    const hasLogin = (r) => loginIds.has(r.authId || r.auth_id);
 
     // ── Students ──
     for (const s of (studentsDir || [])) {
       const email = (s.email || '').toLowerCase();
       if (email && seenEmails.has(email)) continue;
       if (s.id && seenIds.has(s.id)) continue;
+      if (hasLogin(s)) continue;
       const uid = s.id || ('stu-' + (s.roll_no || s.rollNo || s.name?.replace(/\s+/g, '-').toLowerCase() || crypto.randomUUID()));
       this._users.push({
         id: uid,
@@ -376,6 +377,7 @@ const userManagementModule = {
       const email = (s.email || '').toLowerCase();
       if (email && seenEmails.has(email)) continue;
       if (s.id && seenIds.has(s.id)) continue;
+      if (hasLogin(s)) continue;
       const uid = s.id || ('stf-' + (s.email?.split('@')[0] || s.name?.replace(/\s+/g, '-').toLowerCase() || crypto.randomUUID()));
       const role = isTeachingStaff(s) ? 'teacher' : 'staff';
       this._users.push({
@@ -395,21 +397,45 @@ const userManagementModule = {
   },
 
 
+  _esc(v) {
+    return typeof window.escapeHtml === 'function' ? window.escapeHtml(v) : String(v ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+  },
+
+  /**
+   * The figures at the top. this._users holds login accounts (from profiles)
+   * and, merged in, pupil and staff records that have no login
+   * (_source 'directory'). The old figures counted both as "users", so every
+   * pupil without a login showed as "never signed in", and the status chart
+   * counted pupils twice (merged records plus the students table again).
+   */
+  figures(users = this._users) {
+    const accounts = users.filter(u => u._source !== 'directory');
+    const noLogin = users.filter(u => u._source === 'directory' && String(u.status || 'active').toLowerCase() === 'active');
+    const off = (u) => u.status === 'inactive' || u.status === 'suspended';
+    const roles = ['admin', 'staff', 'teacher', 'guardian', 'student'];
+    return {
+      accounts: accounts.length,
+      signedIn: accounts.filter(u => !off(u) && u.lastLogin).length,
+      neverSignedIn: accounts.filter(u => !off(u) && !u.lastLogin).length,
+      tempPassword: accounts.filter(u => !off(u) && u.lastLogin && u.mustChangePassword).length,
+      suspended: accounts.filter(off).length,
+      noLogin: noLogin.length,
+      byRole: roles.map(r => ({
+        role: r,
+        accounts: accounts.filter(u => u.role === r).length,
+        noLogin: noLogin.filter(u => u.role === r).length
+      })).filter(x => x.accounts || x.noLogin)
+    };
+  },
+
+  ROLE_LABELS: { admin: 'Administrators', staff: 'Office staff', teacher: 'Teachers', guardian: 'Parents', student: 'Pupils' },
+
   render() {
-    const session = authManager.getSession();
-
-    // Only admins can access
     if (!authManager.hasPermission('all')) {
-      return `
-        <div class="card">
-          <h2>Access Denied</h2>
-          <p>You do not have permission to access this module.</p>
-        </div>
-      `;
+      return `<div class="ui-page"><section class="ui-card"><h2 class="ui-card-title">Not available</h2><p class="ui-empty">Only administrators can manage logins.</p></section></div>`;
     }
-
     return `
-      <div class="module-container">
+      <div class="ui-page um-page">
         ${this.renderHeader()}
         ${this.renderStats()}
         ${this.renderTabs()}
@@ -422,127 +448,47 @@ const userManagementModule = {
 
   renderHeader() {
     return `
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--space-6);padding-bottom:var(--space-6);border-bottom:1px solid var(--border-primary);">
+      <div class="ui-page-head">
         <div>
-          <h1 style="font-size:1.75rem;font-weight:800;color:var(--text-primary);margin:0 0 6px 0;letter-spacing:-0.02em;">User Management</h1>
-          <p style="margin:0;color:var(--text-secondary);font-size:0.9rem;">Administrative hub for managing all system users and permissions</p>
+          <h1 class="ui-page-title">Users &amp; access</h1>
+          <p class="ui-page-sub">Who can sign in to the portal, and what they can do</p>
         </div>
-        <div style="display:flex;gap:var(--space-3);align-items:center;">
-      ${this.currentTab === 'users' ? `
-            <button onclick="userManagementModule.showBulkInviteModal()"
-              style="display:inline-flex;align-items:center;gap:8px;padding:9px 18px;
-                background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-lg);
-                font-size:0.875rem;font-weight:600;cursor:pointer;transition:all 0.15s;"
-              onmouseover="this.style.borderColor='var(--color-primary)'"
-              onmouseout="this.style.borderColor='var(--border-primary)'"
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-              Bulk Invite
-            </button>
-          ` : ''}
-      <button onclick="userManagementModule.showInviteModal()"
-        style="display:inline-flex;align-items:center;gap:8px;padding:9px 20px;
-              background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;
-              border-radius:var(--radius-lg);font-size:0.875rem;font-weight:600;cursor:pointer;
-              box-shadow:0 2px 8px rgba(102,126,234,0.4);transition:all 0.15s;"
-        onmouseover="this.style.transform='translateY(-1px)';this.style.boxShadow='0 4px 12px rgba(102,126,234,0.5)'"
-        onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 2px 8px rgba(102,126,234,0.4)'">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-        Send Invite
-      </button>
+        <div class="ui-actions">
+          ${this.currentTab === 'users' ? '<button type="button" class="ui-btn" onclick="userManagementModule.showBulkInviteModal()">Add many</button>' : ''}
+          <button type="button" class="ui-btn ui-btn-primary" onclick="userManagementModule.showInviteModal()">Give someone a login</button>
         </div>
-      </div>
-    `;
+      </div>`;
   },
 
   renderStats() {
-    const users = this._users;   // already includes merged directory data
-
-    const totalUsers = users.length;
-    const activeUsers = users.filter(u => u.status === 'active').length;
-    const suspendedUsers = users.filter(u => u.status === 'inactive' || u.status === 'suspended').length;
-    // Accounts that exist but have never been used. The actionable number: it
-    // is the one that means "credentials may not have reached this person".
-    const neverSignedIn = users.filter(u => !u.lastLogin && u.status === 'active').length;
-
+    const f = this.figures();
+    const kpi = (label, value, sub, onclick) => `
+      <button type="button" class="ui-card ui-kpi" onclick="${onclick}">
+        <span class="ui-kpi-label">${label}</span><span class="ui-kpi-value">${value}</span><span class="ui-kpi-sub">${sub}</span>
+      </button>`;
     return `
-      <div class="stats-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:var(--space-5);margin-bottom:var(--space-8);">
-      ${this.createModernStatCard('Total Users', totalUsers, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', '#667eea', '#764ba2')}
-        ${this.createModernStatCard('Active Users', activeUsers, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="20 6 9 17 4 12"/></svg>', '#43e97b', '#38f9d7')}
-        ${this.createModernStatCard('Never Signed In', neverSignedIn, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>', '#fa709a', '#fee140', "userManagementModule.switchTab('invitations')")}
-        ${this.createModernStatCard('Suspended Users', suspendedUsers, '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>', '#f093fb', '#f5576c', "userManagementModule.switchTab('suspended')")}
-      </div>
-    `;
-  },
-
-  createModernStatCard(label, value, icon, color1, color2, onclick) {
-    return `
-    <div class="stat-card-modern" style="background:linear-gradient(135deg,${color1} 0%,${color2} 100%);color:white;padding:var(--space-6);border-radius:var(--radius-lg);box-shadow:0 4px 12px rgba(0,0,0,0.1);transition:transform 0.2s;${onclick ? 'cursor:pointer;' : ''}" onmouseover="this.style.transform='translateY(-4px)'" onmouseout="this.style.transform='translateY(0)'" ${onclick ? `onclick="${onclick}"` : ''}>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:var(--space-3);">
-        <div style="opacity:0.85;">${icon}</div>
-        <div style="font-size:2.25rem;font-weight:800;line-height:1;">${value}</div>
-      </div>
-      <div style="font-size:0.875rem;opacity:0.9;text-transform:uppercase;letter-spacing:0.05em;">${label}</div>
-      ${onclick ? '<div style="font-size:0.7rem;opacity:0.65;margin-top:3px;">Click to manage →</div>' : ''}
-    </div>
-    `;
+      <div class="ui-grid-4">
+        ${kpi('Logins', f.accounts, `${f.signedIn} have signed in`, "userManagementModule.switchTab('users')")}
+        ${kpi('Never signed in', f.neverSignedIn, f.neverSignedIn ? 'details may not have reached them' : 'everyone has signed in', "userManagementModule.switchTab('invitations')")}
+        ${kpi('Suspended', f.suspended, 'cannot sign in', "userManagementModule.switchTab('suspended')")}
+        ${kpi('No login yet', f.noLogin, 'pupils and staff on record', "userManagementModule.switchTab('students')")}
+      </div>`;
   },
 
   renderTabs() {
-    const tabs = [
-      { id: 'overview', label: 'Dashboard', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>' },
-      { id: 'users', label: 'All Users', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' },
-      { id: 'students', label: 'Students', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>' },
-      { id: 'invitations', label: 'Accounts Issued', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>' },
-      { id: 'roles', label: 'Roles & Permissions', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' },
-      { id: 'suspended', label: 'Suspended', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' },
-      { id: 'audit', label: 'Audit Trail', svg: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>' }
-    ];
-
+    const tabs = [['overview', 'Overview'], ['users', 'Everyone'], ['students', 'Pupils'], ['invitations', 'Logins issued'],
+      ['roles', 'Roles'], ['suspended', 'Suspended'], ['audit', 'Activity log']];
     return `
-      <div class="um-tabs tabs" style="display:flex;gap:4px;margin-bottom:var(--space-6);border-bottom:2px solid var(--border-primary);overflow-x:auto;padding-bottom:0;">
-      ${tabs.map(tab => `
-          <button class="tab ${this.currentTab === tab.id ? 'active' : ''}"
-            style="
-              display:inline-flex;align-items:center;gap:7px;
-              padding:10px 18px;
-              border:none;
-              background:${this.currentTab === tab.id ? 'var(--color-primary)' : 'transparent'};
-              color:${this.currentTab === tab.id ? 'white' : 'var(--text-secondary)'};
-              border-radius:var(--radius-md) var(--radius-md) 0 0;
-              cursor:pointer;
-              font-size:0.85rem;
-              font-weight:${this.currentTab === tab.id ? '600' : '500'};
-              transition:all 0.2s;
-              white-space:nowrap;
-            "
-            onclick="userManagementModule.switchTab('${tab.id}')">
-            ${tab.svg}
-            ${tab.label}
-          </button>
-        `).join('')}
-      </div>
-    `;
+      <div role="tablist" aria-label="Users" class="sr-tabs um-tabs">
+        ${tabs.map(([id, label]) => `<button type="button" role="tab" aria-selected="${this.currentTab === id}" class="sr-tab${this.currentTab === id ? ' is-on' : ''}" onclick="userManagementModule.switchTab('${id}')">${label}</button>`).join('')}
+      </div>`;
   },
 
   switchTab(tab) {
     this.currentTab = tab;
-    // Re-render in-place — never re-fetch data. init() already loaded _users/_invitations.
-    // Update tabs highlight + tab content only; no Supabase round-trip.
-    const tabsEl = this._container?.querySelector('.um-tabs');
-    if (tabsEl) tabsEl.outerHTML = this.renderTabs();
-    const contentEl = this._container?.querySelector('.um-tab-content');
-    if (contentEl) {
-      contentEl.innerHTML = this.renderTabContent();
-      if (tab === 'overview') {
-        setTimeout(() => { try { this.initializeCharts(); } catch(e) {} }, 150);
-      }
-    }
-    // Full re-render fallback if elements not found (first load)
-    if (!tabsEl || !contentEl) {
-      const container = this._container;
-      if (container) container.innerHTML = this.render();
-      if (tab === 'overview') setTimeout(() => { try { this.initializeCharts(); } catch(e) {} }, 150);
-    }
+    // Re-render in place from the data init() loaded; no round-trip.
+    const container = this._container;
+    if (container) container.innerHTML = this.render();
   },
 
   // Lightweight re-render for search/filter/pagination changes — no data fetch
@@ -581,123 +527,45 @@ const userManagementModule = {
   // OVERVIEW TAB
   // ============================================
   renderOverviewTab() {
-    const users = this._users;
-    const studentsFromDirectory = dataManager.getAll('students') || [];
-    const recentUsers = [...users].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 6);
-
-    const roleConfig = {
-      admin: { color: '#7c3aed', bg: '#f5f3ff', label: 'Admin' },
-      teacher: { color: '#0891b2', bg: '#ecfeff', label: 'Teacher' },
-      staff: { color: '#0d9488', bg: '#f0fdfa', label: 'Staff' },
-      student: { color: '#ea580c', bg: '#fff7ed', label: 'Student' }
-    };
+    const f = this.figures();
+    const e = (v) => this._esc(v);
+    const accounts = this._users.filter(u => u._source !== 'directory');
+    const recent = [...accounts].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 6);
+    const waiting = accounts.filter(u => u.status !== 'inactive' && u.status !== 'suspended' && !u.lastLogin)
+      .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)).slice(0, 6);
+    const top = Math.max(1, ...f.byRole.map(r => r.accounts + r.noLogin));
+    const row = (u, meta) => `
+      <div class="ui-row">
+        <span class="sd-avatar" aria-hidden="true">${e(String(u.fullName || '?').trim().charAt(0).toUpperCase())}</span>
+        <div class="ui-row-main">
+          <div class="ui-row-title">${e(u.fullName || 'Unnamed')}</div>
+          <div class="ui-row-meta">${e([this.ROLE_LABELS[u.role]?.replace(/s$/, '') || u.role, u.id, meta].filter(Boolean).join(' · '))}</div>
+        </div>
+        <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUserDetails('${e(u.id)}')">View</button>
+      </div>`;
 
     return `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-6);margin-bottom:var(--space-6);">
-        <!-- Role Distribution -->
-        <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
-            <h3 style="margin:0;font-size:1rem;font-weight:700;color:var(--text-primary);">Users by Role</h3>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:var(--space-3);">
-            ${['admin', 'teacher', 'staff', 'student'].map(role => {
-      const cfg = roleConfig[role];
-      const count = users.filter(u => u.role === role).length;
-      const total = users.length || 1;
-      const pct = Math.round((count / total) * 100);
-      return `
-                <div>
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
-                    <span style="font-size:0.85rem;font-weight:600;color:#475569;">${cfg.label}</span>
-                    <span style="font-size:0.85rem;font-weight:700;color:${cfg.color};">${count}</span>
-                  </div>
-                  <div style="height:8px;background:#f1f5f9;border-radius:4px;overflow:hidden;">
-                    <div style="height:100%;width:${pct}%;background:${cfg.color};border-radius:4px;transition:width 0.4s ease;"></div>
-                  </div>
-                </div>
-              `;
-    }).join('')}
-          </div>
-          <canvas id="userRoleChart" style="display:none;"></canvas>
-        </div>
+      <div class="ui-grid-3" style="margin-top:16px;">
+        <section class="ui-card">
+          <div class="ui-card-head"><h2 class="ui-card-title">By role</h2><span class="ui-card-note">with a login / on record only</span></div>
+          ${f.byRole.map(r => `
+            <div class="um-role">
+              <div class="um-role-top"><span>${this.ROLE_LABELS[r.role] || r.role}</span><strong>${r.accounts}${r.noLogin ? ` <span class="ui-row-meta">+ ${r.noLogin} no login</span>` : ''}</strong></div>
+              <div class="um-bar"><span style="width:${(r.accounts / top) * 100}%"></span><i style="width:${(r.noLogin / top) * 100}%"></i></div>
+            </div>`).join('') || '<p class="ui-empty">No one yet.</p>'}
+        </section>
 
-        <!-- Status Overview -->
-        <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
-        <h3 style="margin:0;font-size:1rem;font-weight:700;color:#1e293b;">Account Status</h3>
-      </div>
-      <canvas id="userStatusChart" style="max-height:200px;margin-bottom:var(--space-4);"></canvas>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
-        ${[{ label: 'Active', color: '#16a34a', bg: '#f0fdf4', status: 'active' }, { label: 'Inactive', color: '#6b7280', bg: '#f9fafb', status: 'inactive' }, { label: 'Suspended', color: '#dc2626', bg: '#fef2f2', status: 'suspended' }, { label: 'Pending', color: '#d97706', bg: '#fffbeb', status: 'pending' }].map(s => {
-      const cnt = users.filter(u => u.status === s.status).length;
-      return `
-                <div style="padding:var(--space-3);background:${s.bg};border-radius:var(--radius-lg);border:1px solid ${s.color}22;">
-                  <div style="font-size:1.4rem;font-weight:800;color:${s.color};">${cnt}</div>
-                  <div style="font-size:0.75rem;color:#64748b;font-weight:500;">${s.label}</div>
-                </div>
-              `;
-    }).join('')}
-      </div>
-        </div>
-      </div>
+        <section class="ui-card">
+          <div class="ui-card-head"><h2 class="ui-card-title">Not signed in yet</h2><button type="button" class="ui-link" onclick="userManagementModule.switchTab('invitations')">All logins issued</button></div>
+          ${waiting.length ? waiting.map(u => row(u, u.createdAt ? `issued ${new Date(u.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '')).join('')
+            : '<p class="ui-empty">Everyone with a login has signed in.</p>'}
+        </section>
 
-      <!-- Recent Users -->
-      <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
-        <div>
-          <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:#1e293b;">Recently Added Users</h3>
-          <p style="margin:0;font-size:0.8rem;color:#64748b;">Latest accounts in the system</p>
-        </div>
-        <button onclick="userManagementModule.switchTab('users')"
-          style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
-              background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-md);
-              font-size:0.8rem;font-weight:600;cursor:pointer;"
-          onmouseover="this.style.borderColor='#667eea';this.style.color='#667eea'"
-          onmouseout="this.style.borderColor='var(--border-primary)';this.style.color='var(--text-secondary)'">
-          View All
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
-        </button>
-      </div>
-      <div style="display:grid;gap:var(--space-3);">
-        ${recentUsers.length === 0 ? `
-            <div style="text-align:center;padding:var(--space-8);color:#94a3b8;">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto var(--space-3);display:block;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-              <p style="margin:0;">No users yet. Start by sending an invitation.</p>
-            </div>
-          ` : recentUsers.map(u => {
-      const cfg = roleConfig[u.role] || { color: '#64748b', bg: '#f8fafc', label: u.role };
-      return `
-              <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);
-                background:white;border:1px solid #e2e8f0;border-radius:var(--radius-lg);transition:box-shadow 0.2s;"
-                onmouseover="this.style.boxShadow='0 4px 12px rgba(0,0,0,0.06)'"
-                onmouseout="this.style.boxShadow='none'">
-                <div style="flex-shrink:0;width:42px;height:42px;border-radius:50%;
-                  background:${cfg.bg};color:${cfg.color};border:2px solid ${cfg.color}33;
-                  display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;">
-                  ${(u.fullName || u.id).charAt(0).toUpperCase()}
-                </div>
-                <div style="flex:1;min-width:0;">
-                  <div style="font-weight:700;font-size:0.9rem;color:#1e293b;">${u.fullName || 'N/A'}</div>
-                  <div style="font-size:0.78rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.email}</div>
-                </div>
-                <div style="display:flex;align-items:center;gap:var(--space-3);">
-                  <span style="background:${cfg.bg};color:${cfg.color};padding:3px 10px;
-                    border-radius:20px;font-size:0.72rem;font-weight:700;border:1px solid ${cfg.color}33;">${cfg.label}</span>
-                  <span style="font-size:0.75rem;color:#94a3b8;">${new Date(u.createdAt).toLocaleDateString()}</span>
-                </div>
-                <button onclick="userManagementModule.viewUserDetails('${u.id}')"
-                  style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-                    border-radius:6px;border:1px solid #e2e8f0;background:white;color:#475569;cursor:pointer;flex-shrink:0;"
-                  onmouseover="this.style.borderColor='${cfg.color}';this.style.color='${cfg.color}'"
-                  onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-              </div>
-            `;
-    }).join('')}
-      </div>
-    </div>
-  `;
+        <section class="ui-card">
+          <div class="ui-card-head"><h2 class="ui-card-title">Newest logins</h2><button type="button" class="ui-link" onclick="userManagementModule.switchTab('users')">Everyone</button></div>
+          ${recent.length ? recent.map(u => row(u, u.lastLogin ? 'has signed in' : 'not signed in')).join('') : '<p class="ui-empty">No logins yet.</p>'}
+        </section>
+      </div>`;
   },
 
   getRoleBadgeColor(role) {
@@ -708,118 +576,6 @@ const userManagementModule = {
       'student': 'success'
     };
     return colors[role] || 'secondary';
-  },
-
-  async initializeCharts() {
-    if (typeof Chart === 'undefined') {
-      if (!window.loadLib) return;
-      try {
-        await window.loadLib('chartjs');
-      } catch { return; }
-      if (typeof Chart === 'undefined') return;
-    }
-
-    const users = this._users;
-
-    // Get students from student directory module for accurate count
-    const studentsFromDirectory = dataManager.getAll('students') || [];
-
-    // User Role Distribution Chart
-    const roleCtx = document.getElementById('userRoleChart');
-    if (roleCtx) {
-      // Destroy existing chart instance if it exists
-      const existingRoleChart = Chart.getChart(roleCtx);
-      if (existingRoleChart) {
-        existingRoleChart.destroy();
-      }
-
-      const roleCounts = {
-        'Admin': users.filter(u => u.role === 'admin').length,
-        'Teachers': users.filter(u => u.role === 'teacher').length,
-        'Staff': users.filter(u => u.role === 'staff').length,
-        'Students': studentsFromDirectory.length
-      };
-
-      new Chart(roleCtx, {
-        type: 'doughnut',
-        data: {
-          labels: Object.keys(roleCounts),
-          datasets: [{
-            data: Object.values(roleCounts),
-            backgroundColor: [
-              '#ef4444',
-              '#3b82f6',
-              '#8b5cf6',
-              '#10b981'
-            ],
-            borderWidth: 2,
-            borderColor: '#fff'
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                padding: 15,
-                font: { size: 12 }
-              }
-            }
-          }
-        }
-      });
-    }
-
-    // User Status Chart - combine staff and students
-    const statusCtx = document.getElementById('userStatusChart');
-    if (statusCtx) {
-      // Destroy existing chart instance if it exists
-      const existingStatusChart = Chart.getChart(statusCtx);
-      if (existingStatusChart) {
-        existingStatusChart.destroy();
-      }
-
-      const activeStaff = users.filter(u => u.status === 'active').length;
-      const inactiveStaff = users.filter(u => u.status === 'inactive').length;
-      const activeStudents = studentsFromDirectory.filter(s => s.status === 'active').length;
-      const inactiveStudents = studentsFromDirectory.filter(s => s.status === 'inactive').length;
-
-      const statusCounts = {
-        'Active': activeStaff + activeStudents,
-        'Inactive': inactiveStaff + inactiveStudents
-      };
-
-      new Chart(statusCtx, {
-        type: 'pie',
-        data: {
-          labels: Object.keys(statusCounts),
-          datasets: [{
-            data: Object.values(statusCounts),
-            backgroundColor: [
-              '#10b981',
-              '#6b7280'
-            ],
-            borderWidth: 2,
-            borderColor: '#fff'
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: true,
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                padding: 15,
-                font: { size: 12 }
-              }
-            }
-          }
-        }
-      });
-    }
   },
 
   // ============================================
@@ -863,12 +619,12 @@ const userManagementModule = {
     const paginatedUsers = filteredUsers.slice(startIndex, startIndex + this.itemsPerPage);
 
     return `
-      <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);">
+      <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
         <!-- Header + Filters -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-4);">
           <div>
-            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:#1e293b;">All Users</h3>
-            <p style="margin:0;font-size:0.8rem;color:#64748b;">Showing ${startIndex + 1}–${Math.min(startIndex + this.itemsPerPage, filteredUsers.length)} of ${filteredUsers.length}</p>
+            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">All Users</h3>
+            <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">Showing ${startIndex + 1}–${Math.min(startIndex + this.itemsPerPage, filteredUsers.length)} of ${filteredUsers.length}</p>
           </div>
           <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:center;">
             <div style="position:relative;">
@@ -881,7 +637,7 @@ const userManagementModule = {
                   font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);background:var(--bg-secondary);"
                 value="${this.searchQuery}"
                 oninput="userManagementModule.searchQuery = this.value; userManagementModule.currentPage = 1; userManagementModule._rerenderTab()"
-                onfocus="this.style.borderColor='#667eea'" onblur="this.style.borderColor='#e2e8f0'">
+                onfocus="this.style.borderColor='var(--brand-navy)'" onblur="this.style.borderColor='#e2e8f0'">
             </div>
             <select style="padding:8px 12px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);font-size:0.85rem;color:var(--text-secondary);background:var(--bg-secondary);outline:none;cursor:pointer;"
               onchange="userManagementModule.currentFilter = this.value; userManagementModule.currentPage = 1; userManagementModule._rerenderTab()">
@@ -904,13 +660,13 @@ const userManagementModule = {
         <!-- User Cards -->
         <div style="display:grid;gap:var(--space-3);">
           ${paginatedUsers.length === 0 ? `
-            <div style="text-align:center;padding:var(--space-10);color:#94a3b8;">
+            <div style="text-align:center;padding:var(--space-10);color:var(--text-tertiary);">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
                 style="margin:0 auto var(--space-3);display:block;opacity:0.4;">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
-              <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:#64748b;">No users found</p>
+              <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:var(--text-tertiary);">No users found</p>
               <p style="margin:0;font-size:0.8rem;">Try adjusting your search or filters</p>
             </div>
           ` : paginatedUsers.map(user => this.renderUserRow(user)).join('')}
@@ -938,8 +694,8 @@ const userManagementModule = {
       else pageNum = this.currentPage - 2 + i;
       const isActive = this.currentPage === pageNum;
       return `<button onclick="userManagementModule.currentPage = ${pageNum}; userManagementModule._rerenderTab()"
-                  style="width:34px;height:34px;border-radius:8px;border:1px solid ${isActive ? '#667eea' : '#e2e8f0'};
-                    background:${isActive ? 'linear-gradient(135deg,#667eea,#764ba2)' : 'var(--bg-secondary)'};
+                  style="width:34px;height:34px;border-radius:8px;border:1px solid ${isActive ? 'var(--brand-navy)' : '#e2e8f0'};
+                    background:${isActive ? 'linear-gradient(135deg,var(--brand-navy),var(--brand-navy))' : 'var(--bg-secondary)'};
                     color:${isActive ? 'white' : '#475569'};font-weight:${isActive ? '700' : '500'};
                     font-size:0.85rem;cursor:pointer;">${pageNum}</button>`;
     }).join('')}
@@ -960,96 +716,44 @@ const userManagementModule = {
     `;
   },
 
+  /** A record merged from the students or staff table has no login behind it. */
+  _hasLogin(user) {
+    return !!user && user._source !== 'directory';
+  },
+
+  /** Reload logins and the merged records (getUsers alone drops the records). */
+  async _reload() {
+    this._users = await authManager.getUsers(true) || [];
+    await this._mergeDirectoryData();
+  },
+
   renderUserRow(user) {
-    const roleConfig = {
-      admin: { color: '#7c3aed', bg: '#f5f3ff', label: 'Administrator' },
-      teacher: { color: '#0891b2', bg: '#ecfeff', label: 'Teacher' },
-      staff: { color: '#0d9488', bg: '#f0fdfa', label: 'Staff' },
-      student: { color: '#ea580c', bg: '#fff7ed', label: 'Student' }
-    };
-    const statusConfig = {
-      active: { color: '#16a34a', bg: '#f0fdf4', label: 'Active' },
-      inactive: { color: '#6b7280', bg: '#f9fafb', label: 'Inactive' },
-      suspended: { color: '#dc2626', bg: '#fef2f2', label: 'Suspended' },
-      pending: { color: '#d97706', bg: '#fffbeb', label: 'Pending' }
-    };
-    const cfg = roleConfig[user.role] || { color: '#64748b', bg: '#f8fafc', label: user.role };
-    const sts = statusConfig[user.status] || statusConfig.inactive;
-
+    const e = (v) => this._esc(v ?? '');
+    const id = e(user.id);
+    const login = this._hasLogin(user);
+    const off = user.status === 'inactive' || user.status === 'suspended';
+    const role = { admin: 'Administrator', teacher: 'Teacher', staff: 'Office staff', student: 'Pupil', guardian: 'Parent' }[user.role] || user.role;
+    const state = !login ? { label: 'No login', tone: '' }
+      : off ? { label: 'Suspended', tone: 'is-warn' }
+      : !user.lastLogin ? { label: 'Never signed in', tone: 'is-warn' }
+      : user.mustChangePassword ? { label: 'Temporary password', tone: 'is-warn' }
+      : { label: 'Active', tone: 'is-good' };
+    const when = login && user.lastLogin ? `last in ${new Date(user.lastLogin).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '';
     return `
-      <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:var(--radius-xl);transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.07)'" onmouseout="this.style.boxShadow='none'">
-
-        <!-- Avatar -->
-        <div style="flex-shrink:0;width:46px;height:46px;border-radius:50%;
-          background:${cfg.bg};color:${cfg.color};border:2px solid ${cfg.color}33;
-          display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;">
-          ${(user.fullName || user.id).charAt(0).toUpperCase()}
+      <div class="ui-row um-row">
+        <span class="sd-avatar" aria-hidden="true">${e(String(user.fullName || '?').trim().charAt(0).toUpperCase())}</span>
+        <div class="ui-row-main">
+          <div class="ui-row-title">${e(user.fullName || 'Unnamed')}</div>
+          <div class="ui-row-meta">${e([role, login ? user.id : '', user.email, user.department, when].filter(x => String(x || '').trim()).join(' · '))}</div>
         </div>
-
-        <!-- Name + ID -->
-        <div style="flex:1.5;min-width:0;">
-          <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${user.fullName || 'N/A'}</div>
-          <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${user.id}</div>
-        </div>
-
-        <!--Email -->
-        <div style="flex:2;min-width:0;">
-          <div style="font-size:0.82rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user.email}</div>
-          <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:2px;">${user.department || ''}</div>
-        </div>
-
-        <!-- Role badge -->
-        <div style="flex-shrink:0;">
-          <span style="display:inline-flex;align-items:center;background:${cfg.bg};color:${cfg.color};
-            border:1px solid ${cfg.color}33;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;">
-            ${cfg.label}
-          </span>
-        </div>
-
-        <!-- Status badge -->
-        <div style="flex-shrink:0;">
-          <span style="display:inline-flex;align-items:center;gap:5px;background:${sts.bg};color:${sts.color};
-            border:1px solid ${sts.color}22;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;">
-            <span style="width:6px;height:6px;border-radius:50%;background:${sts.color};display:inline-block;"></span>
-            ${sts.label}
-          </span>
-        </div>
-
-        <!--Date -->
-        <div style="flex-shrink:0;font-size:0.78rem;color:#94a3b8;min-width:80px;text-align:right;">
-          ${user.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : (user.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A')}
-        </div>
-
-        <!--Actions -->
-    <div style="flex-shrink:0;display:flex;gap:6px;">
-      <button onclick="userManagementModule.viewUserDetails('${user.id}')" title="View Profile"
-        style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-              border-radius:8px;border:1px solid #e2e8f0;background:white;color:#475569;cursor:pointer;"
-        onmouseover="this.style.borderColor='${cfg.color}';this.style.color='${cfg.color}'"
-        onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-      </button>
-      <button onclick="userManagementModule.editUserRole('${user.id}')" title="Edit Role"
-        style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-              border-radius:8px;border:1px solid #e2e8f0;background:white;color:#475569;cursor:pointer;"
-        onmouseover="this.style.borderColor='${cfg.color}';this.style.color='${cfg.color}'"
-        onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-      </button>
-      <button onclick="userManagementModule.toggleUserStatus('${user.id}')" title="${user.status === 'active' ? 'Suspend' : 'Activate'}"
-        style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-              border-radius:8px;border:1px solid ${user.status === 'active' ? '#fee2e2' : '#dcfce7'};
-              background:${user.status === 'active' ? '#fff5f5' : '#f0fdf4'};
-              color:${user.status === 'active' ? '#dc2626' : '#16a34a'};cursor:pointer;">
-        ${user.status === 'active'
-        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>'
-        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>'}
-      </button>
-      <button onclick="userManagementModule.resendCredentials('${escapeJs(user.schoolId || user.id)}')" title="Email a new password"
-        style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-          border-radius:8px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;cursor:pointer;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
-      </button>
+        <span class="ui-chip ${state.tone}">${state.label}</span>
+        <div class="ui-actions um-actions">
+          <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUserDetails('${id}')">View</button>
+          ${login ? `
+            <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.editUserRole('${id}')">Role</button>
+            <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.resendCredentials('${escapeJs(user.schoolId || user.id)}')">New password</button>
+            <button type="button" class="ui-btn ui-btn-sm${off ? '' : ' pc-danger'}" onclick="userManagementModule.toggleUserStatus('${id}')">${off ? 'Restore' : 'Suspend'}</button>`
+          : `<button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.showInviteModal()">Give a login</button>`}
         </div>
       </div>
     `;
@@ -1078,11 +782,11 @@ const userManagementModule = {
     );
 
     return `
-      <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);">
+      <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-4);">
           <div>
-            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:#1e293b;">Students</h3>
-            <p style="margin:0;font-size:0.8rem;color:#64748b;">${filtered.length} student${filtered.length !== 1 ? 's' : ''} found</p>
+            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">Students</h3>
+            <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">${filtered.length} student${filtered.length !== 1 ? 's' : ''} found</p>
           </div>
           <div style="position:relative;">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"
@@ -1090,8 +794,8 @@ const userManagementModule = {
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <input type="text" placeholder="Search students..."
-              style="padding:8px 12px 8px 34px;border:1px solid #e2e8f0;border-radius:var(--radius-lg);
-                font-size:0.85rem;width:240px;outline:none;color:#1e293b;"
+              style="padding:8px 12px 8px 34px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);
+                font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);"
               value="${this.searchQuery}"
               oninput="userManagementModule.searchQuery = this.value; userManagementModule.switchTab('students')"
               onfocus="this.style.borderColor='#ea580c'" onblur="this.style.borderColor='#e2e8f0'">
@@ -1100,12 +804,12 @@ const userManagementModule = {
 
         <div style="display:grid;gap:var(--space-3);">
           ${filtered.length === 0 ? `
-            <div style="text-align:center;padding:var(--space-10);color:#94a3b8;">
+            <div style="text-align:center;padding:var(--space-10);color:var(--text-tertiary);">
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
                 style="margin:0 auto var(--space-3);display:block;opacity:0.4;">
                 <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
               </svg>
-              <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:#64748b;">No students found</p>
+              <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:var(--text-tertiary);">No students found</p>
               <p style="margin:0;font-size:0.8rem;">Try a different search term</p>
             </div>
           ` : filtered.map(user => this.renderStudentRow(user)).join('')}
@@ -1129,11 +833,11 @@ const userManagementModule = {
           <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${user.id}</div>
         </div>
         <div style="flex:2;min-width:0;">
-          <div style="font-size:0.82rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user.email || 'N/A'}</div>
+          <div style="font-size:0.82rem;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user.email || 'N/A'}</div>
         </div>
         <div style="flex-shrink:0;display:flex;gap:var(--space-2);">
           ${user.grade ? `<span style="background:#fff7ed;color:#ea580c;border:1px solid #ea580c33;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;">Grade ${user.grade}</span>` : ''}
-          ${user.section ? `<span style="background:#f8fafc;color:#64748b;border:1px solid #e2e8f0;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;">Sec ${user.section}</span>` : ''}
+          ${user.section ? `<span style="background:var(--bg-primary);color:var(--text-tertiary);border:1px solid var(--border-primary);padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;">Sec ${user.section}</span>` : ''}
         </div>
         <span style="display:inline-flex;align-items:center;gap:5px;background:${sts.bg};color:${sts.color};
           border:1px solid ${sts.color}22;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;flex-shrink:0;">
@@ -1142,13 +846,13 @@ const userManagementModule = {
         </span>
         <div style="flex-shrink:0;display:flex;gap:6px;">
           <button onclick="userManagementModule.viewUser('${user.id}')" title="View"
-            style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid #e2e8f0;background:white;color:#475569;cursor:pointer;"
+            style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
             onmouseover="this.style.borderColor='#ea580c';this.style.color='#ea580c'"
             onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
           </button>
           <button onclick="userManagementModule.editStudent('${user.id}')" title="Edit"
-            style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid #e2e8f0;background:white;color:#475569;cursor:pointer;"
+            style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
             onmouseover="this.style.borderColor='#ea580c';this.style.color='#ea580c'"
             onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1265,29 +969,29 @@ const userManagementModule = {
               </div>
               <div>
                 <div style="font-size:1.8rem;font-weight:800;color:${s.color};line-height:1;">${s.value}</div>
-                <div style="font-size:0.78rem;color:#64748b;font-weight:600;margin-top:2px;">${s.label}</div>
+                <div style="font-size:0.78rem;color:var(--text-tertiary);font-weight:600;margin-top:2px;">${s.label}</div>
               </div>
             </div>
           `).join('')}
         </div>
 
         <!-- Invitations list -->
-        <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);">
+        <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
         <div>
-          <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:#1e293b;">Accounts issued</h3>
-          <p style="margin:0;font-size:0.8rem;color:#64748b;">${invitations.length} account${invitations.length !== 1 ? 's' : ''} created by an administrator</p>
+          <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">Accounts issued</h3>
+          <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">${invitations.length} account${invitations.length !== 1 ? 's' : ''} created by an administrator</p>
         </div>
       </div>
       <div style="display:grid;gap:var(--space-3);">
         ${invitations.length === 0 ? `
-              <div style="text-align:center;padding:var(--space-10);color:#94a3b8;">
+              <div style="text-align:center;padding:var(--space-10);color:var(--text-tertiary);">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
                   style="margin:0 auto var(--space-3);display:block;opacity:0.4;">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/>
                   <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
                 </svg>
-                <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:#64748b;">No accounts created yet</p>
+                <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:var(--text-tertiary);">No accounts created yet</p>
                 <p style="margin:0;font-size:0.8rem;">Use the Add User button above to create one</p>
               </div>
             ` : invitations.map(inv => this.renderInvitationRow(inv)).join('')}
@@ -1340,10 +1044,10 @@ const userManagementModule = {
 
         <!-- Name + Email -->
         <div style="flex:1.5;min-width:0;">
-          <div style="font-weight:700;font-size:0.9rem;color:#1e293b;">${name}</div>
-          <div style="font-size:0.75rem;color:#94a3b8;">${invitation.email}</div>
+          <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${name}</div>
+          <div style="font-size:0.75rem;color:var(--text-tertiary);">${invitation.email}</div>
         </div>
-        <div style="flex:1;min-width:0;font-size:0.8rem;color:#94a3b8;">${dept}</div>
+        <div style="flex:1;min-width:0;font-size:0.8rem;color:var(--text-tertiary);">${dept}</div>
 
         <!-- Role badge -->
         <span style="background:${rcfg.bg};color:${rcfg.color};border:1px solid ${rcfg.color}33;
@@ -1358,8 +1062,8 @@ const userManagementModule = {
 
         <!--Dates -->
         <div style="flex-shrink:0;text-align:right;min-width:90px;">
-          <div style="font-size:0.75rem;color:#64748b;">Created ${sentDate}</div>
-          <div style="font-size:0.72rem;color:#94a3b8;">Signed in ${lastSeen}</div>
+          <div style="font-size:0.75rem;color:var(--text-tertiary);">Created ${sentDate}</div>
+          <div style="font-size:0.72rem;color:var(--text-tertiary);">Signed in ${lastSeen}</div>
         </div>
 
         <!--Actions -->
@@ -1367,7 +1071,7 @@ const userManagementModule = {
       ${user ? `
             <button onclick="userManagementModule.viewInvitationDetails('${invitation.token}')" title="View Details"
               style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-                border-radius:8px;border:1px solid #e2e8f0;background:white;color:#475569;cursor:pointer;"
+                border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
               onmouseover="this.style.borderColor='#7c3aed';this.style.color='#7c3aed'"
               onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -1466,7 +1170,7 @@ const userManagementModule = {
       closeModal();
 
       this._invitations = await authManager.getInvitations(true);
-      this._users = await authManager.getUsers(true);
+      await this._reload();
 
       setTimeout(() => showCredentialModal(
         data.fullName,
@@ -1507,7 +1211,7 @@ const userManagementModule = {
   async removeStaff(userId) {
     if (confirm('Are you sure you want to remove this staff member?')) {
       await authManager.updateUser(userId, { status: 'inactive' });
-      this._users = await authManager.getUsers(true); // force-refresh after mutation
+      await this._reload(); // force-refresh after mutation
       showToast('Staff member removed successfully', 'success');
       writeAuditLog('REMOVE_STAFF', userId, 'Status set to inactive');
       this.switchTab('staff');
@@ -1629,7 +1333,7 @@ const userManagementModule = {
 
       closeModal();
 
-      this._users = await authManager.getUsers();
+      await this._reload();
 
       setTimeout(() => showCredentialModal(
         data.fullName,
@@ -1688,7 +1392,7 @@ const userManagementModule = {
       grade: data.grade,
       section: data.section
     });
-    this._users = await authManager.getUsers();
+    await this._reload();
 
     showToast('Student updated successfully', 'success');
     writeAuditLog('EDIT_STUDENT', userId, `Grade: ${data.grade} | Section: ${data.section} `);
@@ -1699,7 +1403,7 @@ const userManagementModule = {
   async deleteStudent(userId) {
     if (confirm('Are you sure you want to delete this student? This action cannot be undone.')) {
       await authManager.updateUser(userId, { status: 'inactive' });
-      this._users = await authManager.getUsers(true); // force-refresh after mutation
+      await this._reload(); // force-refresh after mutation
       showToast('Student deleted successfully', 'success');
       writeAuditLog('DELETE_STUDENT', userId, 'Status set to inactive');
       this.switchTab('students');
@@ -1727,13 +1431,13 @@ const userManagementModule = {
     };
 
     const userCards = filtered.length === 0
-      ? `<div style="text-align:center;padding:var(--space-12);color:#94a3b8;">
+      ? `<div style="text-align:center;padding:var(--space-12);color:var(--text-tertiary);">
            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
              style="margin:0 auto var(--space-4);display:block;opacity:0.25;">
              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
            </svg>
-           <p style="margin:0 0 6px;font-weight:700;font-size:1rem;color:#64748b;">No suspended users</p>
+           <p style="margin:0 0 6px;font-weight:700;font-size:1rem;color:var(--text-tertiary);">No suspended users</p>
            <p style="margin:0;font-size:0.85rem;">All accounts are currently active or pending.</p>
          </div>`
       : filtered.map(user => {
@@ -1754,13 +1458,13 @@ const userManagementModule = {
               </div>
 
               <div style="flex:1.5;min-width:0;">
-                <div style="font-weight:700;font-size:0.9rem;color:#1e293b;">${user.fullName || 'N/A'}</div>
-                <div style="font-size:0.75rem;color:#94a3b8;font-family:monospace;">${user.id}</div>
+                <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${user.fullName || 'N/A'}</div>
+                <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${user.id}</div>
               </div>
 
               <div style="flex:2;min-width:0;">
-                <div style="font-size:0.82rem;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user.email || '—'}</div>
-                <div style="font-size:0.75rem;color:#94a3b8;margin-top:2px;">${user.department || ''}</div>
+                <div style="font-size:0.82rem;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${user.email || '—'}</div>
+                <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:2px;">${user.department || ''}</div>
               </div>
 
               <div style="flex-shrink:0;">
@@ -1802,11 +1506,11 @@ const userManagementModule = {
         }).join('');
 
     return `
-      <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);">
+      <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-4);">
           <div>
-            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:#1e293b;">🔒 Suspended / Inactive Users</h3>
-            <p style="margin:0;font-size:0.8rem;color:#64748b;">
+            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">🔒 Suspended / Inactive Users</h3>
+            <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">
               ${filtered.length} user${filtered.length !== 1 ? 's' : ''} — unsuspend to restore access, or permanently delete
             </p>
           </div>
@@ -1816,8 +1520,8 @@ const userManagementModule = {
               <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
             <input type="text" placeholder="Search suspended users..."
-              style="padding:8px 12px 8px 34px;border:1px solid #e2e8f0;border-radius:var(--radius-lg);
-                font-size:0.85rem;width:240px;outline:none;color:#1e293b;"
+              style="padding:8px 12px 8px 34px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);
+                font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);"
               value="${this.searchQuery}"
               oninput="userManagementModule.searchQuery = this.value; userManagementModule.switchTab('suspended')"
               onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e2e8f0'">
@@ -1836,8 +1540,7 @@ const userManagementModule = {
     if (!confirm(`Unsuspend ${user.fullName || userId}?\n\nTheir account will be restored to active and they will be able to log in again.`)) return;
     const result = await authManager.updateUser(userId, { status: 'active' });
     if (!result || result.success === false) { showToast((result && result.error) || 'Failed to unsuspend user.', 'danger'); return; }
-    this._users = await authManager.getUsers(true);
-    await this._mergeDirectoryData();
+    await this._reload();
     showToast(`${user.fullName || userId} has been unsuspended and is now active.`, 'success');
     writeAuditLog('UNSUSPEND_USER', userId, `${user.fullName} reactivated by admin`);
     this.switchTab('suspended');
@@ -1849,8 +1552,7 @@ const userManagementModule = {
     showToast('Deleting user…', 'info');
     const result = await authManager.deleteUser(userId);
     if (!result || result.success === false) { showToast((result && result.error) || 'Failed to delete user.', 'danger'); return; }
-    this._users = await authManager.getUsers(true);
-    await this._mergeDirectoryData();
+    await this._reload();
     showToast(`${displayName} has been permanently deleted.`, 'success');
     writeAuditLog('PERMANENT_DELETE_USER', userId, `${displayName} permanently deleted by admin`);
     this.switchTab('suspended');
@@ -1935,7 +1637,7 @@ const userManagementModule = {
       app.studentId = studentId;
       await dataManager.update('applications', applicationId, { status: 'converted', studentId: studentId });
 
-      this._users = await authManager.getUsers();
+      await this._reload();
       this._invitations = await authManager.getInvitations();
 
       showToast(`Applicant converted successfully! Student ID: ${studentId} `, 'success');
@@ -2032,20 +1734,20 @@ const userManagementModule = {
   async toggleUserStatus(userId) {
     const user = this._users.find(u => u.id === userId || u.schoolId === userId);
     if (!user) { showToast('User not found', 'danger'); return; }
+    // A record without a login has no profile to change: the update matched
+    // nothing, returned no error, and the page said "deactivated".
+    if (!this._hasLogin(user)) { showToast(`${user.fullName} has no login to suspend.`, 'info'); return; }
     const newStatus = user.status === 'active' ? 'inactive' : 'active';
+    if (!confirm(newStatus === 'active'
+      ? `Let ${user.fullName} sign in again?`
+      : `Suspend ${user.fullName}? They will not be able to sign in until restored.`)) return;
 
-    if (confirm(`Are you sure you want to ${newStatus === 'active' ? 'activate' : 'deactivate'} this user ? `)) {
-      await authManager.updateUser(userId, { status: newStatus });
-      this._users = await authManager.getUsers();
-      showToast(`User ${newStatus === 'active' ? 'activated' : 'deactivated'} successfully`, 'success');
-      writeAuditLog(
-        newStatus === 'active' ? 'user_activated' : 'user_suspended',
-        userId,
-        `Status changed to ${newStatus} for user ${user.fullName || userId}`
-      );
-      const container = document.querySelector('.module-container')?.parentElement || document.getElementById('main-content');
-      this.init(container);
-    }
+    const result = await authManager.updateUser(user.schoolId || userId, { status: newStatus });
+    if (!result?.success) { showToast('Not changed: ' + (result?.error || 'unknown error'), 'danger'); return; }
+    writeAuditLog(newStatus === 'active' ? 'user_activated' : 'user_suspended', userId, `Status changed to ${newStatus} for user ${user.fullName || userId}`);
+    await this._reload();
+    showToast(newStatus === 'active' ? `${user.fullName} can sign in again` : `${user.fullName} suspended`, 'success');
+    if (this._container) this._container.innerHTML = this.render();
   },
 
   // ============================================
@@ -2101,12 +1803,12 @@ const userManagementModule = {
       </span>`
     ).join('');
     const morePerms = role.permissions.length > 4
-      ? `<span style="display:inline-flex;align-items:center;color:#64748b;font-size:0.75rem;font-weight:500;padding:3px 8px;">+${role.permissions.length - 4} more</span>`
+      ? `<span style="display:inline-flex;align-items:center;color:var(--text-tertiary);font-size:0.75rem;font-weight:500;padding:3px 8px;">+${role.permissions.length - 4} more</span>`
       : '';
 
     return `
       <div style="display:flex;align-items:flex-start;gap:var(--space-4);padding:var(--space-5);
-        background:white;border:1px solid #e2e8f0;border-radius:var(--radius-xl);
+        background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-xl);
         transition:box-shadow 0.2s;" 
         onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)'" 
         onmouseout="this.style.boxShadow='none'">
@@ -2121,13 +1823,13 @@ const userManagementModule = {
         <!-- Role Info -->
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:4px;">
-            <span style="font-size:1rem;font-weight:700;color:#1e293b;">${cfg.label}</span>
+            <span style="font-size:1rem;font-weight:700;color:var(--text-primary);">${cfg.label}</span>
             <span style="display:inline-flex;align-items:center;background:${cfg.color};color:white;
               padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;">
               ${userCount} ${userCount === 1 ? 'user' : 'users'}
             </span>
           </div>
-          <p style="margin:0 0 var(--space-3) 0;font-size:0.85rem;color:#64748b;">${cfg.desc}</p>
+          <p style="margin:0 0 var(--space-3) 0;font-size:0.85rem;color:var(--text-tertiary);">${cfg.desc}</p>
           <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;">
             ${permDisplay}${morePerms}
           </div>
@@ -2137,7 +1839,7 @@ const userManagementModule = {
         <div style="flex-shrink:0;display:flex;gap:var(--space-2);align-items:center;">
           <button onclick="userManagementModule.viewRoleDetails('${role.id}')"
             style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
-              background:white;color:#475569;border:1px solid #e2e8f0;border-radius:var(--radius-md);
+              background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-md);
               font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.15s;"
             onmouseover="this.style.borderColor='${cfg.color}';this.style.color='${cfg.color}'"
             onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
@@ -2195,7 +1897,7 @@ const userManagementModule = {
         </div>
 
         <div style="margin-bottom:var(--space-5);">
-          <p style="font-size:0.85rem;font-weight:600;color:#475569;margin:0 0 var(--space-3) 0;text-transform:uppercase;letter-spacing:0.05em;">Permissions</p>
+          <p style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin:0 0 var(--space-3) 0;text-transform:uppercase;letter-spacing:0.05em;">Permissions</p>
           <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);">
             ${role.permissions.map(p => `
               <span style="display:inline-flex;align-items:center;gap:6px;background:${cfg.bg};color:${cfg.color};
@@ -2209,28 +1911,28 @@ const userManagementModule = {
 
         ${usersInRole.length > 0 ? `
           <div>
-            <p style="font-size:0.85rem;font-weight:600;color:#475569;margin:0 0 var(--space-3) 0;text-transform:uppercase;letter-spacing:0.05em;">Users in this role</p>
+            <p style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin:0 0 var(--space-3) 0;text-transform:uppercase;letter-spacing:0.05em;">Users in this role</p>
             <div style="display:flex;flex-direction:column;gap:var(--space-2);">
               ${usersInRole.slice(0, 8).map(u => `
                 <div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);
-                  background:#f8fafc;border-radius:var(--radius-md);border:1px solid #e2e8f0;">
+                  background:var(--bg-primary);border-radius:var(--radius-md);border:1px solid var(--border-primary);">
                   <div style="width:34px;height:34px;border-radius:50%;background:${cfg.bg};color:${cfg.color};
                     display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.9rem;border:1.5px solid ${cfg.color}33;">
                     ${(u.fullName || u.id).charAt(0).toUpperCase()}
                   </div>
                   <div style="flex:1;">
-                    <div style="font-weight:600;font-size:0.9rem;color:#1e293b;">${u.fullName || 'N/A'}</div>
-                    <div style="font-size:0.78rem;color:#64748b;">${u.id}</div>
+                    <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary);">${u.fullName || 'N/A'}</div>
+                    <div style="font-size:0.78rem;color:var(--text-tertiary);">${u.id}</div>
                   </div>
                   <span style="font-size:0.75rem;color:${u.status === 'active' ? '#16a34a' : '#dc2626'};
                     font-weight:600;">${u.status || 'active'}</span>
                 </div>
               `).join('')}
-              ${usersInRole.length > 8 ? `<p style="font-size:0.8rem;color:#64748b;text-align:center;margin:var(--space-2) 0 0;">+${usersInRole.length - 8} more users</p>` : ''}
+              ${usersInRole.length > 8 ? `<p style="font-size:0.8rem;color:var(--text-tertiary);text-align:center;margin:var(--space-2) 0 0;">+${usersInRole.length - 8} more users</p>` : ''}
             </div>
           </div>
         ` : `
-          <div style="text-align:center;padding:var(--space-6);color:#94a3b8;">
+          <div style="text-align:center;padding:var(--space-6);color:var(--text-tertiary);">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto var(--space-2);display:block;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
             <p style="margin:0;font-size:0.875rem;">No users assigned to this role yet.</p>
           </div>
@@ -2280,7 +1982,7 @@ const userManagementModule = {
           </svg>
           <div>
             <div style="font-weight:700;color:${cfg.color};">Editing: ${cfg.label}</div>
-            <div style="font-size:0.78rem;color:#64748b;">Toggle permissions on or off. Changes apply immediately.</div>
+            <div style="font-size:0.78rem;color:var(--text-tertiary);">Toggle permissions on or off. Changes apply immediately.</div>
           </div>
         </div>
 
@@ -2315,11 +2017,11 @@ const userManagementModule = {
                   style="flex-shrink:0;width:40px;height:22px;border-radius:11px;display:flex;align-items:center;padding:2px;
                     cursor:pointer;transition:all 0.2s;justify-content:${isOn ? 'flex-end' : 'flex-start'};
                     background:${isOn ? cfg.color : '#cbd5e1'};">
-                  <div style="width:18px;height:18px;background:white;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
+                  <div style="width:18px;height:18px;background:var(--bg-secondary);border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
                 </div>
                 <div style="flex:1;">
-                  <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${perm.label}</div>
-                  <div style="font-size:0.76rem;color:#64748b;">${perm.desc}</div>
+                  <div style="font-size:0.875rem;font-weight:600;color:var(--text-primary);">${perm.label}</div>
+                  <div style="font-size:0.76rem;color:var(--text-tertiary);">${perm.desc}</div>
                 </div>
               </label>
             `;
@@ -2328,7 +2030,7 @@ const userManagementModule = {
 
         <div style="display:flex;gap:var(--space-3);margin-top:var(--space-6);justify-content:flex-end;">
           <button onclick="closeModal(this)"
-            style="padding:9px 20px;background:white;color:#475569;border:1px solid #e2e8f0;
+            style="padding:9px 20px;background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border-primary);
               border-radius:var(--radius-md);font-weight:600;font-size:0.875rem;cursor:pointer;">
             Cancel
           </button>
@@ -2369,7 +2071,7 @@ const userManagementModule = {
     showToast(`${role.name} permissions updated successfully`, 'success');
 
     // Re-render the roles tab to reflect changes
-    const container = document.querySelector('.module-container')?.parentElement ||
+    const container = this._container ||
       document.getElementById('main-content');
     this.init(container);
   },
@@ -2460,9 +2162,9 @@ const userManagementModule = {
     ];
 
     return `
-      <div class="card" style="border:1px solid #e2e8f0;border-radius:var(--radius-xl);overflow:hidden;">
+      <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);overflow:hidden;">
         <!-- Header Section -->
-        <div style="background:linear-gradient(135deg, #667eea 0%, #764ba2 100%);padding:var(--space-5);color:white;">
+        <div style="background:linear-gradient(135deg, var(--brand-navy) 0%, var(--brand-navy) 100%);padding:var(--space-5);color:white;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:var(--space-4);">
             <div style="flex:1;min-width:250px;">
               <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-2);">
@@ -2497,7 +2199,7 @@ const userManagementModule = {
               </button>
               <button onclick="userManagementModule.exportAuditLogs()"
                 style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;
-                  background:white;color:#667eea;border:1px solid white;
+                  background:var(--bg-secondary);color:var(--brand-navy);border:1px solid white;
                   border-radius:var(--radius-md);font-size:0.875rem;font-weight:600;cursor:pointer;
                   transition:all 0.2s;"
                 onmouseover="this.style.background='#f8f9ff';this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'"
@@ -2514,24 +2216,24 @@ const userManagementModule = {
         </div>
 
         <!-- Category Filter Chips -->
-        <div style="padding:var(--space-3) var(--space-5);background:#f8fafc;border-bottom:1px solid #e2e8f0;
+        <div style="padding:var(--space-3) var(--space-5);background:var(--bg-primary);border-bottom:1px solid var(--border-primary);
           display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;">
-          <span style="font-size:0.75rem;font-weight:600;color:#64748b;white-space:nowrap;margin-right:4px;">Filter:</span>
+          <span style="font-size:0.75rem;font-weight:600;color:var(--text-tertiary);white-space:nowrap;margin-right:4px;">Filter:</span>
           ${CHIP_DEFS.map(c => {
             const active = category === c.key;
             return `<button onclick="userManagementModule._auditCategory='${c.key}';const live=userManagementModule._container?.querySelector('.tab-content');if(live)live.innerHTML=userManagementModule._renderAuditTabContent();"
               style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;
-                border:1px solid ${active ? '#667eea' : '#e2e8f0'};
-                background:${active ? '#667eea' : 'white'};
+                border:1px solid ${active ? 'var(--brand-navy)' : '#e2e8f0'};
+                background:${active ? 'var(--brand-navy)' : 'white'};
                 color:${active ? 'white' : '#64748b'};
                 font-size:0.78rem;font-weight:${active ? '700' : '500'};cursor:pointer;
                 transition:all 0.15s;white-space:nowrap;"
-              onmouseover="if('${c.key}'!=='${category}'){this.style.borderColor='#667eea';this.style.color='#667eea';}"
+              onmouseover="if('${c.key}'!=='${category}'){this.style.borderColor='var(--brand-navy)';this.style.color='var(--brand-navy)';}"
               onmouseout="if('${c.key}'!=='${category}'){this.style.borderColor='#e2e8f0';this.style.color='#64748b';}"
               >${c.icon} ${c.label}</button>`;
           }).join('')}
           ${filtered.length !== this.auditLogs.length ? `
-            <span style="margin-left:auto;font-size:0.75rem;color:#94a3b8;">
+            <span style="margin-left:auto;font-size:0.75rem;color:var(--text-tertiary);">
               ${filtered.length} of ${this.auditLogs.length} events
             </span>` : ''}
         </div>
@@ -2544,7 +2246,7 @@ const userManagementModule = {
             </div>
           ` : `
             ${logs.length === 0 ? `
-              <div style="text-align:center;padding:var(--space-10);color:#94a3b8;">
+              <div style="text-align:center;padding:var(--space-10);color:var(--text-tertiary);">
                 <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
                   style="margin:0 auto var(--space-4);display:block;opacity:0.3;">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
@@ -2553,14 +2255,14 @@ const userManagementModule = {
                   <line x1="16" y1="17" x2="8" y2="17"/>
                   <polyline points="10 9 9 9 8 9"/>
                 </svg>
-                <p style="margin:0 0 8px;font-weight:700;font-size:1.1rem;color:#64748b;">No audit logs yet</p>
+                <p style="margin:0 0 8px;font-weight:700;font-size:1.1rem;color:var(--text-tertiary);">No audit logs yet</p>
                 <p style="margin:0;font-size:0.875rem;">User actions will be logged here for security tracking</p>
               </div>
             ` : `
               <!-- Column Headers -->
               <div style="display:grid;grid-template-columns:auto 1.5fr 1fr 2fr 120px 140px;gap:var(--space-3);
-                padding:var(--space-3) var(--space-4);background:#f8fafc;border-radius:var(--radius-md);
-                margin-bottom:var(--space-3);font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;
+                padding:var(--space-3) var(--space-4);background:var(--bg-primary);border-radius:var(--radius-md);
+                margin-bottom:var(--space-3);font-size:0.75rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;
                 letter-spacing:0.5px;">
                 <div>Type</div>
                 <div>Action</div>
@@ -2576,8 +2278,8 @@ const userManagementModule = {
               </div>
 
               ${filtered.length > 500 ? `
-                <div style="margin-top:var(--space-5);padding:var(--space-4);background:#f8fafc;
-                  border-radius:var(--radius-md);text-align:center;font-size:0.875rem;color:#64748b;">
+                <div style="margin-top:var(--space-5);padding:var(--space-4);background:var(--bg-primary);
+                  border-radius:var(--radius-md);text-align:center;font-size:0.875rem;color:var(--text-tertiary);">
                   <strong>Showing 500 of ${filtered.length} total events.</strong> Export to view all records.
                 </div>
               ` : ''}
@@ -2624,7 +2326,7 @@ const userManagementModule = {
     return `
       <div style="display:grid;grid-template-columns:auto 1.5fr 1fr 2fr 120px 140px;gap:var(--space-3);
         align-items:center;padding:var(--space-3) var(--space-4);
-        background:white;border:1px solid #f1f5f9;border-radius:var(--radius-lg);
+        background:var(--bg-secondary);border:1px solid #f1f5f9;border-radius:var(--radius-lg);
         transition:all 0.2s;cursor:default;"
         onmouseover="this.style.background='#f8fafc';this.style.borderColor='#e2e8f0';this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)'"
         onmouseout="this.style.background='white';this.style.borderColor='#f1f5f9';this.style.boxShadow='none'">
@@ -2638,35 +2340,35 @@ const userManagementModule = {
 
         <!-- Action label + actor -->
         <div style="min-width:0;">
-          <div style="font-weight:700;font-size:0.875rem;color:#1e293b;margin-bottom:2px;">
+          <div style="font-weight:700;font-size:0.875rem;color:var(--text-primary);margin-bottom:2px;">
             ${actionLabel}
           </div>
-          <div style="font-size:0.75rem;color:#64748b;">
-            by <strong style="color:#475569;">${actor}</strong>
+          <div style="font-size:0.75rem;color:var(--text-tertiary);">
+            by <strong style="color:var(--text-secondary);">${actor}</strong>
           </div>
         </div>
 
         <!-- Target -->
-        <div style="min-width:0;font-size:0.8rem;color:#475569;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+        <div style="min-width:0;font-size:0.8rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
           title="${log.target || '—'}">
           ${log.target || '—'}
         </div>
 
         <!-- Details -->
-        <div style="min-width:0;font-size:0.8rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+        <div style="min-width:0;font-size:0.8rem;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
           title="${log.details || '—'}">
           ${log.details || '—'}
         </div>
 
         <!-- IP Address -->
-        <div style="font-size:0.75rem;color:#64748b;font-family:monospace;text-align:right;
-          background:#f8fafc;padding:4px 8px;border-radius:4px;">
+        <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;text-align:right;
+          background:var(--bg-primary);padding:4px 8px;border-radius:4px;">
           ${log.ipAddress || 'N/A'}
         </div>
 
         <!-- Timestamp -->
-        <div style="font-size:0.75rem;color:#64748b;text-align:right;white-space:nowrap;">
-          <div style="font-weight:600;color:#475569;margin-bottom:2px;">
+        <div style="font-size:0.75rem;color:var(--text-tertiary);text-align:right;white-space:nowrap;">
+          <div style="font-weight:600;color:var(--text-secondary);margin-bottom:2px;">
             ${new Date(log.timestamp).toLocaleDateString()}
           </div>
           <div style="font-size:0.7rem;">
@@ -2871,7 +2573,7 @@ const userManagementModule = {
       this.logAuditEvent('account_created', data.email, `Created as ${data.role} by ${session.fullName}`);
       writeAuditLog('account_created', data.email, `Role: ${data.role} | Name: ${data.fullName} | ID: ${defaultUserId} | by ${session.fullName}`);
       this._invitations = await authManager.getInvitations(true);
-      this._users = await authManager.getUsers(true);
+      await this._reload();
 
       showToast(emailSent ? 'Account created and credentials emailed.' : 'Account created — share the credentials manually.', emailSent ? 'success' : 'warning');
       closeModal();
@@ -3011,7 +2713,7 @@ const userManagementModule = {
 
     // Force-refresh caches after mutation so next render is always fresh
     this._invitations = await authManager.getInvitations(true);
-    this._users = await authManager.getUsers(true);
+    await this._reload();
 
     closeModal();
 
@@ -3098,15 +2800,14 @@ const userManagementModule = {
     const data = Object.fromEntries(formData);
     const user = this._users.find(u => u.id === userId || u.schoolId === userId);
 
-    await authManager.updateUser(userId, {
-      role: data.role,
-      department: data.department
-    });
-    this._users = await authManager.getUsers();
+    if (!this._hasLogin(user)) { showToast('This person has no login yet.', 'info'); return; }
+    const result = await authManager.updateUser(user.schoolId || userId, { role: data.role });
+    if (!result?.success) { showToast('Not changed: ' + (result?.error || 'unknown error'), 'danger'); return; }
+    await this._reload();
 
     this.logAuditEvent('role_changed', user?.email || userId, `Role changed from ${user?.role} to ${data.role}`);
 
-    showToast('User role updated successfully', 'success');
+    showToast('Role changed', 'success');
     closeModal();
     this.switchTab('users');
   },
@@ -3141,7 +2842,7 @@ const userManagementModule = {
 
       this.logAuditEvent('credentials_reissued', result.email || who, `New password issued for ${schoolId}`);
       this._invitations = await authManager.getInvitations(true);
-      this._users = await authManager.getUsers(true);
+      await this._reload();
       this.render();
 
       showCredentialModal(
@@ -3224,7 +2925,7 @@ const userManagementModule = {
         `Deleted ${hasAccount ? `account ${invitation.school_id}` : 'orphaned record'} for ${invitation.full_name}`);
 
       this._invitations = await authManager.getInvitations(true);
-      this._users = await authManager.getUsers(true);
+      await this._reload();
       this.render();
 
       showToast(hasAccount ? 'Account deleted' : 'Record removed', 'success');
@@ -3315,20 +3016,20 @@ const userManagementModule = {
     const html = `
       <form id="create-role-form" onsubmit="userManagementModule.submitCreateRole(event)">
         <div style="margin-bottom:var(--space-5);">
-          <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:6px;">Role Name <span style="color:#ef4444;">*</span></label>
+          <label style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Role Name <span style="color:#ef4444;">*</span></label>
           <input type="text" name="roleName" class="form-input" placeholder="e.g. Librarian, Counselor" required
             style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;"
             oninput="document.getElementById('role-id-preview').textContent = this.value.toLowerCase().replace(/\\s+/g,'_').replace(/[^a-z0-9_]/g,'')"
           >
-          <p style="font-size:0.75rem;color:#94a3b8;margin-top:4px;">Role ID: <code id="role-id-preview" style="background:#f1f5f9;padding:1px 6px;border-radius:4px;">…</code></p>
+          <p style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px;">Role ID: <code id="role-id-preview" style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;">…</code></p>
         </div>
 
         <div style="margin-bottom:var(--space-5);">
-          <label style="display:block;font-size:0.85rem;font-weight:600;color:#475569;margin-bottom:10px;">Permissions</label>
+          <label style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">Permissions</label>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             ${allPermissions.map(p => `
-              <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-radius:8px;border:1px solid #e2e8f0;cursor:pointer;font-size:0.85rem;color:#334155;">
-                <input type="checkbox" name="permissions" value="${p.id}" style="accent-color:#667eea;width:15px;height:15px;">
+              <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-primary);border-radius:8px;border:1px solid var(--border-primary);cursor:pointer;font-size:0.85rem;color:var(--text-primary);">
+                <input type="checkbox" name="permissions" value="${p.id}" style="accent-color:var(--brand-navy);width:15px;height:15px;">
                 ${p.label}
               </label>
             `).join('')}
@@ -3336,8 +3037,8 @@ const userManagementModule = {
         </div>
 
         <div style="display:flex;gap:10px;justify-content:flex-end;">
-          <button type="button" class="btn" onclick="closeModal()" style="padding:9px 20px;border:1px solid #e2e8f0;border-radius:8px;background:white;color:#475569;font-weight:600;cursor:pointer;">Cancel</button>
-          <button type="submit" class="btn btn-primary" style="padding:9px 20px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Create Role</button>
+          <button type="button" class="btn" onclick="closeModal()" style="padding:9px 20px;border:1px solid var(--border-primary);border-radius:8px;background:var(--bg-secondary);color:var(--text-secondary);font-weight:600;cursor:pointer;">Cancel</button>
+          <button type="submit" class="btn btn-primary" style="padding:9px 20px;background:var(--brand-navy);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Create Role</button>
         </div>
       </form>
     `;

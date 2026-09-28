@@ -573,6 +573,33 @@ describe('Pupil tasks: what state each task is in', () => {
   it('a mark of 0 is still a mark', () => eq(s({ status: 'graded', score: 0 }), 'marked'));
 });
 
+// ── Users & access ──────────────────────────────────────────
+describe('Users & access: logins are counted apart from records', () => {
+  const w = sandbox('2026-09-26T09:00:00', {
+    students: [
+      { id: 'P1', name: 'Has login', authId: 'auth-p1', status: 'active' },
+      { id: 'P2', name: 'No login', status: 'active' },
+      { id: 'P3', name: 'Left', status: 'inactive' }
+    ],
+    staff: [{ id: 'S1', name: 'Bursar', authId: 'auth-s1', role: 'Bursar', type: 'non-teaching', status: 'active' }]
+  }, ['js/modules/user-management.js']);
+  w.isTeachingStaff = (s) => s.type === 'teaching';
+  w.dataManager.waitForReady = async () => {};
+  const m = w.userManagementModule;
+  m._users = [
+    { id: 'TBD/STU/1', authId: 'auth-p1', fullName: 'Has login', role: 'student', status: 'active', lastLogin: '2026-09-01' },
+    { id: 'TBD/STF/1', authId: 'auth-s1', fullName: 'Bursar', email: 'b@x.org', role: 'staff', status: 'active', lastLogin: null },
+    { id: 'TBD/ADM/1', authId: 'auth-a', fullName: 'Admin', role: 'admin', status: 'suspended', lastLogin: '2026-01-01' }
+  ];
+  it('a record linked to a login by auth_id is not listed again as "no login"; figures count logins apart', async () => {
+    await m._mergeDirectoryData();
+    eq(m._users.filter(u => u._source === 'directory').map(u => u.id), ['P2', 'P3']);
+    // Then the figures: logins, signed in, never signed in, suspended, active records with no login.
+    const f = m.figures();
+    eq([f.accounts, f.signedIn, f.neverSignedIn, f.suspended, f.noLogin], [3, 1, 1, 1, 1]);
+  });
+});
+
 // ── Label tidying ───────────────────────────────────────────
 describe('Older pages lose leading emoji, not words', () => {
   const src = read('js/portal-shell.js');

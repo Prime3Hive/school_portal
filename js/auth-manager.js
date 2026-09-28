@@ -583,6 +583,7 @@ class AuthManager {
         return {
             id: profile.school_id,
             schoolId: profile.school_id,
+            authId: profile.id, // the auth user; students.auth_id and staff.auth_id point here
             fullName: profile.full_name,
             role: profile.role,
             email: profile.email,
