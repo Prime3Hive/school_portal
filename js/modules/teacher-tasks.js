@@ -1,582 +1,469 @@
 // ============================================
-// TEACHER TASKS MODULE
-// Full CRUD: create assignments, track submissions, grade work
+// ASSIGNMENTS
+// ============================================
+// Homework, tests and projects set for a class, and their marks.
+//
+// Everything lives in student_assignments, one row per pupil: the row is
+// what the pupil sees on "My tasks". Its columns are student_id, subject_id,
+// subject_name, title, type, status, total_marks, score, grade, due_date,
+// submitted_date and remarks. There is no teacher, class or "assignment"
+// column, so the old page (which saved one class-level row with those
+// fields) lost its teacher and class on reload, and marks it saved never
+// linked back. Here an assignment is the set of rows for one class that
+// share a title, subject, kind, due date and total marks.
+//
+// A pupil's row: status 'pending' (not handed in), 'submitted' (handed in,
+// not marked) or 'graded' (marked). Grades use the school's scale.
 // ============================================
 
 const teacherTasksModule = {
-  currentTab: 'assignments',
-  _search: '',
-  _classFilter: 'all',
-  _statusFilter: 'all',
-  _selectedTask: null,
-  _currentTeacher: null,
+  _f: { q: '', cls: 'all', show: 'open' },
+  TYPES: [['assignment', 'Homework'], ['test', 'Test'], ['quiz', 'Quiz'], ['project', 'Project'], ['exam', 'Exam']],
 
   async init(container) {
     this.container = container || document.getElementById('main-content');
-    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
     await dataManager.waitForReady();
-    this._resolveTeacher();
     this.render();
+    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
     this._onDataChange = (e) => {
-      if (['assignments', 'studentAssignments', 'students', 'schoolSchedules', 'subjectCatalog'].includes(e.detail.collection)) {
-        this._resolveTeacher();
-        this.render();
-      }
+      if (['studentAssignments', 'students'].includes(e.detail?.collection)) this.render();
     };
     window.addEventListener('datamanager:change', this._onDataChange);
   },
 
-  _resolveTeacher() {
-    const session = authManager?.getSession();
-    if (!session) { this._currentTeacher = null; return; }
-    const staff = dataManager.getAll('staff') || [];
-    const teacher = staff.find(s =>
-      s.authId === session.supabaseId || s.auth_id === session.supabaseId
-    ) || staff.find(s => s.id === session.userId);
-    this._currentTeacher = teacher
-      ? { ...teacher, sessionId: session.supabaseId, sessionUserId: session.userId }
-      : { id: session.supabaseId, name: session.fullName, sessionId: session.supabaseId, sessionUserId: session.userId };
+  cleanup() {
+    if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
   },
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────
 
-  _getMyAssignments() {
-    const all = dataManager.getAll('assignments') || [];
-    const tid = this._currentTeacher?.id || this._currentTeacher?.sessionId;
-    return all.filter(a => a.teacherId === tid || a.teacher_id === tid || a.createdBy === tid);
+  _esc(v) {
+    return typeof window.escapeHtml === 'function'
+      ? window.escapeHtml(v)
+      : String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   },
 
-  _getSubmissions(assignmentId) {
-    const all = dataManager.getAll('studentAssignments') || [];
-    return all.filter(s => s.assignmentId === assignmentId || s.assignment_id === assignmentId);
+  typeLabel(t) {
+    return (this.TYPES.find(([k]) => k === t) || [, 'Homework'])[1];
   },
 
-  _getClasses() {
-    return dataManager.getAll('schoolSchedules') || [];
+  day(v) {
+    return String(v || '').slice(0, 10);
   },
 
-  _getSubjects() {
-    return dataManager.getAll('subjectCatalog') || [];
+  today() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   },
 
-  _getStudentName(studentId) {
-    const students = dataManager.getAll('students') || [];
-    const s = students.find(st => st.id === studentId);
-    return s ? (s.name || s.fullName || `Student ${studentId.slice(0, 6)}`) : 'Unknown';
+  dateLabel(v) {
+    if (!v) return 'no due date';
+    const d = new Date(this.day(v) + 'T12:00:00');
+    return isNaN(d) ? '—' : d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
   },
 
-  _filteredAssignments() {
-    let list = this._getMyAssignments();
-    if (this._classFilter !== 'all') list = list.filter(a => a.grade === this._classFilter || a.class === this._classFilter);
-    if (this._statusFilter !== 'all') list = list.filter(a => a.status === this._statusFilter);
-    if (this._search) {
-      const q = this._search.toLowerCase();
-      list = list.filter(a => (a.title || '').toLowerCase().includes(q) || (a.subjectName || '').toLowerCase().includes(q));
-    }
-    return list.sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0));
+  classLabel(grade, section) {
+    return [grade, section].filter(Boolean).join(' ');
   },
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  gradeRank(g) {
+    const i = (schoolConfig.getAllGrades?.() || []).map(x => x.name).indexOf(g);
+    return i === -1 ? 99 : i;
+  },
+
+  activePupils() {
+    return (dataManager.getAll('students') || []).filter(s => String(s.status || 'active').toLowerCase() === 'active');
+  },
+
+  classes() {
+    const map = new Map();
+    this.activePupils().forEach(s => {
+      if (!s.grade) return;
+      const key = `${s.grade}|${s.section || ''}`;
+      if (!map.has(key)) map.set(key, { key, grade: s.grade, section: s.section || '', pupils: [] });
+      map.get(key).pupils.push(s);
+    });
+    return [...map.values()].sort((a, b) => (this.gradeRank(a.grade) - this.gradeRank(b.grade)) || a.grade.localeCompare(b.grade) || a.section.localeCompare(b.section));
+  },
+
+  gradeFor(score, total) {
+    const pct = total ? (score / total) * 100 : 0;
+    return window.scoreBook ? window.scoreBook.gradeFor(pct).grade : (window.pupilData?.gradeFor(pct).letter || '');
+  },
+
+  /**
+   * Group per-pupil rows into assignments. A row's class is its pupil's
+   * class; rows whose pupil has left are kept with the class they had last
+   * (unknown, so they group under "Pupils who have left").
+   */
+  sets(rows = dataManager.getAll('studentAssignments') || [], students = dataManager.getAll('students') || []) {
+    const byId = new Map(students.map(s => [s.id, s]));
+    const map = new Map();
+    rows.forEach(r => {
+      const pupil = byId.get(r.studentId || r.student_id);
+      const grade = pupil?.grade || '', section = pupil?.section || '';
+      const total = parseFloat(r.totalMarks ?? r.total_marks) || 0;
+      const due = this.day(r.dueDate || r.due_date);
+      const subject = r.subjectName || r.subject_name || '';
+      const key = [r.title || '', subject, r.type || 'assignment', due, total, grade, section].join('|');
+      if (!map.has(key)) {
+        map.set(key, { key, title: r.title || 'Untitled', subjectName: subject, subjectId: r.subjectId || r.subject_id || null, type: r.type || 'assignment', due, total, grade, section, rows: [] });
+      }
+      map.get(key).rows.push({ ...r, pupil });
+    });
+    return [...map.values()].map(s => {
+      const marked = s.rows.filter(r => r.status === 'graded' && r.score != null && r.score !== '');
+      const pcts = marked.map(r => s.total ? (parseFloat(r.score) / s.total) * 100 : 0);
+      return {
+        ...s,
+        pupils: s.rows.length,
+        handedIn: s.rows.filter(r => r.status === 'submitted' || r.status === 'graded').length,
+        marked: marked.length,
+        average: pcts.length ? Math.round((pcts.reduce((a, n) => a + n, 0) / pcts.length) * 10) / 10 : null
+      };
+    }).sort((a, b) => (b.due || '').localeCompare(a.due || '') || a.title.localeCompare(b.title));
+  },
+
+  findSet(key) {
+    return this.sets().find(s => s.key === key) || null;
+  },
+
+  // ── Page ─────────────────────────────────────────────────
+
+  setFilter(field, value) {
+    this._f[field] = value;
+    const box = document.getElementById('tt-list');
+    if (box) box.innerHTML = this.listHTML();
+    if (field === 'q') { const i = document.getElementById('tt-q'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+  },
 
   render() {
     if (!this.container) return;
-    const assignments = this._getMyAssignments();
-    const pending = assignments.filter(a => a.status === 'active').length;
-    const grading  = assignments.reduce((sum, a) => sum + this._getSubmissions(a.id).filter(s => s.status === 'submitted' || s.status === 'pending').length, 0);
+    if (window.app?.currentModule && window.app.currentModule !== 'teacher-tasks') return;
+    const all = this.sets();
+    const today = this.today();
+    const open = all.filter(s => !s.due || s.due >= today);
+    const toMark = all.reduce((a, s) => a + s.rows.filter(r => r.status === 'submitted').length, 0);
+    const classes = this.classes();
+    const kpi = (label, value, sub, onclick) => `
+      <button type="button" class="ui-card ui-kpi" onclick="${onclick}">
+        <span class="ui-kpi-label">${label}</span><span class="ui-kpi-value">${value}</span><span class="ui-kpi-sub">${sub}</span>
+      </button>`;
 
     this.container.innerHTML = `
-      <div class="module-container animate-fadeIn">
-
-        <!-- Header -->
-        <div class="module-header" style="margin-bottom:var(--space-5);">
+      <div class="ui-page">
+        <div class="ui-page-head">
           <div>
-            <h1 class="module-title">📋 Task & Assignment Manager</h1>
-            <p class="module-subtitle">Create assignments, track student submissions, grade work</p>
+            <h1 class="ui-page-title">Assignments</h1>
+            <p class="ui-page-sub">Homework, tests and projects set for a class, and their marks</p>
           </div>
-          <button class="btn btn-primary" onclick="teacherTasksModule.openCreateModal()">
-            ➕ New Assignment
-          </button>
-        </div>
-
-        <!-- Stats -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--space-3);margin-bottom:var(--space-5);">
-          ${this._chip('Total Assignments', assignments.length, 'var(--color-primary)')}
-          ${this._chip('Active', pending, '#10b981')}
-          ${this._chip('Awaiting Grading', grading, '#f59e0b')}
-          ${this._chip('Closed', assignments.filter(a => a.status === 'closed').length, '#6366f1')}
-        </div>
-
-        <!-- Filters -->
-        <div class="card" style="margin-bottom:var(--space-5);padding:var(--space-4);">
-          <div style="display:flex;flex-wrap:wrap;gap:var(--space-3);align-items:center;">
-            <input type="text" class="form-input" placeholder="Search assignments…"
-              style="min-width:200px;flex:1;" value="${this._search}"
-              oninput="teacherTasksModule._search=this.value;teacherTasksModule.render()">
-            <select class="form-select" onchange="teacherTasksModule._classFilter=this.value;teacherTasksModule.render()">
-              <option value="all" ${this._classFilter==='all'?'selected':''}>All Grades</option>
-              ${['JSS1','JSS2','JSS3','SS1','SS2','SS3'].map(g=>`<option value="${g}" ${this._classFilter===g?'selected':''}>${g}</option>`).join('')}
-            </select>
-            <select class="form-select" onchange="teacherTasksModule._statusFilter=this.value;teacherTasksModule.render()">
-              <option value="all" ${this._statusFilter==='all'?'selected':''}>All Status</option>
-              <option value="active" ${this._statusFilter==='active'?'selected':''}>Active</option>
-              <option value="closed" ${this._statusFilter==='closed'?'selected':''}>Closed</option>
-              <option value="draft" ${this._statusFilter==='draft'?'selected':''}>Draft</option>
-            </select>
+          <div class="ui-actions">
+            <button type="button" class="ui-btn ui-btn-primary" onclick="teacherTasksModule.openCreateModal()">Set an assignment</button>
           </div>
         </div>
 
-        <!-- Assignment List -->
-        <div style="display:grid;gap:var(--space-4);">
-          ${this._filteredAssignments().length > 0
-            ? this._filteredAssignments().map(a => this._renderCard(a)).join('')
-            : this._emptyState()}
+        <div class="ui-grid-4">
+          ${kpi('Still open', open.length, 'due today or later', "teacherTasksModule.setFilter('show','open')")}
+          ${kpi('Handed in, not marked', toMark, 'pupils waiting for a mark', "teacherTasksModule.setFilter('show','tomark')")}
+          ${kpi('Past due', all.length - open.length, 'due date has passed', "teacherTasksModule.setFilter('show','past')")}
+          ${kpi('Classes', new Set(all.map(s => s.grade + '|' + s.section)).size, `of ${classes.length} have assignments`, "teacherTasksModule.setFilter('show','all')")}
         </div>
-      </div>
 
-      <!-- Create/Edit Modal -->
-      <div id="tt-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)teacherTasksModule.closeModal()">
-        <div class="modal-container" style="max-width:600px;width:95%;" onclick="event.stopPropagation()">
-          <div id="tt-modal-body"></div>
+        <div class="ui-card sd-filters">
+          <label class="sd-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM21 21l-5-5"/></svg>
+            <input id="tt-q" type="search" aria-label="Search assignments" placeholder="Search by title or subject" value="${this._esc(this._f.q)}" oninput="teacherTasksModule.setFilter('q', this.value)">
+          </label>
+          <select class="sd-select" aria-label="Class" onchange="teacherTasksModule.setFilter('cls', this.value)">
+            <option value="all">All classes</option>
+            ${classes.map(c => `<option value="${this._esc(c.key)}" ${this._f.cls === c.key ? 'selected' : ''}>${this._esc(this.classLabel(c.grade, c.section))}</option>`).join('')}
+          </select>
+          <select class="sd-select" aria-label="Which" onchange="teacherTasksModule.setFilter('show', this.value)">
+            ${[['open', 'Still open'], ['tomark', 'Waiting for marks'], ['past', 'Past due'], ['all', 'All']].map(([k, l]) => `<option value="${k}" ${this._f.show === k ? 'selected' : ''}>${l}</option>`).join('')}
+          </select>
         </div>
-      </div>
 
-      <!-- Submissions Modal -->
-      <div id="tt-subs-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)teacherTasksModule.closeSubsModal()">
-        <div class="modal-container" style="max-width:700px;width:95%;" onclick="event.stopPropagation()">
-          <div id="tt-subs-body"></div>
-        </div>
-      </div>
-    `;
+        <section class="ui-card" id="tt-list">${this.listHTML()}</section>
+      </div>`;
   },
 
-  _chip(label, value, color) {
-    return `<div class="card" style="padding:var(--space-4);text-align:center;">
-      <div style="font-size:1.5rem;font-weight:700;color:${color};">${value}</div>
-      <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:0.2rem;">${label}</div>
-    </div>`;
-  },
+  listHTML() {
+    const today = this.today();
+    const q = this._f.q.trim().toLowerCase();
+    const list = this.sets()
+      .filter(s => this._f.cls === 'all' || `${s.grade}|${s.section}` === this._f.cls)
+      .filter(s => this._f.show === 'all'
+        || (this._f.show === 'open' && (!s.due || s.due >= today))
+        || (this._f.show === 'past' && s.due && s.due < today)
+        || (this._f.show === 'tomark' && s.rows.some(r => r.status === 'submitted')))
+      .filter(s => !q || [s.title, s.subjectName].some(v => String(v).toLowerCase().includes(q)));
 
-  _renderCard(a) {
-    const submissions = this._getSubmissions(a.id);
-    const submitted = submissions.filter(s => s.status === 'submitted' || s.status === 'graded').length;
-    const pending   = submissions.filter(s => s.status === 'submitted').length;
-    const due = new Date(a.dueDate || a.due_date);
-    const isOverdue = due < new Date() && a.status === 'active';
-    const statusColor = { active: '#10b981', closed: '#6366f1', draft: '#94a3b8' }[a.status] || '#94a3b8';
-
+    if (!list.length) {
+      return `<p class="ui-empty">${this.sets().length ? 'No assignment matches.' : 'No assignments yet. Use "Set an assignment" to give one to a class.'}</p>`;
+    }
     return `
-      <div class="card" style="border-left:4px solid ${statusColor};transition:box-shadow 0.2s;" onmouseenter="this.style.boxShadow='0 4px 20px rgba(0,0,0,0.1)'" onmouseleave="this.style.boxShadow=''">
-        <div class="card-body">
-          <div style="display:flex;justify-content:space-between;align-items:start;gap:var(--space-4);flex-wrap:wrap;">
-            <div style="flex:1;min-width:200px;">
-              <div style="display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-1);">
-                <span style="font-size:1.4rem;">${{ assignment:'📄', quiz:'📝', exam:'📋', project:'🎯', test:'📊' }[a.type]||'📄'}</span>
-                <h3 style="font-size:var(--font-size-lg);font-weight:var(--font-weight-semibold);margin:0;">${a.title}</h3>
-                <span style="font-size:0.7rem;padding:2px 8px;border-radius:99px;background:${statusColor}22;color:${statusColor};font-weight:600;text-transform:uppercase;">${a.status}</span>
-              </div>
-              <div style="display:flex;flex-wrap:wrap;gap:var(--space-3);font-size:var(--font-size-sm);color:var(--text-secondary);margin-bottom:var(--space-3);">
-                <span>📚 ${a.subjectName || a.subject || '—'}</span>
-                <span>🏫 ${a.grade || a.class || '—'}</span>
-                <span style="color:${isOverdue?'var(--color-danger)':'inherit'}">📅 Due: ${due.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>
-                <span>🎯 ${a.totalMarks || a.total_marks || 100} marks</span>
-              </div>
-              ${a.description ? `<p style="font-size:var(--font-size-sm);color:var(--text-secondary);margin:0 0 var(--space-3);">${a.description}</p>` : ''}
-              <!-- Submission progress bar -->
-              <div style="margin-top:var(--space-2);">
-                <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-secondary);margin-bottom:4px;">
-                  <span>${submitted} submitted</span>
-                  ${pending > 0 ? `<span style="color:#f59e0b;font-weight:600;">${pending} need grading</span>` : ''}
-                </div>
-                <div style="height:6px;background:var(--bg-tertiary);border-radius:99px;overflow:hidden;">
-                  <div style="height:100%;width:${submissions.length?Math.round(submitted/submissions.length*100):0}%;background:#10b981;border-radius:99px;transition:width 0.4s;"></div>
-                </div>
-              </div>
+      <div class="ui-card-head"><h2 class="ui-card-title">${list.length} assignment${list.length === 1 ? '' : 's'}</h2><span class="ui-card-note">Latest due date first</span></div>
+      ${list.map(s => {
+        const key = this._esc(s.key);
+        const late = s.due && s.due < today;
+        const waiting = s.rows.filter(r => r.status === 'submitted').length;
+        return `
+          <div class="ui-row tt-row" role="button" tabindex="0" onclick="teacherTasksModule.openSubmissions('${key}')" onkeydown="if(event.key==='Enter')teacherTasksModule.openSubmissions('${key}')">
+            <span class="ui-dot ${waiting ? 'is-urgent' : late ? '' : 'is-info'}" aria-hidden="true"></span>
+            <div class="ui-row-main">
+              <div class="ui-row-title">${this._esc(s.title)}</div>
+              <div class="ui-row-meta">${this._esc([this.classLabel(s.grade, s.section) || 'Pupils who have left', s.subjectName, this.typeLabel(s.type), `${s.total} marks`].filter(Boolean).join(' · '))}</div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:var(--space-2);">
-              <button class="btn btn-sm btn-primary" onclick="teacherTasksModule.openSubmissions('${a.id}')">
-                📊 Submissions (${submissions.length})
-              </button>
-              <button class="btn btn-sm btn-secondary" onclick="teacherTasksModule.openEditModal('${a.id}')">
-                ✏️ Edit
-              </button>
-              <button class="btn btn-sm btn-ghost" onclick="teacherTasksModule.toggleStatus('${a.id}','${a.status}')">
-                ${a.status === 'active' ? '🔒 Close' : '🔓 Reopen'}
-              </button>
-              <button class="btn btn-sm" style="background:var(--color-danger);color:#fff;" onclick="teacherTasksModule.deleteAssignment('${a.id}')">
-                🗑️ Delete
-              </button>
+            <div class="tt-figs">
+              <span><strong>${s.handedIn}/${s.pupils}</strong> handed in</span>
+              <span><strong>${s.marked}</strong> marked${s.average != null ? ` · avg ${s.average}%` : ''}</span>
             </div>
-          </div>
+            <span class="ui-chip ${waiting ? 'is-warn' : late ? '' : 'is-good'}">${waiting ? `${waiting} to mark` : late ? `Was due ${this.dateLabel(s.due)}` : `Due ${this.dateLabel(s.due)}`}</span>
+          </div>`;
+      }).join('')}`;
+  },
+
+  // ── Set, change, delete ──────────────────────────────────
+
+  _form(set = null) {
+    const e = (v) => this._esc(v ?? '');
+    const subjects = [...(dataManager.getAll('subjectCatalog') || [])].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const classes = this.classes();
+    return `
+      <form class="fp-form" onsubmit="teacherTasksModule.saveAssignment(event${set ? `, '${e(set.key)}'` : ''})">
+        <label class="form-group"><span class="form-label">Title</span><input class="form-input" name="title" required maxlength="200" value="${e(set?.title)}" placeholder="e.g. Fractions worksheet"></label>
+        <div class="fp-grid">
+          ${set ? `<div class="form-group"><span class="form-label">Class</span><div class="fp-who"><strong>${e(this.classLabel(set.grade, set.section))}</strong><span class="ui-row-meta">${set.pupils} pupils</span></div></div>`
+            : `<label class="form-group"><span class="form-label">Class</span>
+                <select class="form-select" name="cls" required><option value="">Choose…</option>
+                  ${classes.map(c => `<option value="${e(c.key)}" ${this._f.cls === c.key ? 'selected' : ''}>${e(this.classLabel(c.grade, c.section))} (${c.pupils.length} pupils)</option>`).join('')}
+                </select></label>`}
+          <label class="form-group"><span class="form-label">Subject</span>
+            <select class="form-select" name="subjectId" required><option value="">Choose…</option>
+              ${subjects.map(s => `<option value="${e(s.id)}" ${(set?.subjectId === s.id || (!set?.subjectId && set?.subjectName === s.name)) ? 'selected' : ''}>${e(s.name)}</option>`).join('')}
+            </select></label>
+          <label class="form-group"><span class="form-label">Kind</span>
+            <select class="form-select" name="type">${this.TYPES.map(([k, l]) => `<option value="${k}" ${(set?.type || 'assignment') === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+          <label class="form-group"><span class="form-label">Due</span><input class="form-input" type="date" name="due" required value="${e(set?.due)}"></label>
+          <label class="form-group"><span class="form-label">Out of (marks)</span><input class="form-input" type="number" name="total" min="1" max="1000" step="1" required value="${set ? set.total : 10}"></label>
         </div>
-      </div>
-    `;
+        ${set?.marked ? '<p class="ui-card-note">Changing the marks it is out of re-grades the pupils already marked.</p>' : ''}
+        <div class="ui-actions" style="justify-content:space-between;">
+          ${set ? `<button type="button" class="ui-btn pc-danger" onclick="teacherTasksModule.deleteAssignment('${e(set.key)}')">Delete</button>` : '<span></span>'}
+          <span class="ui-actions">
+            <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+            <button type="submit" class="ui-btn ui-btn-primary">${set ? 'Save' : 'Set it'}</button>
+          </span>
+        </div>
+      </form>`;
   },
-
-  _emptyState() {
-    return `<div class="card"><div class="card-body" style="text-align:center;padding:var(--space-12);">
-      <div style="font-size:3rem;margin-bottom:var(--space-3);">📋</div>
-      <h3 style="color:var(--text-secondary);">No Assignments Yet</h3>
-      <p style="color:var(--text-tertiary);">Create your first assignment using the button above.</p>
-      <button class="btn btn-primary" style="margin-top:var(--space-4);" onclick="teacherTasksModule.openCreateModal()">➕ Create Assignment</button>
-    </div></div>`;
-  },
-
-  // ── Create / Edit Modal ───────────────────────────────────────────────────
 
   openCreateModal() {
-    this._selectedTask = null;
-    this._renderModal(null);
-    document.getElementById('tt-modal').style.display = 'flex';
+    if (!this.classes().length) { showToast('There are no enrolled pupils to set work for', 'info'); return; }
+    createModal('Set an assignment', this._form(), 'large');
   },
 
-  openEditModal(id) {
-    const all = dataManager.getAll('assignments') || [];
-    this._selectedTask = all.find(a => a.id === id);
-    this._renderModal(this._selectedTask);
-    document.getElementById('tt-modal').style.display = 'flex';
+  openEditModal(key) {
+    const set = this.findSet(key);
+    if (set) createModal(`Change · ${this._esc(set.title)}`, this._form(set), 'large');
   },
 
-  _renderModal(task) {
-    const subjects = this._getSubjects();
-    const isEdit = !!task;
-    document.getElementById('tt-modal-body').innerHTML = `
-      <div style="padding:var(--space-6);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
-          <h2 style="margin:0;font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);">
-            ${isEdit ? '✏️ Edit Assignment' : '➕ New Assignment'}
-          </h2>
-          <button class="btn btn-ghost btn-sm" onclick="teacherTasksModule.closeModal()">✕</button>
-        </div>
-        <form id="tt-form" onsubmit="teacherTasksModule.saveAssignment(event)">
-          <div style="display:grid;gap:var(--space-4);">
-            <div>
-              <label class="form-label">Title *</label>
-              <input class="form-input" name="title" required placeholder="Assignment title"
-                value="${task?.title || ''}">
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
-              <div>
-                <label class="form-label">Type *</label>
-                <select class="form-select" name="type" required>
-                  ${['assignment','quiz','exam','project','test'].map(t=>
-                    `<option value="${t}" ${(task?.type||'assignment')===t?'selected':''}>${t.charAt(0).toUpperCase()+t.slice(1)}</option>`
-                  ).join('')}
-                </select>
-              </div>
-              <div>
-                <label class="form-label">Status</label>
-                <select class="form-select" name="status">
-                  <option value="active" ${(task?.status||'active')==='active'?'selected':''}>Active</option>
-                  <option value="draft" ${task?.status==='draft'?'selected':''}>Draft</option>
-                  <option value="closed" ${task?.status==='closed'?'selected':''}>Closed</option>
-                </select>
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
-              <div>
-                <label class="form-label">Grade/Class *</label>
-                <select class="form-select" name="grade" required>
-                  <option value="">Select grade</option>
-                  ${['JSS1','JSS2','JSS3','SS1','SS2','SS3'].map(g=>
-                    `<option value="${g}" ${task?.grade===g?'selected':''}>${g}</option>`
-                  ).join('')}
-                </select>
-              </div>
-              <div>
-                <label class="form-label">Subject *</label>
-                <select class="form-select" name="subjectId" required onchange="teacherTasksModule._syncSubjectName(this)">
-                  <option value="">Select subject</option>
-                  ${subjects.map(s=>`<option value="${s.id}" data-name="${s.name}" ${task?.subjectId===s.id?'selected':''}>${s.name}</option>`).join('')}
-                </select>
-              </div>
-            </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3);">
-              <div>
-                <label class="form-label">Due Date *</label>
-                <input class="form-input" type="date" name="dueDate" required
-                  value="${task?.dueDate ? task.dueDate.split('T')[0] : ''}">
-              </div>
-              <div>
-                <label class="form-label">Total Marks *</label>
-                <input class="form-input" type="number" name="totalMarks" min="1" max="1000" required
-                  value="${task?.totalMarks || task?.total_marks || 100}">
-              </div>
-            </div>
-            <div>
-              <label class="form-label">Instructions / Description</label>
-              <textarea class="form-input" name="description" rows="3" placeholder="Describe the assignment…">${task?.description || ''}</textarea>
-            </div>
-          </div>
-          <input type="hidden" name="subjectName" id="tt-subject-name" value="${task?.subjectName || ''}">
-          <div style="display:flex;gap:var(--space-3);margin-top:var(--space-5);justify-content:flex-end;">
-            <button type="button" class="btn btn-secondary" onclick="teacherTasksModule.closeModal()">Cancel</button>
-            <button type="submit" class="btn btn-primary">${isEdit ? 'Update' : 'Create'} Assignment</button>
-          </div>
-        </form>
-      </div>
-    `;
-    // If editing and subject already set, pre-fill hidden name
-    if (task?.subjectId) {
-      const sel = document.querySelector('[name="subjectId"]');
-      if (sel) this._syncSubjectName(sel);
-    }
+  _read(form) {
+    const f = new FormData(form);
+    const subject = (dataManager.getAll('subjectCatalog') || []).find(s => s.id === f.get('subjectId'));
+    return {
+      title: String(f.get('title') || '').trim(),
+      cls: String(f.get('cls') || ''),
+      subjectId: subject?.id || null,
+      subjectName: subject?.name || '',
+      type: String(f.get('type') || 'assignment'),
+      dueDate: String(f.get('due') || ''),
+      totalMarks: Math.max(1, parseInt(f.get('total'), 10) || 0)
+    };
   },
 
-  _syncSubjectName(sel) {
-    const opt = sel.options[sel.selectedIndex];
-    const hidden = document.getElementById('tt-subject-name');
-    if (hidden) hidden.value = opt?.dataset?.name || opt?.text || '';
+  /** Insert many rows in one request, then reload the cache. */
+  async _insertRows(rows) {
+    if (!rows.length) return true;
+    if (!window.supabaseReady) { for (const r of rows) await dataManager.create('studentAssignments', r); return true; }
+    const table = 'student_assignments';
+    const built = rows.map(r => { const row = dataManager._buildRow(table, r); if (!row.id) row.id = dataManager._generateUUID(); return row; });
+    const { error } = await supabaseClient.from(table).insert(built);
+    if (error) { showToast('Not saved: ' + error.message, 'error'); return false; }
+    await dataManager.refresh('studentAssignments');
+    return true;
   },
 
-  async saveAssignment(e) {
+  async saveAssignment(e, key) {
     e.preventDefault();
-    const fd = new FormData(e.target);
-    const tid = this._currentTeacher?.id || this._currentTeacher?.sessionId;
-    const data = {
-      title: fd.get('title'),
-      type: fd.get('type'),
-      status: fd.get('status'),
-      grade: fd.get('grade'),
-      subjectId: fd.get('subjectId'),
-      subjectName: fd.get('subjectName'),
-      dueDate: fd.get('dueDate'),
-      totalMarks: parseInt(fd.get('totalMarks')),
-      description: fd.get('description'),
-      teacherId: tid,
-      createdBy: tid,
-    };
+    const d = this._read(e.target);
+    if (!d.title || !d.subjectId || !d.dueDate) { showToast('Fill in the title, subject and due date', 'warning'); return; }
+    const btn = e.target.querySelector('[type=submit]');
+    if (btn) btn.disabled = true;
 
-    if (this._selectedTask) {
-      await dataManager.update('assignments', this._selectedTask.id, data);
-      showToast('Assignment updated', 'success');
+    if (key) {
+      const set = this.findSet(key);
+      if (!set) return;
+      let failed = 0;
+      for (const r of set.rows) {
+        const marked = r.status === 'graded' && r.score != null && r.score !== '';
+        const ok = await dataManager.update('studentAssignments', r.id, {
+          title: d.title, subjectId: d.subjectId, subjectName: d.subjectName, type: d.type, dueDate: d.dueDate, totalMarks: d.totalMarks,
+          ...(marked ? { grade: this.gradeFor(parseFloat(r.score), d.totalMarks) } : {})
+        });
+        if (!ok) failed++;
+      }
+      closeModal();
+      showToast(failed ? `Saved for ${set.rows.length - failed} of ${set.rows.length} pupils` : 'Saved', failed ? 'warning' : 'success');
     } else {
-      data.createdAt = new Date().toISOString();
-      await dataManager.create('assignments', data);
-      showToast('Assignment created', 'success');
+      const cls = this.classes().find(c => c.key === d.cls);
+      if (!cls) { showToast('Choose a class', 'warning'); if (btn) btn.disabled = false; return; }
+      const rows = cls.pupils.map(p => ({
+        studentId: p.id, subjectId: d.subjectId, subjectName: d.subjectName, title: d.title, type: d.type,
+        status: 'pending', totalMarks: d.totalMarks, dueDate: d.dueDate, score: null, grade: null
+      }));
+      const ok = await this._insertRows(rows);
+      if (!ok) { if (btn) btn.disabled = false; return; }
+      if (typeof writeAuditLog === 'function') writeAuditLog('ASSIGNMENT_SET', d.title, `${this.classLabel(cls.grade, cls.section)} | ${d.subjectName} | due ${d.dueDate}`);
+      closeModal();
+      showToast(`Set for ${rows.length} pupils in ${this.classLabel(cls.grade, cls.section)}`, 'success');
     }
-    this.closeModal();
     this.render();
   },
 
-  closeModal() {
-    const el = document.getElementById('tt-modal');
-    if (el) el.style.display = 'none';
+  async deleteAssignment(key) {
+    const set = this.findSet(key);
+    if (!set) return;
+    if (!confirm(`Delete "${set.title}" for ${this.classLabel(set.grade, set.section)}? ${set.marked ? `${set.marked} marks will be lost. ` : ''}Pupils will no longer see it.`)) return;
+    let ok = true;
+    if (window.supabaseReady) {
+      const { error } = await supabaseClient.from('student_assignments').delete().in('id', set.rows.map(r => r.id));
+      if (error) { showToast('Not deleted: ' + error.message, 'error'); ok = false; }
+      else await dataManager.refresh('studentAssignments');
+    } else {
+      for (const r of set.rows) await dataManager.delete('studentAssignments', r.id);
+    }
+    if (!ok) return;
+    if (typeof writeAuditLog === 'function') writeAuditLog('ASSIGNMENT_DELETED', set.title, `${this.classLabel(set.grade, set.section)} | ${set.rows.length} rows`);
+    closeModal();
+    showToast('Deleted', 'success');
+    this.render();
   },
 
-  // ── Submissions Panel ─────────────────────────────────────────────────────
+  // ── Marks ────────────────────────────────────────────────
 
-  openSubmissions(assignmentId) {
-    const all = dataManager.getAll('assignments') || [];
-    const assignment = all.find(a => a.id === assignmentId);
-    if (!assignment) return;
-    const submissions = this._getSubmissions(assignmentId);
-    const students = dataManager.getAll('students') || [];
+  openSubmissions(key) {
+    const set = this.findSet(key);
+    if (!set) return;
+    const e = (v) => this._esc(v ?? '');
+    const byPupil = new Map(set.rows.map(r => [r.studentId || r.student_id, r]));
+    // Pupils in the class now (a pupil who joined later has no row yet), then rows for pupils who have left.
+    const current = this.activePupils().filter(p => set.grade && p.grade === set.grade && (p.section || '') === set.section);
+    const lines = [
+      ...current.map(p => ({ pupil: p, row: byPupil.get(p.id) || null })),
+      ...set.rows.filter(r => !current.some(p => p.id === (r.studentId || r.student_id))).map(r => ({ pupil: r.pupil || { id: r.studentId || r.student_id, name: 'Pupil who has left' }, row: r }))
+    ].sort((a, b) => String(a.pupil.name || '').localeCompare(String(b.pupil.name || '')));
 
-    // Build submission map for students in this grade
-    const gradeStudents = students.filter(s =>
-      (s.grade === assignment.grade || s.class === assignment.grade) && s.status === 'active'
-    );
-
-    document.getElementById('tt-subs-body').innerHTML = `
-      <div style="padding:var(--space-6);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-4);">
-          <div>
-            <h2 style="margin:0 0 4px;font-size:var(--font-size-xl);font-weight:var(--font-weight-semibold);">
-              📊 ${assignment.title} — Submissions
-            </h2>
-            <p style="margin:0;font-size:var(--font-size-sm);color:var(--text-secondary);">
-              ${assignment.subjectName} | ${assignment.grade} | Due: ${new Date(assignment.dueDate).toLocaleDateString('en-GB')} | ${assignment.totalMarks} marks
-            </p>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="teacherTasksModule.closeSubsModal()">✕</button>
-        </div>
-
-        <!-- Summary chips -->
-        <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;margin-bottom:var(--space-4);">
-          ${this._subChip('Total Students', gradeStudents.length, '#6366f1')}
-          ${this._subChip('Submitted', submissions.filter(s=>s.status!=='upcoming').length, '#10b981')}
-          ${this._subChip('Not Submitted', gradeStudents.length - submissions.filter(s=>s.status!=='upcoming').length, '#ef4444')}
-          ${this._subChip('Graded', submissions.filter(s=>s.status==='graded').length, '#f59e0b')}
-        </div>
-
-        <!-- Submissions Table -->
-        <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;font-size:var(--font-size-sm);">
-            <thead>
-              <tr style="background:var(--bg-secondary);text-align:left;">
-                <th style="padding:var(--space-3);border-bottom:1px solid var(--border-primary);">Student</th>
-                <th style="padding:var(--space-3);border-bottom:1px solid var(--border-primary);">Status</th>
-                <th style="padding:var(--space-3);border-bottom:1px solid var(--border-primary);">Submitted</th>
-                <th style="padding:var(--space-3);border-bottom:1px solid var(--border-primary);">Score</th>
-                <th style="padding:var(--space-3);border-bottom:1px solid var(--border-primary);">Grade</th>
-                <th style="padding:var(--space-3);border-bottom:1px solid var(--border-primary);">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${gradeStudents.length > 0
-                ? gradeStudents.map(student => {
-                    const sub = submissions.find(s => s.studentId === student.id || s.student_id === student.id);
-                    return this._renderSubmissionRow(student, sub, assignment);
-                  }).join('')
-                : `<tr><td colspan="6" style="text-align:center;padding:var(--space-8);color:var(--text-secondary);">No students found in ${assignment.grade}</td></tr>`
-              }
-            </tbody>
-          </table>
-        </div>
-
-        <div style="margin-top:var(--space-4);display:flex;justify-content:flex-end;">
-          <button class="btn btn-secondary" onclick="teacherTasksModule.exportSubmissions('${assignmentId}')">
-            📥 Export Grades CSV
-          </button>
-        </div>
-      </div>
-    `;
-    document.getElementById('tt-subs-modal').style.display = 'flex';
-  },
-
-  _subChip(label, val, color) {
-    return `<div style="padding:8px 16px;border-radius:8px;background:${color}18;border:1px solid ${color}33;text-align:center;">
-      <div style="font-weight:700;color:${color};">${val}</div>
-      <div style="font-size:0.7rem;color:var(--text-secondary);">${label}</div>
-    </div>`;
-  },
-
-  _renderSubmissionRow(student, sub, assignment) {
-    const statusColors = { graded:'#10b981', submitted:'#f59e0b', upcoming:'#94a3b8', pending:'#3b82f6', overdue:'#ef4444' };
-    const status = sub?.status || 'not_submitted';
-    const color = statusColors[status] || '#94a3b8';
-    const scoreVal = sub?.score !== undefined && sub?.score !== null ? sub.score : '';
-    const grade = sub?.grade || '';
-
-    return `
-      <tr style="border-bottom:1px solid var(--border-primary);" id="tt-row-${student.id}">
-        <td style="padding:var(--space-3);">
-          <div style="font-weight:500;">${student.name || student.fullName}</div>
-          <div style="font-size:0.7rem;color:var(--text-tertiary);">${student.rollNo || student.roll_no || ''}</div>
-        </td>
-        <td style="padding:var(--space-3);">
-          <span style="font-size:0.75rem;padding:3px 10px;border-radius:99px;background:${color}22;color:${color};font-weight:600;text-transform:uppercase;">
-            ${status === 'not_submitted' ? 'Not Submitted' : status}
+    createModal(`${e(set.title)} · ${e(this.classLabel(set.grade, set.section))}`, `
+      <p class="ui-card-note">${e([set.subjectName, this.typeLabel(set.type), `due ${this.dateLabel(set.due)}`, `out of ${set.total}`].join(' · '))}.
+      A mark saves the pupil as marked; leave it blank and tick "Handed in" for work not yet marked.</p>
+      <form id="tt-marks" class="tt-marks" onsubmit="teacherTasksModule.saveMarks(event, '${e(set.key)}')">
+        <table class="pc-table sr-table tt-marks-table">
+          <thead><tr><th>Pupil</th><th>Handed in</th><th>Mark /${set.total}</th><th>Grade</th></tr></thead>
+          <tbody>${lines.map(({ pupil, row }) => {
+            const pid = e(pupil.id);
+            const score = row && row.score != null && row.score !== '' ? row.score : '';
+            return `<tr>
+              <td>${e(pupil.name)}${row ? '' : ' <span class="ui-row-meta">joined later</span>'}</td>
+              <td><input type="checkbox" name="in_${pid}" aria-label="Handed in: ${e(pupil.name)}" ${row && (row.status === 'submitted' || row.status === 'graded') ? 'checked' : ''}></td>
+              <td><input type="number" class="fp-in fp-amt" style="width:84px;" name="score_${pid}" min="0" max="${set.total}" step="0.5" value="${e(score)}" aria-label="Mark for ${e(pupil.name)}"
+                oninput="teacherTasksModule._previewGrade(this, ${set.total}, 'g_${pid}')"></td>
+              <td id="g_${pid}">${score !== '' ? e(this.gradeFor(parseFloat(score), set.total)) : '—'}</td>
+            </tr>`;
+          }).join('')}</tbody>
+        </table>
+        <div class="ui-actions" style="justify-content:space-between;margin-top:16px;flex-wrap:wrap;">
+          <span class="ui-actions">
+            <button type="button" class="ui-btn" onclick="closeModal(this); teacherTasksModule.openEditModal('${e(set.key)}')">Change details</button>
+            <button type="button" class="ui-btn" onclick="teacherTasksModule.exportSubmissions('${e(set.key)}')">Export CSV</button>
           </span>
-        </td>
-        <td style="padding:var(--space-3);color:var(--text-secondary);">
-          ${sub?.submittedDate ? new Date(sub.submittedDate).toLocaleDateString('en-GB') : '—'}
-        </td>
-        <td style="padding:var(--space-3);">
-          <input type="number" style="width:70px;padding:4px 8px;border:1px solid var(--border-primary);border-radius:6px;font-size:0.875rem;"
-            id="score-${student.id}" placeholder="0" min="0" max="${assignment.totalMarks}"
-            value="${scoreVal}"
-            onchange="teacherTasksModule._autoGrade('${student.id}','${assignment.id}',this.value,${assignment.totalMarks})">
-          <span style="color:var(--text-secondary);">/${assignment.totalMarks}</span>
-        </td>
-        <td style="padding:var(--space-3);" id="grade-cell-${student.id}">
-          <span style="font-weight:600;">${grade}</span>
-        </td>
-        <td style="padding:var(--space-3);">
-          <button class="btn btn-sm btn-primary" onclick="teacherTasksModule.gradeSubmission('${student.id}','${assignment.id}',${assignment.totalMarks})">
-            ✅ Save
-          </button>
-        </td>
-      </tr>
-    `;
+          <span class="ui-actions">
+            <button type="button" class="ui-btn" onclick="closeModal(this)">Close</button>
+            <button type="submit" class="ui-btn ui-btn-primary">Save marks</button>
+          </span>
+        </div>
+      </form>`, 'large');
   },
 
-  _autoGrade(studentId, assignmentId, score, totalMarks) {
-    const pct = (score / totalMarks) * 100;
-    const letter = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : pct >= 50 ? 'D' : 'F';
-    const cell = document.getElementById(`grade-cell-${studentId}`);
-    if (cell) cell.innerHTML = `<span style="font-weight:600;">${letter}</span>`;
+  _previewGrade(input, total, cellId) {
+    const cell = document.getElementById(cellId);
+    const n = parseFloat(input.value);
+    if (!cell) return;
+    cell.textContent = input.value === '' || isNaN(n) ? '—' : n < 0 || n > total ? `0–${total}` : this.gradeFor(n, total);
+    if (input.value !== '') { const box = input.closest('tr')?.querySelector('input[type=checkbox]'); if (box) box.checked = true; }
   },
 
-  async gradeSubmission(studentId, assignmentId, totalMarks) {
-    const scoreEl = document.getElementById(`score-${studentId}`);
-    const score = parseFloat(scoreEl?.value);
-    if (isNaN(score) || score < 0 || score > totalMarks) {
-      showToast(`Score must be between 0 and ${totalMarks}`, 'error'); return;
+  /** What a pupil's row should become, given the form: null if nothing to save. */
+  markChange(row, handedIn, scoreText, total) {
+    const had = row && row.score != null && row.score !== '' ? parseFloat(row.score) : null;
+    if (scoreText !== '') {
+      const score = parseFloat(scoreText);
+      if (isNaN(score) || score < 0 || score > total) return { error: true };
+      if (row && row.status === 'graded' && had === score) return null;
+      return { score, grade: this.gradeFor(score, total), status: 'graded', submittedDate: row?.submittedDate || row?.submitted_date || new Date().toISOString() };
     }
-    const pct = (score / totalMarks) * 100;
-    const letter = pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B' : pct >= 60 ? 'C' : pct >= 50 ? 'D' : 'F';
-
-    const all = dataManager.getAll('studentAssignments') || [];
-    const existing = all.find(s =>
-      (s.studentId === studentId || s.student_id === studentId) &&
-      (s.assignmentId === assignmentId || s.assignment_id === assignmentId)
-    );
-
-    const payload = {
-      studentId, student_id: studentId,
-      assignmentId, assignment_id: assignmentId,
-      score, grade: letter, status: 'graded',
-      gradedAt: new Date().toISOString(),
-    };
-
-    if (existing) {
-      await dataManager.update('studentAssignments', existing.id, payload);
-    } else {
-      payload.submittedDate = new Date().toISOString();
-      payload.id = `sub_${studentId}_${assignmentId}_${Date.now()}`;
-      await dataManager.create('studentAssignments', payload);
-    }
-
-    showToast(`Graded: ${score}/${totalMarks} (${letter})`, 'success');
-    this.openSubmissions(assignmentId);
+    const status = handedIn ? 'submitted' : 'pending';
+    if (row && row.status === status && had == null) return null;
+    if (!row && !handedIn) return null;
+    return { score: null, grade: null, status, submittedDate: handedIn ? (row?.submittedDate || row?.submitted_date || new Date().toISOString()) : null };
   },
 
-  closeSubsModal() {
-    const el = document.getElementById('tt-subs-modal');
-    if (el) el.style.display = 'none';
-  },
+  async saveMarks(e, key) {
+    e.preventDefault();
+    const set = this.findSet(key);
+    if (!set) return;
+    const form = e.target;
+    const byPupil = new Map(set.rows.map(r => [r.studentId || r.student_id, r]));
+    const updates = [], inserts = [], bad = [];
+    form.querySelectorAll('input[name^="score_"]').forEach(input => {
+      const pid = input.name.slice(6);
+      const row = byPupil.get(pid) || null;
+      const handedIn = !!form.querySelector(`input[name="in_${CSS.escape(pid)}"]`)?.checked;
+      const change = this.markChange(row, handedIn, input.value.trim(), set.total);
+      if (!change) return;
+      if (change.error) { bad.push(pid); return; }
+      if (row) updates.push([row.id, change]);
+      else inserts.push({ studentId: pid, subjectId: set.subjectId, subjectName: set.subjectName, title: set.title, type: set.type, totalMarks: set.total, dueDate: set.due, ...change });
+    });
+    if (bad.length) { showToast(`Marks must be between 0 and ${set.total}`, 'warning'); return; }
+    if (!updates.length && !inserts.length) { showToast('Nothing changed', 'info'); return; }
 
-  // ── Actions ───────────────────────────────────────────────────────────────
-
-  async toggleStatus(id, currentStatus) {
-    const newStatus = currentStatus === 'active' ? 'closed' : 'active';
-    await dataManager.update('assignments', id, { status: newStatus });
-    showToast(`Assignment ${newStatus}`, 'success');
+    const btn = form.querySelector('[type=submit]');
+    if (btn) btn.disabled = true;
+    let failed = 0;
+    for (const [id, change] of updates) if (!(await dataManager.update('studentAssignments', id, change))) failed++;
+    if (inserts.length && !(await this._insertRows(inserts))) failed += inserts.length;
+    closeModal();
+    showToast(failed ? `${failed} could not be saved` : `Saved ${updates.length + inserts.length} pupil${updates.length + inserts.length === 1 ? '' : 's'}`, failed ? 'warning' : 'success');
     this.render();
   },
 
-  async deleteAssignment(id) {
-    if (!confirm('Delete this assignment and all its submissions?')) return;
-    await dataManager.delete('assignments', id);
-    showToast('Assignment deleted', 'info');
-    this.render();
-  },
-
-  exportSubmissions(assignmentId) {
-    const all = dataManager.getAll('assignments') || [];
-    const assignment = all.find(a => a.id === assignmentId);
-    const submissions = this._getSubmissions(assignmentId);
-    const students = dataManager.getAll('students') || [];
-    const gradeStudents = students.filter(s =>
-      (s.grade === assignment?.grade || s.class === assignment?.grade) && s.status === 'active'
-    );
-
-    const rows = [
-      ['Student Name', 'Roll No', 'Status', 'Score', `Total (${assignment?.totalMarks})`, 'Grade %', 'Letter Grade', 'Submitted Date'],
-      ...gradeStudents.map(student => {
-        const sub = submissions.find(s => s.studentId === student.id || s.student_id === student.id);
-        const pct = sub?.score != null ? Math.round((sub.score / assignment.totalMarks) * 100) : '';
-        return [
-          student.name || student.fullName,
-          student.rollNo || student.roll_no || '',
-          sub?.status || 'not_submitted',
-          sub?.score ?? '',
-          assignment?.totalMarks,
-          pct,
-          sub?.grade || '',
-          sub?.submittedDate ? new Date(sub.submittedDate).toLocaleDateString('en-GB') : ''
-        ];
-      })
-    ];
-
-    const csv = rows.map(r => r.map(c => `"${c}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+  exportSubmissions(key) {
+    const set = this.findSet(key);
+    if (!set) return;
+    const cell = (v) => { const s = String(v ?? ''); return `"${(/^[=+\-@\t\r]/.test(s) ? "'" + s : s).replace(/"/g, '""')}"`; };
+    const rows = [['Pupil', 'Admission no.', 'Status', 'Mark', 'Out of', 'Percent', 'Grade'],
+      ...set.rows.map(r => {
+        const score = r.score != null && r.score !== '' ? parseFloat(r.score) : '';
+        return [r.pupil?.name || '', r.pupil?.rollNo || '', r.status === 'graded' ? 'Marked' : r.status === 'submitted' ? 'Handed in' : 'Not handed in',
+          score, set.total, score === '' ? '' : Math.round((score / set.total) * 1000) / 10, r.grade || ''];
+      })];
+    const blob = new Blob([rows.map(r => r.map(cell).join(',')).join('\r\n')], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${assignment?.title?.replace(/\s+/g,'_') || 'assignment'}_grades.csv`;
+    a.download = `${set.title.replace(/[^A-Za-z0-9]+/g, '_')}_${this.classLabel(set.grade, set.section).replace(/\s+/g, '_')}.csv`;
     a.click();
-    showToast('Grades exported', 'success');
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 };
 

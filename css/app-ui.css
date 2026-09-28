@@ -1433,3 +1433,22 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
    ============================================ */
 .prof-head { display: flex; align-items: center; gap: 14px; }
 .prof-pw { max-width: 720px; }
+
+/* ============================================
+   ASSIGNMENTS
+   ============================================ */
+.tt-row { cursor: pointer; border-radius: 10px; }
+.tt-row:hover { background: var(--bg-primary); }
+.tt-row:focus-visible { outline: 2px solid var(--brand-navy-light); outline-offset: 2px; }
+.tt-figs { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; font-size: 0.8125rem; color: var(--text-tertiary); white-space: nowrap; }
+.tt-figs strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.tt-marks { margin-top: 12px; }
+.tt-marks-table td:nth-child(2), .tt-marks-table th:nth-child(2),
+.tt-marks-table td:nth-child(4), .tt-marks-table th:nth-child(4) { text-align: center; }
+.tt-marks-table input[type=checkbox] { width: 18px; height: 18px; }
+
+@media (max-width: 640px) {
+  .tt-row { flex-wrap: wrap; }
+  .tt-figs { align-items: flex-start; }
+  #main-content table.tt-marks-table, .modal-body table.tt-marks-table { min-width: 0; }
+}

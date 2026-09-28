@@ -487,6 +487,44 @@ describe('Calendar: an unknown table shape is found on the first write', () => {
   });
 });
 
+// ── Assignments ─────────────────────────────────────────────
+describe('Assignments: per-pupil rows grouped into one assignment', () => {
+  const students = [
+    { id: 'P1', name: 'Ada', grade: 'Basic 2', section: 'B', status: 'active' },
+    { id: 'P2', name: 'Bem', grade: 'Basic 2', section: 'B', status: 'active' },
+    { id: 'P3', name: 'Chi', grade: 'Basic 2', section: 'A', status: 'active' }
+  ];
+  const row = (id, sid, extra = {}) => ({ id, studentId: sid, title: 'Fractions', subjectName: 'Mathematics', type: 'assignment', dueDate: '2026-10-02', totalMarks: 20, status: 'pending', ...extra });
+  const rows = [
+    row('r1', 'P1', { status: 'graded', score: 18 }),       // 90%
+    row('r2', 'P2', { status: 'submitted' }),
+    row('r3', 'P3'),                                         // other arm → its own assignment
+    row('r4', 'P1', { title: 'Spelling', subjectName: 'English Studies', totalMarks: 10 })
+  ];
+  const w = sandbox('2026-09-26T09:00:00', { students, studentAssignments: rows }, ['js/score-book.js', 'js/pupil-data.js', 'js/modules/teacher-tasks.js']);
+  const m = w.teacherTasksModule;
+  const sets = m.sets();
+  const b2 = sets.find(s => s.title === 'Fractions' && s.section === 'B');
+
+  it('one assignment per class, title, subject, kind, due date and marks', () => eq(sets.length, 3));
+  it('counts: handed in includes marked; marked needs a mark', () => eq([b2.pupils, b2.handedIn, b2.marked], [2, 2, 1]));
+  it('average is of marked pupils only: 18/20 = 90%', () => eq(b2.average, 90));
+  it('grades use the school scale (no A+): 18/20 → A, 11/20 → E, 9/20 → F', () => eq([m.gradeFor(18, 20), m.gradeFor(11, 20), m.gradeFor(9, 20)], ['A', 'E', 'F']));
+  it('a mark saves the pupil as marked, with the grade', () => {
+    const c = m.markChange(rows[1], true, '15', 20);
+    eq([c.score, c.grade, c.status], [15, 'C', 'graded']); // 75%
+  });
+  it('an unchanged mark saves nothing', () => eq(m.markChange(rows[0], true, '18', 20), null));
+  it('a mark above the total is refused', () => eq(m.markChange(rows[1], true, '21', 20), { error: true }));
+  it('clearing a mark and unticking sends the pupil back to "not handed in"', () => {
+    const c = m.markChange(rows[0], false, '', 20);
+    eq([c.status, c.score, c.grade], ['pending', null, null]);
+  });
+  it('a pupil who joined later gets a row only once there is something to record', () => {
+    eq([m.markChange(null, false, '', 20), m.markChange(null, true, '', 20).status], [null, 'submitted']);
+  });
+});
+
 // ── Label tidying ───────────────────────────────────────────
 describe('Older pages lose leading emoji, not words', () => {
   const src = read('js/portal-shell.js');
