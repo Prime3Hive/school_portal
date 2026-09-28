@@ -50,26 +50,34 @@ const academicsModule = {
 
   // ── Helpers ──────────────────────────────────────────────────
   _esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; },
-  _session() { return typeof authManager !== 'undefined' ? authManager.getSession() : null; },
   _isAdmin() { const r = this._session()?.role; return r === 'admin' || r === 'staff'; },
 
+  // The school's scale (school-config), the same one scoreBook stamps on a
+  // saved grade. This page used its own (A+ at 90, A at 75, B at 65…), so the
+  // letter shown while typing differed from the one saved.
   _letterGrade(pct) {
-    if (pct >= 90) return 'A+'; if (pct >= 75) return 'A';
-    if (pct >= 65) return 'B';  if (pct >= 55) return 'C';
-    if (pct >= 45) return 'D';  return 'F';
+    return window.scoreBook ? scoreBook.gradeFor(pct).grade : (schoolConfig.calculateGrade?.(pct)?.grade || '');
   },
   _gradeColor(pct) {
-    if (pct >= 75) return '#10b981'; if (pct >= 55) return '#f59e0b';
-    if (pct >= 45) return '#f97316'; return '#ef4444';
+    if (pct >= 70) return '#15803d'; if (pct >= 50) return '#b45309';
+    return '#E23C3C';
   },
+  /** "2026-2027" for today, the form grades and assessments are stored in. */
+  _session() { return typeof authManager !== 'undefined' ? authManager.getSession() : null; },
+  _year(date) { return String(schoolConfig.academicYearFor ? schoolConfig.academicYearFor(date) : schoolConfig.getCurrentAcademicYear()).replace('/', '-'); },
+  _gradeRank(g) { const i = this._gradeNames().indexOf(g); return i === -1 ? 99 : i; },
+  _isLesson(s) { return !s.type || s.type === 'class' || s.type === 'lesson'; },
   _subjectGrades(s) {
     if (Array.isArray(s.grades) && s.grades.length > 0) return s.grades;
     if (s.grade) return [s.grade]; return [];
   },
+  /** Mean percentage of this term's marks (it used to mix every term ever recorded). */
   _calcAvg(grades) {
-    const valid = (grades || []).filter(g => g.score != null && (g.total_marks || g.totalMarks));
-    if (!valid.length) return 0;
-    return Math.round(valid.reduce((s, g) => s + (g.score / (g.total_marks || g.totalMarks || 100)) * 100, 0) / valid.length);
+    const term = schoolConfig.getCurrentTerm()?.name, year = this._year();
+    const valid = (grades || []).filter(g => g.score != null && g.score !== '' && parseFloat(g.total_marks ?? g.totalMarks) > 0)
+      .filter(g => g.term === term && String(g.academicYear || g.academic_year || '').replace('/', '-') === year);
+    if (!valid.length) return null;
+    return Math.round(valid.reduce((a, g) => a + (parseFloat(g.score) / parseFloat(g.total_marks ?? g.totalMarks)) * 100, 0) / valid.length);
   },
 
   _resolveTeacher() {
@@ -87,7 +95,7 @@ const academicsModule = {
     const students = dataManager.getAll('students') || [];
     const map = new Map();
     students.forEach(s => { if (s.grade && s.section) map.set(`${s.grade}|${s.section}`, { grade: s.grade, section: s.section }); });
-    return [...map.values()].sort((a, b) => String(a.grade).localeCompare(String(b.grade)) || a.section.localeCompare(b.section));
+    return [...map.values()].sort((a, b) => (this._gradeRank(a.grade) - this._gradeRank(b.grade)) || a.section.localeCompare(b.section));
   },
 
   _getClasses() { return dataManager.getAll('classes') || []; },
@@ -100,20 +108,22 @@ const academicsModule = {
     try { (window.schoolConfig?.getAllGrades() || []).forEach(g => (g.sections || ['A']).forEach(sec => add(g.name, sec))); } catch(e) {}
     (dataManager.getAll('students') || []).forEach(s => { if (s.grade && s.section) add(s.grade, s.section); });
     (dataManager.getAll('classes') || []).forEach(c => { if (c.grade && c.section) add(c.grade, c.section); });
-    return list.sort((a, b) => String(a.grade).localeCompare(String(b.grade)) || String(a.section).localeCompare(String(b.section)));
+    return list.sort((a, b) => (this._gradeRank(a.grade) - this._gradeRank(b.grade)) || String(a.section).localeCompare(String(b.section)));
   },
 
   _getAssessments() {
     const all = dataManager.getAll('assessments') || [];
     if (this._isAdmin()) return all;
-    const myClasses = this._getUniqueClasses();
+    // The classes linked to this teacher (the same rule as their Today page).
+    const mine = window.teacherTodayModule?.data?.().classes;
+    const myClasses = mine && mine.length ? mine : this._getUniqueClasses();
     return all.filter(a => myClasses.some(c => String(c.grade) === String(a.grade) && c.section === a.section));
   },
 
   // ── Direct Supabase CRUD ──────────────────────────────────────
   async _insertClass(data) {
     const row = { grade: data.grade, section: data.section, class_teacher: data.class_teacher || '',
-                  student_count: data.student_count || 0, room: data.room || '', academic_year: data.academic_year || '2025-2026' };
+                  student_count: data.student_count || 0, room: data.room || '', academic_year: data.academic_year || this._year() };
     const { data: res, error } = await supabaseClient.from('classes').insert(row).select();
     if (error) { showToast('Failed to save: ' + error.message, 'error'); return null; }
     return res;
@@ -137,7 +147,7 @@ const academicsModule = {
       start_date: data.start_date || null, end_date: data.end_date || null,
       room: data.room || null, teacher: data.teacher || null, subject: data.subject || null,
       period: data.period || null, recurring: data.recurring || false,
-      status: data.status || 'active', academic_year: data.academic_year || '2025-2026' };
+      status: data.status || 'active', academic_year: data.academic_year || this._year() };
     const { data: res, error } = await supabaseClient.from('school_schedules').insert(row).select();
     if (error) { showToast('Failed to save: ' + error.message, 'error'); return null; }
     return res;
@@ -196,10 +206,10 @@ const academicsModule = {
         </div>
 
         <div class="acad-stats">
-          ${this._stat('Classes', classes.length || this._getAvailableClasses().length)}
-          ${this._stat('Lessons on the timetable', schedules.filter(s => s.type === 'class').length)}
-          ${this._stat('Assessments', assessments.length)}
-          ${this._stat('Average score', this._calcAvg(grades) + '%')}
+          ${this._stat('Classes with pupils', this._getUniqueClasses().length)}
+          ${this._stat('Lessons a week', schedules.filter(s => this._isLesson(s) && s.status !== 'inactive').length)}
+          ${this._stat('Assessments this term', assessments.filter(a => (a.term || schoolConfig.termFor?.(a.date)?.name) === schoolConfig.getCurrentTerm()?.name && String(a.academic_year || a.academicYear || this._year(a.date)).replace('/', '-') === this._year()).length)}
+          ${this._stat('Average mark this term', (v => v == null ? '—' : v + '%')(this._calcAvg(grades)))}
           ${this._isAdmin() ? this._stat('Lesson plans to review', lpPending) : ''}
         </div>
 
@@ -265,7 +275,7 @@ const academicsModule = {
     // Augment with live student counts
     const students = dataManager.getAll('students') || [];
     const teachers = this._getStaff();
-    const gradeKeys = Object.keys(gradeMap).sort((a, b) => String(a).localeCompare(String(b)));
+    const gradeKeys = Object.keys(gradeMap).sort((a, b) => (this._gradeRank(a) - this._gradeRank(b)) || String(a).localeCompare(String(b)));
 
     const q = this._classSearch.toLowerCase();
     const filtered = gradeKeys.filter(g => !q || g.toLowerCase().includes(q) ||
@@ -289,26 +299,26 @@ const academicsModule = {
         const classes = gradeMap[grade];
         return `
           <div style="margin-bottom:20px;">
-            <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">${this._esc(grade)}</div>
+            <div style="font-size:0.72rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">${this._esc(grade)}</div>
             <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
               ${classes.map(c => {
-                const sc = students.filter(s => String(s.grade) === String(c.grade) && s.section === c.section).length;
+                const sc = students.filter(s => String(s.grade) === String(c.grade) && s.section === c.section && String(s.status || 'active').toLowerCase() === 'active').length;
                 const teacher = teachers.find(t => t.id === c.class_teacher || t.name === c.class_teacher);
                 const isSynth = c.isSynthetic && !c.id?.startsWith('synth');
                 return `
                   <div style="background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:14px;padding:16px;">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
                       <div>
-                        <div style="font-weight:700;font-size:1rem;color:#0f172a;">${this._esc(c.grade)} ${this._esc(c.section)}</div>
-                        <div style="font-size:0.8rem;color:#64748b;margin-top:2px;">👩‍🏫 ${teacher ? this._esc(teacher.name) : (c.class_teacher ? this._esc(c.class_teacher) : '<em>No class teacher</em>')}</div>
+                        <div style="font-weight:700;font-size:1rem;color:var(--text-primary);">${this._esc(c.grade)} ${this._esc(c.section)}</div>
+                        <div style="font-size:0.8rem;color:var(--text-tertiary);margin-top:2px;">👩‍🏫 ${teacher ? this._esc(teacher.name) : (c.class_teacher ? this._esc(c.class_teacher) : '<em>No class teacher</em>')}</div>
                       </div>
                       ${this._isAdmin() && !c.isSynthetic ? `
                         <div style="display:flex;gap:4px;">
-                          <button class="btn btn-ghost btn-sm" onclick="academicsModule.showEditClassModal('${c.id}')">✏️</button>
-                          <button class="btn btn-ghost btn-sm" style="color:#ef4444;" onclick="academicsModule.deleteClass('${c.id}')">🗑️</button>
+                          <button class="btn btn-ghost btn-sm" onclick="academicsModule.showEditClassModal('${c.id}')">Edit</button>
+                          <button class="btn btn-ghost btn-sm" style="color:#ef4444;" onclick="academicsModule.deleteClass('${c.id}')">Delete</button>
                         </div>` : ''}
                     </div>
-                    <div style="display:flex;gap:12px;font-size:0.8rem;color:#64748b;">
+                    <div style="display:flex;gap:12px;font-size:0.8rem;color:var(--text-tertiary);">
                       <span>👥 ${sc} student${sc !== 1 ? 's' : ''}</span>
                       ${c.room ? `<span>🏛️ ${this._esc(c.room)}</span>` : ''}
                     </div>
@@ -422,7 +432,7 @@ const academicsModule = {
 
   deleteClass(id) {
     createModal('Delete Class', `
-      <p style="color:#64748b;margin-bottom:20px;">This removes the class record only. Students and schedules are not affected.</p>
+      <p style="color:var(--text-tertiary);margin-bottom:20px;">This removes the class record only. Students and schedules are not affected.</p>
       <div class="flex gap-3">
         <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
         <button class="btn flex-1" style="background:#ef4444;color:white;" onclick="closeModal(this);academicsModule._confirmDeleteClass('${id}')">Delete</button>
@@ -444,8 +454,8 @@ const academicsModule = {
   _renderTimetableTab() {
     const days = ['Monday','Tuesday','Wednesday','Thursday','Friday'];
     const allClasses = this._getAvailableClasses();
-    const gradeKeys = [...new Set(allClasses.map(c => c.grade))].sort();
-    const schedules = this._getSchedules().filter(s => s.type === 'class');
+    const gradeKeys = [...new Set(allClasses.map(c => c.grade))];
+    const schedules = this._getSchedules().filter(s => this._isLesson(s));
 
     let filtered = schedules;
     if (this._ttGrade !== 'all') filtered = filtered.filter(s => String(s.grade) === this._ttGrade);
@@ -487,13 +497,13 @@ const academicsModule = {
             if (entries.length === 0 && this._ttDay === 'all') return '';
             return `
               <div>
-                <div style="font-size:0.72rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">${day}</div>
-                ${entries.length === 0 ? `<p style="color:#94a3b8;font-size:0.85rem;padding:10px 0;">No classes scheduled</p>` : `
+                <div style="font-size:0.72rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;">${day}</div>
+                ${entries.length === 0 ? `<p style="color:var(--text-tertiary);font-size:0.85rem;padding:10px 0;">No classes scheduled</p>` : `
                   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;">
                     ${entries.map(s => `
                       <div style="background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:12px;padding:14px;">
-                        <div style="font-weight:700;font-size:0.92rem;color:#0f172a;margin-bottom:4px;">${this._esc(s.subject || s.title || '—')}</div>
-                        <div style="font-size:0.78rem;color:#64748b;display:flex;flex-direction:column;gap:2px;">
+                        <div style="font-weight:700;font-size:0.92rem;color:var(--text-primary);margin-bottom:4px;">${this._esc(s.subject || s.title || '—')}</div>
+                        <div style="font-size:0.78rem;color:var(--text-tertiary);display:flex;flex-direction:column;gap:2px;">
                           <span>${this._esc(s.grade || '?')} ${this._esc(s.section || '')}</span>
                           ${s.start_time ? `<span>🕐 ${this._esc(s.start_time)}–${this._esc(s.end_time || '')}</span>` : ''}
                           ${s.period ? `<span>📌 Period ${s.period}</span>` : ''}
@@ -502,8 +512,8 @@ const academicsModule = {
                         </div>
                         ${this._isAdmin() ? `
                           <div style="display:flex;gap:4px;margin-top:10px;">
-                            <button class="btn btn-ghost btn-sm" style="font-size:0.72rem;" onclick="academicsModule.showEditScheduleModal('${s.id}')">✏️</button>
-                            <button class="btn btn-ghost btn-sm" style="font-size:0.72rem;color:#ef4444;" onclick="academicsModule.deleteSchedule('${s.id}')">🗑️</button>
+                            <button class="btn btn-ghost btn-sm" style="font-size:0.72rem;" onclick="academicsModule.showEditScheduleModal('${s.id}')">Edit</button>
+                            <button class="btn btn-ghost btn-sm" style="font-size:0.72rem;color:#ef4444;" onclick="academicsModule.deleteSchedule('${s.id}')">Delete</button>
                           </div>` : ''}
                       </div>`).join('')}
                   </div>`}
@@ -610,7 +620,7 @@ const academicsModule = {
       this._pendingScheduleData = { type: 'add', grade, section, subject, day, period, startTime, endTime, room, teacher };
       document.querySelector('.modal-backdrop')?.remove();
       createModal('Scheduling Conflict', `
-        <p style="color:#64748b;margin-bottom:12px;">Soft conflict detected:</p>
+        <p style="color:var(--text-tertiary);margin-bottom:12px;">Soft conflict detected:</p>
         <ul style="margin:0 0 16px;padding-left:20px;">${soft.map(c => `<li style="margin-bottom:6px;">${this._esc(c.msg)}</li>`).join('')}</ul>
         <div class="flex gap-3">
           <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
@@ -627,7 +637,7 @@ const academicsModule = {
   },
 
   async _doSaveSchedule(d) {
-    const res = await this._insertSchedule({ type: 'class', title: d.subject, subject: d.subject, grade: d.grade, section: d.section, day: d.day, period: d.period, start_time: d.startTime, end_time: d.endTime, room: d.room, teacher: d.teacher, status: 'active', academic_year: '2025-2026' });
+    const res = await this._insertSchedule({ type: 'class', title: d.subject, subject: d.subject, grade: d.grade, section: d.section, day: d.day, period: d.period, start_time: d.startTime, end_time: d.endTime, room: d.room, teacher: d.teacher, status: 'active', academic_year: this._year() });
     if (res) {
       writeAuditLog('SCHEDULE_CREATED', `Grade ${d.grade}-${d.section}`, `${d.subject} | ${d.day} Period ${d.period || 'N/A'} | Teacher: ${d.teacher || 'N/A'}`);
       await this._refreshAndRender(); showToast('Schedule added', 'success');
@@ -715,7 +725,7 @@ const academicsModule = {
 
   deleteSchedule(id) {
     createModal('Delete Schedule', `
-      <p style="color:#64748b;margin-bottom:20px;">Remove this schedule entry?</p>
+      <p style="color:var(--text-tertiary);margin-bottom:20px;">Remove this schedule entry?</p>
       <div class="flex gap-3">
         <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
         <button class="btn flex-1" style="background:#ef4444;color:white;" onclick="closeModal(this);academicsModule._confirmDeleteSchedule('${id}')">Delete</button>
@@ -763,31 +773,31 @@ const academicsModule = {
           <div style="font-size:3rem;margin-bottom:12px;">📝</div>
           <p style="font-weight:600;margin:0 0 4px;">No assessments found</p>
         </div>` : `
-        <div style="background:white;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">
+        <div style="background:var(--bg-secondary);border-radius:12px;border:1px solid var(--border-primary);overflow:hidden;">
           <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
-            <thead><tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
-              <th style="padding:12px 16px;text-align:left;font-weight:600;color:#475569;">Name</th>
-              <th style="padding:12px 16px;text-align:left;font-weight:600;color:#475569;">Subject</th>
-              <th style="padding:12px 16px;text-align:left;font-weight:600;color:#475569;">Class</th>
-              <th style="padding:12px 16px;text-align:left;font-weight:600;color:#475569;">Date</th>
-              <th style="padding:12px 16px;text-align:left;font-weight:600;color:#475569;">Marks</th>
-              <th style="padding:12px 16px;text-align:left;font-weight:600;color:#475569;">Status</th>
-              <th style="padding:12px 16px;text-align:left;font-weight:600;color:#475569;">Actions</th>
+            <thead><tr style="background:var(--bg-primary);border-bottom:1px solid var(--border-primary);">
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Name</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Subject</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Class</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Date</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Marks</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Status</th>
+              <th style="padding:12px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Actions</th>
             </tr></thead>
             <tbody>${items.map((a, i) => {
               const dateStr = a.date ? new Date(a.date).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }) : '—';
               const done = a.status === 'completed';
-              return `<tr style="border-bottom:1px solid #f1f5f9;${i % 2 ? 'background:#fafafa;' : ''}">
+              return `<tr style="border-bottom:1px solid var(--border-secondary);${i % 2 ? 'background:var(--bg-primary);' : ''}">
                 <td style="padding:12px 16px;font-weight:600;">${this._esc(a.name || '—')}</td>
-                <td style="padding:12px 16px;color:#64748b;">${this._esc(a.subject || '—')}</td>
-                <td style="padding:12px 16px;"><span style="background:#eff6ff;color:#3b82f6;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;">Gr.${this._esc(a.grade || '?')}-${this._esc(a.section || '?')}</span></td>
-                <td style="padding:12px 16px;color:#64748b;white-space:nowrap;">${dateStr}</td>
-                <td style="padding:12px 16px;color:#64748b;">${a.total_marks || a.totalMarks || '—'}</td>
+                <td style="padding:12px 16px;color:var(--text-tertiary);">${this._esc(a.subject || '—')}</td>
+                <td style="padding:12px 16px;"><span style="background:var(--bg-tertiary);color:var(--text-primary);padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:700;">${this._esc([a.grade, a.section].filter(Boolean).join(' ') || '—')}</span></td>
+                <td style="padding:12px 16px;color:var(--text-tertiary);white-space:nowrap;">${dateStr}</td>
+                <td style="padding:12px 16px;color:var(--text-tertiary);">${a.total_marks || a.totalMarks || '—'}</td>
                 <td style="padding:12px 16px;"><span style="padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:700;${done ? 'background:#dcfce7;color:#16a34a;' : 'background:#fef9c3;color:#ca8a04;'}">${(a.status || 'SCHEDULED').toUpperCase()}</span></td>
                 <td style="padding:12px 16px;">
                   <div style="display:flex;gap:6px;">
-                    <button onclick="academicsModule._enterGrades('${a.id}')" style="padding:5px 10px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:0.75rem;font-weight:600;color:#475569;">✏️ Grades</button>
-                    ${this._isAdmin() ? `<button onclick="academicsModule._deleteAssessment('${a.id}')" style="padding:5px 8px;border:1px solid #fee2e2;border-radius:6px;background:white;cursor:pointer;color:#ef4444;font-size:0.75rem;">🗑️</button>` : ''}
+                    <button onclick="academicsModule._enterGrades('${a.id}')" style="padding:5px 10px;border:1px solid var(--border-primary);border-radius:6px;background:var(--bg-secondary);cursor:pointer;font-size:0.75rem;font-weight:600;color:var(--text-secondary);">✏️ Grades</button>
+                    ${this._isAdmin() ? `<button onclick="academicsModule._deleteAssessment('${a.id}')" style="padding:5px 8px;border:1px solid #fee2e2;border-radius:6px;background:var(--bg-secondary);cursor:pointer;color:#ef4444;font-size:0.75rem;">Delete</button>` : ''}
                   </div>
                 </td>
               </tr>`;
@@ -856,10 +866,16 @@ const academicsModule = {
   async _handleAddAssessment(e) {
     e.preventDefault();
     const fd = new FormData(e.target);
+    // Stamped with the term of its date, so marks entered after the term
+    // ends are still filed under the term the assessment belonged to.
+    const date = fd.get('date');
     const result = await dataManager.create('assessments', {
       name: fd.get('name'), subject: fd.get('subject'), type: fd.get('type'),
       grade: fd.get('grade'), section: fd.get('section'),
-      date: fd.get('date'), totalMarks: parseInt(fd.get('totalMarks')), status: 'scheduled'
+      date, totalMarks: parseInt(fd.get('totalMarks')), status: 'scheduled',
+      term: schoolConfig.termFor ? schoolConfig.termFor(date).name : schoolConfig.getCurrentTerm().name,
+      academicYear: this._year(date),
+      createdBy: this._session()?.supabaseId || null
     });
     if (!result) return;
     document.querySelector('.modal-backdrop')?.remove();
@@ -869,7 +885,7 @@ const academicsModule = {
 
   _deleteAssessment(id) {
     createModal('Delete Assessment', `
-      <p style="color:#64748b;margin-bottom:20px;">Delete this assessment? Existing grades will be kept.</p>
+      <p style="color:var(--text-tertiary);margin-bottom:20px;">Delete this assessment? Existing grades will be kept.</p>
       <div class="flex gap-3">
         <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
         <button class="btn flex-1" style="background:#ef4444;color:white;" onclick="closeModal(this);academicsModule._confirmDeleteAssessment('${id}')">Delete</button>
@@ -892,27 +908,27 @@ const academicsModule = {
     const assessments = this._getAssessments();
     const allGrades   = dataManager.getAll('grades') || [];
     const options     = [...assessments].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-      .map(a => `<option value="${a.id}" ${this._selAssessment === a.id ? 'selected' : ''}>${a.type || 'Assessment'} · ${a.subject || 'Subject'} · Gr${a.grade || '?'}-${a.section || '?'} · ${a.date ? new Date(a.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : 'No date'} (${a.total_marks || a.totalMarks || 100} marks)</option>`).join('');
+      .map(a => `<option value="${a.id}" ${this._selAssessment === a.id ? 'selected' : ''}>${this._esc(a.name || a.type || 'Assessment')} · ${this._esc(a.subject || 'Subject')} · ${this._esc([a.grade, a.section].filter(Boolean).join(' '))} · ${a.date ? new Date(a.date).toLocaleDateString('en-GB',{day:'2-digit',month:'short'}) : 'No date'} (${a.total_marks || a.totalMarks || 100} marks)</option>`).join('');
     const selected    = assessments.find(a => a.id === this._selAssessment);
     const totalMarks  = selected ? (selected.total_marks || selected.totalMarks || 100) : 100;
     let students = [];
     if (selected) students = (dataManager.getAll('students') || []).filter(s => s.status === 'active' && String(s.grade) === String(selected.grade) && s.section === selected.section).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     const existingGrades = selected ? allGrades.filter(g => (g.assessment_id || g.assessmentId) === selected.id) : [];
-    const gradedCount    = existingGrades.length;
+    const gradedCount    = students.filter(s => existingGrades.some(g => (g.student_id || g.studentId) === s.id)).length;
     const progress       = students.length > 0 ? Math.round((gradedCount / students.length) * 100) : 0;
 
     return `
-      <div style="background:white;border:1px solid #e2e8f0;border-radius:12px;padding:20px;margin-bottom:20px;">
-        <label style="display:block;font-weight:600;font-size:0.875rem;color:#374151;margin-bottom:8px;">Select Assessment</label>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:12px;padding:20px;margin-bottom:20px;">
+        <label style="display:block;font-weight:600;font-size:0.875rem;color:var(--text-secondary);margin-bottom:8px;">Select Assessment</label>
         <select class="form-select" style="margin:0;" onchange="academicsModule._selAssessment=this.value;academicsModule._refreshContent()">
           <option value="">— Pick an assessment —</option>${options}
         </select>
-        ${selected ? `<div style="display:flex;align-items:center;gap:12px;margin-top:14px;"><div style="flex:1;height:6px;background:#f1f5f9;border-radius:4px;overflow:hidden;"><div style="width:${progress}%;height:100%;background:#6366f1;border-radius:4px;"></div></div><span style="font-size:0.8rem;color:#64748b;font-weight:600;">${gradedCount}/${students.length} graded</span></div>` : ''}
+        ${selected ? `<div style="display:flex;align-items:center;gap:12px;margin-top:14px;"><div style="flex:1;height:6px;background:var(--bg-tertiary);border-radius:4px;overflow:hidden;"><div style="width:${progress}%;height:100%;background:#6366f1;border-radius:4px;"></div></div><span style="font-size:0.8rem;color:var(--text-tertiary);font-weight:600;">${gradedCount}/${students.length} graded</span></div>` : ''}
       </div>
       ${!selected ? `<div style="text-align:center;padding:56px;color:var(--text-secondary);"><div style="font-size:3rem;margin-bottom:12px;">📊</div><p style="font-weight:600;margin:0 0 4px;">Select an assessment above</p></div>`
       : students.length === 0 ? `<div style="text-align:center;padding:40px;color:var(--text-secondary);"><p>No active students in Grade ${selected.grade}-${selected.section}.</p></div>`
-      : `<div style="background:white;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
-          <div style="padding:14px 20px;border-bottom:1px solid #f1f5f9;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+      : `<div style="background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:12px;overflow:hidden;">
+          <div style="padding:14px 20px;border-bottom:1px solid var(--border-secondary);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
             <span style="font-weight:700;">${this._esc(selected.name)}</span>
             <div style="display:flex;gap:8px;">
               <button onclick="academicsModule._cancelGrades()" class="btn btn-ghost" style="font-size:0.875rem;">✕ Cancel</button>
@@ -921,12 +937,12 @@ const academicsModule = {
           </div>
           <div style="overflow-x:auto;">
             <table style="width:100%;border-collapse:collapse;font-size:0.875rem;">
-              <thead><tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
-                <th style="padding:10px 16px;text-align:left;font-weight:600;color:#475569;width:40px;">#</th>
-                <th style="padding:10px 16px;text-align:left;font-weight:600;color:#475569;">Student</th>
-                <th style="padding:10px 16px;text-align:left;font-weight:600;color:#475569;">Score /${totalMarks}</th>
-                <th style="padding:10px 16px;text-align:left;font-weight:600;color:#475569;">Grade</th>
-                <th style="padding:10px 16px;text-align:left;font-weight:600;color:#475569;">Remarks</th>
+              <thead><tr style="background:var(--bg-primary);border-bottom:1px solid var(--border-primary);">
+                <th style="padding:10px 16px;text-align:left;font-weight:600;color:var(--text-secondary);width:40px;">#</th>
+                <th style="padding:10px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Student</th>
+                <th style="padding:10px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Score /${totalMarks}</th>
+                <th style="padding:10px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Grade</th>
+                <th style="padding:10px 16px;text-align:left;font-weight:600;color:var(--text-secondary);">Remarks</th>
               </tr></thead>
               <tbody>${students.map((s, i) => {
                 const existing = existingGrades.find(g => (g.student_id || g.studentId) === s.id);
@@ -936,12 +952,12 @@ const academicsModule = {
                 const pct      = score !== '' ? Math.round((parseFloat(score) / totalMarks) * 100) : null;
                 const letter   = pct !== null ? this._letterGrade(pct) : '—';
                 const color    = pct !== null ? this._gradeColor(pct) : '#94a3b8';
-                return `<tr style="border-bottom:1px solid #f1f5f9;">
-                  <td style="padding:10px 16px;color:#94a3b8;font-size:0.8rem;">${i + 1}</td>
-                  <td style="padding:10px 16px;"><div style="font-weight:600;">${this._esc(s.name || '—')}</div><div style="font-size:0.72rem;color:#94a3b8;">${s.roll_no || s.rollNo || ''}</div></td>
-                  <td style="padding:10px 16px;"><input type="number" min="0" max="${totalMarks}" step="0.5" value="${score}" placeholder="—" oninput="academicsModule._updateGrade('${selected.id}','${s.id}','score',this.value,${totalMarks})" style="width:80px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;text-align:center;"></td>
+                return `<tr style="border-bottom:1px solid var(--border-secondary);">
+                  <td style="padding:10px 16px;color:var(--text-tertiary);font-size:0.8rem;">${i + 1}</td>
+                  <td style="padding:10px 16px;"><div style="font-weight:600;">${this._esc(s.name || '—')}</div><div style="font-size:0.72rem;color:var(--text-tertiary);">${s.roll_no || s.rollNo || ''}</div></td>
+                  <td style="padding:10px 16px;"><input type="number" min="0" max="${totalMarks}" step="0.5" value="${score}" placeholder="—" oninput="academicsModule._updateGrade('${selected.id}','${s.id}','score',this.value,${totalMarks})" style="width:80px;padding:6px 10px;border:1px solid var(--border-primary);border-radius:8px;font-size:0.875rem;text-align:center;"></td>
                   <td style="padding:10px 16px;"><span data-grade-badge="${s.id}" style="background:${color}22;color:${color};padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;">${letter}</span></td>
-                  <td style="padding:10px 16px;"><input type="text" value="${this._esc(remarks)}" placeholder="Optional…" oninput="academicsModule._updateGrade('${selected.id}','${s.id}','remarks',this.value)" style="width:160px;padding:6px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.875rem;"></td>
+                  <td style="padding:10px 16px;"><input type="text" value="${this._esc(remarks)}" placeholder="Optional…" oninput="academicsModule._updateGrade('${selected.id}','${s.id}','remarks',this.value)" style="width:160px;padding:6px 10px;border:1px solid var(--border-primary);border-radius:8px;font-size:0.875rem;"></td>
                 </tr>`;
               }).join('')}</tbody>
             </table>
@@ -998,8 +1014,22 @@ const academicsModule = {
   // ================================================================
   // TAB 5: LESSON PLANS
   // ================================================================
+  /**
+   * lesson_plans has subject, date, activities and notes columns; the form's
+   * subjectName, weekStarting, days and adminFeedback were stripped on save,
+   * so a plan lost its subject, week, daily plan and feedback. They are now
+   * stored in those columns (days as JSON in activities) and read back here.
+   */
+  _plan(p) {
+    let days = p.days;
+    if (!Array.isArray(days)) { try { const v = JSON.parse(p.activities || '[]'); days = Array.isArray(v) ? v : []; } catch { days = []; } }
+    const teacher = (dataManager.getAll('staff') || []).find(t => t.id === (p.teacherId || p.teacher_id) || (t.authId || t.auth_id) === (p.teacherId || p.teacher_id));
+    return { ...p, days, subjectName: p.subjectName || p.subject || '', weekStarting: p.weekStarting || p.week_starting || p.date || '',
+      adminFeedback: p.adminFeedback || p.notes || '', teacherName: p.teacherName || teacher?.name || '' };
+  },
+
   _renderLessonPlansTab() {
-    const all      = dataManager.getAll('lessonPlans') || [];
+    const all      = (dataManager.getAll('lessonPlans') || []).map(p => this._plan(p));
     const tid      = this._currentTeacher?.id || this._currentTeacher?.sessionId;
     const myPlans  = this._isAdmin() && this._lpTab === 'all-plans' ? all : all.filter(p => p.teacherId === tid || p.teacher_id === tid);
     const pending  = all.filter(p => p.status === 'submitted').length;
@@ -1007,9 +1037,14 @@ const academicsModule = {
     const draft    = myPlans.filter(p => p.status === 'draft').length;
 
     let filtered = [...myPlans];
-    if (this._lpSubjectFilter !== 'all') filtered = filtered.filter(p => p.subjectId === this._lpSubjectFilter || p.subject_id === this._lpSubjectFilter);
+    if (this._lpSubjectFilter !== 'all') filtered = filtered.filter(p => p.subjectName === this._lpSubjectFilter);
     if (this._lpStatusFilter !== 'all')  filtered = filtered.filter(p => p.status === this._lpStatusFilter);
-    if (this._lpWeekFilter)              filtered = filtered.filter(p => (p.weekStarting || p.week_starting || '').startsWith(this._lpWeekFilter.slice(0, 7)));
+    if (this._lpWeekFilter) {
+      // The week (Monday to Sunday) holding the chosen day.
+      const d = new Date(this._lpWeekFilter + 'T12:00:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+      const from = d.toISOString().slice(0, 10); d.setDate(d.getDate() + 6); const to = d.toISOString().slice(0, 10);
+      filtered = filtered.filter(p => { const w = String(p.weekStarting).slice(0, 10); return w >= from && w <= to; });
+    }
     filtered = filtered.sort((a, b) => new Date(b.weekStarting || b.week_starting || 0) - new Date(a.weekStarting || a.week_starting || 0));
 
     const subjects = dataManager.getAll('subjectCatalog') || [];
@@ -1017,24 +1052,24 @@ const academicsModule = {
     return `
       <!-- Stats row -->
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:20px;">
-        ${this._stat('📋', 'My Plans', myPlans.length, 'var(--color-primary)')}
-        ${this._stat('📝', 'Draft', draft, '#94a3b8')}
-        ${this._stat('⏳', 'Pending', pending, '#f59e0b')}
-        ${this._stat('✅', 'Approved', approved, '#10b981')}
+        ${this._stat(this._lpTab === 'all-plans' && this._isAdmin() ? 'All plans' : 'My plans', myPlans.length)}
+        ${this._stat('Drafts', draft)}
+        ${this._stat('Waiting for review', pending)}
+        ${this._stat('Approved', approved)}
       </div>
 
       <!-- Sub-tabs -->
       ${this._isAdmin() ? `
-        <div style="display:flex;gap:4px;background:#f1f5f9;padding:4px;border-radius:10px;margin-bottom:16px;width:fit-content;">
-          ${['my-plans','all-plans'].map(k => `<button onclick="academicsModule._lpTab='${k}';academicsModule._refreshContent()" style="padding:7px 16px;border:none;border-radius:7px;font-size:0.82rem;font-weight:600;cursor:pointer;${this._lpTab === k ? 'background:white;color:#0f172a;box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'background:transparent;color:#64748b;'}">${k === 'my-plans' ? '📋 My Plans' : '👁 All Plans'}</button>`).join('')}
+        <div style="display:flex;gap:4px;background:var(--bg-tertiary);padding:4px;border-radius:10px;margin-bottom:16px;width:fit-content;">
+          ${['my-plans','all-plans'].map(k => `<button onclick="academicsModule._lpTab='${k}';academicsModule._refreshContent()" style="padding:7px 16px;border:none;border-radius:7px;font-size:0.82rem;font-weight:600;cursor:pointer;${this._lpTab === k ? 'background:var(--bg-secondary);color:var(--text-primary);box-shadow:0 1px 3px rgba(0,0,0,0.1);' : 'background:transparent;color:var(--text-tertiary);'}">${k === 'my-plans' ? '📋 My Plans' : '👁 All Plans'}</button>`).join('')}
         </div>` : ''}
 
       <!-- Filters -->
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px;align-items:center;">
-        <input type="date" class="form-input" value="${this._lpWeekFilter}" onchange="academicsModule._lpWeekFilter=this.value;academicsModule._refreshContent()" style="width:160px;margin:0;">
+        <input type="date" class="form-input" aria-label="Week of" title="Show the week holding this day" value="${this._lpWeekFilter}" onchange="academicsModule._lpWeekFilter=this.value;academicsModule._refreshContent()" style="width:160px;margin:0;">
         <select class="form-select" style="width:auto;margin:0;" onchange="academicsModule._lpSubjectFilter=this.value;academicsModule._refreshContent()">
           <option value="all">All Subjects</option>
-          ${subjects.map(s => `<option value="${s.id}" ${this._lpSubjectFilter === s.id ? 'selected' : ''}>${this._esc(s.name)}</option>`).join('')}
+          ${subjects.map(s => `<option value="${this._esc(s.name)}" ${this._lpSubjectFilter === s.name ? 'selected' : ''}>${this._esc(s.name)}</option>`).join('')}
         </select>
         <select class="form-select" style="width:auto;margin:0;" onchange="academicsModule._lpStatusFilter=this.value;academicsModule._refreshContent()">
           <option value="all">All Statuses</option>
@@ -1084,7 +1119,7 @@ const academicsModule = {
                 <h3 style="margin:0;font-size:1rem;font-weight:600;">${this._esc(p.title || p.subjectName || 'Untitled Plan')}</h3>
                 <span style="font-size:0.7rem;padding:2px 8px;border-radius:99px;background:${color}22;color:${color};font-weight:600;text-transform:uppercase;">${p.status}</span>
               </div>
-              <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:0.8rem;color:#64748b;">
+              <div style="display:flex;flex-wrap:wrap;gap:10px;font-size:0.8rem;color:var(--text-tertiary);">
                 <span>📚 ${this._esc(p.subjectName || p.subject || '—')}</span>
                 <span>🏫 ${this._esc(p.grade || p.class || '—')}</span>
                 ${weekStr ? `<span>📅 Week of ${new Date(weekStr).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})}</span>` : ''}
@@ -1100,7 +1135,7 @@ const academicsModule = {
               ${this._isAdmin() && p.status === 'submitted' ? `
                 <button class="btn btn-sm" style="background:#10b981;color:#fff;" onclick="academicsModule.approvePlan('${p.id}')">✅ Approve</button>
                 <button class="btn btn-sm" style="background:#ef4444;color:#fff;" onclick="academicsModule.requestRevision('${p.id}')">⚠️ Revise</button>` : ''}
-              <button class="btn btn-sm btn-ghost" onclick="academicsModule.deletePlan('${p.id}')">🗑️</button>
+              <button class="btn btn-sm btn-ghost" onclick="academicsModule.deletePlan('${p.id}')">Delete</button>
             </div>
           </div>
         </div>
@@ -1109,7 +1144,7 @@ const academicsModule = {
 
   openCreateModal() { this._lpSelectedPlan = null; this._renderLpModal(null); document.getElementById('lp-modal').style.display = 'flex'; },
   openEditModal(id) {
-    const all = dataManager.getAll('lessonPlans') || [];
+    const all = (dataManager.getAll('lessonPlans') || []).map(p => this._plan(p));
     this._lpSelectedPlan = all.find(p => p.id === id);
     this._renderLpModal(this._lpSelectedPlan);
     document.getElementById('lp-modal').style.display = 'flex';
@@ -1132,7 +1167,7 @@ const academicsModule = {
               <div><label class="form-label">Subject *</label>
                 <select class="form-select" name="subjectId" required onchange="academicsModule._syncLpSubject(this)">
                   <option value="">Select subject</option>
-                  ${subjects.map(s => `<option value="${s.id}" data-name="${this._esc(s.name)}" ${plan?.subjectId === s.id ? 'selected' : ''}>${this._esc(s.name)}</option>`).join('')}
+                  ${subjects.map(s => `<option value="${s.id}" data-name="${this._esc(s.name)}" ${plan?.subjectName === s.name ? 'selected' : ''}>${this._esc(s.name)}</option>`).join('')}
                 </select>
               </div>
               <div><label class="form-label">Grade *</label>
@@ -1141,12 +1176,7 @@ const academicsModule = {
                   ${this._gradeNames().map(g => `<option value="${g}" ${plan?.grade === g ? 'selected' : ''}>${g}</option>`).join('')}
                 </select>
               </div>
-              <div><label class="form-label">Week Starting *</label><input class="form-input" type="date" name="weekStarting" required value="${plan?.weekStarting ? plan.weekStarting.split('T')[0] : this._lpWeekFilter}"></div>
-              <div><label class="form-label">Term</label>
-                <select class="form-select" name="term">
-                  ${['1st Term','2nd Term','3rd Term'].map(t => `<option value="${t}" ${plan?.term === t ? 'selected' : ''}>${t}</option>`).join('')}
-                </select>
-              </div>
+              <div><label class="form-label">Week Starting *</label><input class="form-input" type="date" name="weekStarting" required value="${plan?.weekStarting ? String(plan.weekStarting).split('T')[0] : (this._lpWeekFilter || new Date().toISOString().slice(0, 10))}"></div>
             </div>
             <div><label class="form-label">Learning Objectives</label><textarea class="form-input" name="objectives" rows="2" placeholder="What students will learn…">${this._esc(plan?.objectives || '')}</textarea></div>
             <div>
@@ -1198,14 +1228,15 @@ const academicsModule = {
     const days = [];
     const c = document.getElementById('lp-days-container');
     if (c) [...c.children].forEach((_, i) => { const name = fd.get(`day_${i}_name`); const topic = fd.get(`day_${i}_topic`); const activities = fd.get(`day_${i}_activities`); if (name && topic) days.push({ day: name, topic, activities: activities || '' }); });
-    const data = { title: fd.get('title'), subjectId: fd.get('subjectId'), subjectName: fd.get('subjectName'), grade: fd.get('grade'), weekStarting: fd.get('weekStarting'), term: fd.get('term'), objectives: fd.get('objectives'), materials: fd.get('materials'), days, status: fd.get('saveAs') || 'draft', teacherId: tid, teacher_id: tid, teacherName: this._currentTeacher?.name || '' };
+    const subjectName = fd.get('subjectName') || (dataManager.getAll('subjectCatalog') || []).find(x => x.id === fd.get('subjectId'))?.name || '';
+    const data = { title: fd.get('title'), subject: subjectName, grade: fd.get('grade'), date: fd.get('weekStarting'), objectives: fd.get('objectives'), materials: fd.get('materials'),
+      activities: JSON.stringify(days), topic: days[0]?.topic || '', status: fd.get('saveAs') || 'draft' };
+    if (!this._lpSelectedPlan) data.teacherId = tid; // editing keeps the plan's author
     if (this._lpSelectedPlan) {
-      data.updatedAt = new Date().toISOString();
       await dataManager.update('lessonPlans', this._lpSelectedPlan.id, data);
       writeAuditLog('LESSON_PLAN_UPDATED', data.title, `Subject: ${data.subjectName || ''} | Grade: ${data.grade} | Status: ${data.status}`);
       showToast('Plan updated', 'success');
     } else {
-      data.createdAt = new Date().toISOString();
       await dataManager.create('lessonPlans', data);
       writeAuditLog('LESSON_PLAN_CREATED', data.title, `Subject: ${data.subjectName || ''} | Grade: ${data.grade} | Status: ${data.status}`);
       showToast(data.status === 'submitted' ? 'Plan submitted for approval' : 'Draft saved', 'success');
@@ -1217,7 +1248,8 @@ const academicsModule = {
   closeLpModal() { const el = document.getElementById('lp-modal'); if (el) el.style.display = 'none'; },
 
   viewPlan(id) {
-    const p = (dataManager.getAll('lessonPlans') || []).find(pl => pl.id === id); if (!p) return;
+    const raw = (dataManager.getAll('lessonPlans') || []).find(pl => pl.id === id); if (!raw) return;
+    const p = this._plan(raw);
     const weekStr = p.weekStarting || p.week_starting;
     const statusColors = { draft:'#94a3b8', submitted:'#f59e0b', approved:'#10b981', needs_revision:'#ef4444' };
     document.getElementById('lp-view-body').innerHTML = `
@@ -1253,7 +1285,7 @@ const academicsModule = {
 
   submitPlan(id) {
     createModal('Submit Plan', `
-      <p style="color:#64748b;margin-bottom:20px;">Submit this lesson plan for admin review?</p>
+      <p style="color:var(--text-tertiary);margin-bottom:20px;">Submit this lesson plan for admin review?</p>
       <div class="flex gap-3">
         <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
         <button class="btn btn-primary flex-1" onclick="closeModal(this);academicsModule._doSubmitPlan('${id}')">📤 Submit</button>
@@ -1262,7 +1294,7 @@ const academicsModule = {
 
   async _doSubmitPlan(id) {
     const p = (dataManager.getAll('lessonPlans') || []).find(x => x.id === id);
-    await dataManager.update('lessonPlans', id, { status: 'submitted', submittedAt: new Date().toISOString() });
+    await dataManager.update('lessonPlans', id, { status: 'submitted' });
     writeAuditLog('LESSON_PLAN_SUBMITTED', p?.title || id, `Grade: ${p?.grade || ''} | Subject: ${p?.subjectName || ''}`);
     showToast('Plan submitted for review', 'success'); this._refreshContent();
   },
@@ -1282,7 +1314,7 @@ const academicsModule = {
   async _doApprovePlan(id) {
     const p = (dataManager.getAll('lessonPlans') || []).find(x => x.id === id);
     const note = (document.getElementById('lp-approve-note')?.value || '').trim() || 'Approved.';
-    await dataManager.update('lessonPlans', id, { status: 'approved', adminFeedback: note, approvedAt: new Date().toISOString(), approvedBy: this._currentTeacher?.name || this._session()?.fullName || 'Admin' });
+    await dataManager.update('lessonPlans', id, { status: 'approved', notes: note });
     writeAuditLog('LESSON_PLAN_APPROVED', p?.title || id, `Teacher: ${p?.teacherName || ''} | Note: ${note}`);
     showToast('Plan approved', 'success'); this._refreshContent();
   },
@@ -1303,7 +1335,7 @@ const academicsModule = {
     const feedback = (document.getElementById('lp-revision-note')?.value || '').trim();
     if (!feedback) { showToast('Please describe what needs revision', 'warning'); return; }
     const p = (dataManager.getAll('lessonPlans') || []).find(x => x.id === id);
-    await dataManager.update('lessonPlans', id, { status: 'needs_revision', adminFeedback: feedback });
+    await dataManager.update('lessonPlans', id, { status: 'needs_revision', notes: feedback });
     writeAuditLog('LESSON_PLAN_REVISION_REQUESTED', p?.title || id, `Feedback: ${feedback}`);
     document.querySelector('.modal-backdrop')?.remove();
     showToast('Revision requested', 'info'); this._refreshContent();
@@ -1311,7 +1343,7 @@ const academicsModule = {
 
   deletePlan(id) {
     createModal('Delete Plan', `
-      <p style="color:#64748b;margin-bottom:20px;">Permanently delete this lesson plan?</p>
+      <p style="color:var(--text-tertiary);margin-bottom:20px;">Permanently delete this lesson plan?</p>
       <div class="flex gap-3">
         <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
         <button class="btn flex-1" style="background:#ef4444;color:white;" onclick="closeModal(this);academicsModule._doDeletePlan('${id}')">Delete</button>
@@ -1365,13 +1397,13 @@ const academicsModule = {
                   <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">
                     <span style="background:#eff6ff;color:#3b82f6;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:600;">${this._esc(s.code || '—')}</span>
                     ${sGrades.map(g => `<span style="background:#f0fdf4;color:#16a34a;padding:2px 8px;border-radius:6px;font-size:0.72rem;font-weight:600;">${g}</span>`).join('')}
-                    <span style="background:#f8fafc;color:#64748b;padding:2px 8px;border-radius:6px;font-size:0.72rem;">👥 ${sc}</span>
+                    <span style="background:var(--bg-primary);color:var(--text-tertiary);padding:2px 8px;border-radius:6px;font-size:0.72rem;">👥 ${sc}</span>
                   </div>
-                  <div style="font-size:0.8rem;color:#64748b;">👩‍🏫 ${teacher ? this._esc(teacher.name) : '<em style="opacity:0.6;">No teacher</em>'}</div>
+                  <div style="font-size:0.8rem;color:var(--text-tertiary);">👩‍🏫 ${teacher ? this._esc(teacher.name) : '<em style="opacity:0.6;">No teacher</em>'}</div>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
-                  <button onclick="academicsModule._editSubject('${s.id}')" style="padding:5px 8px;border:1px solid #e2e8f0;border-radius:6px;background:white;cursor:pointer;font-size:0.75rem;">✏️</button>
-                  <button onclick="academicsModule._deleteSubject('${s.id}')" style="padding:5px 8px;border:1px solid #fee2e2;border-radius:6px;background:white;cursor:pointer;font-size:0.75rem;color:#ef4444;">🗑️</button>
+                  <button onclick="academicsModule._editSubject('${s.id}')" style="padding:5px 8px;border:1px solid var(--border-primary);border-radius:6px;background:var(--bg-secondary);cursor:pointer;font-size:0.75rem;">Edit</button>
+                  <button onclick="academicsModule._deleteSubject('${s.id}')" style="padding:5px 8px;border:1px solid #fee2e2;border-radius:6px;background:var(--bg-secondary);cursor:pointer;font-size:0.75rem;color:#ef4444;">Delete</button>
                 </div>
               </div>
             </div>`;
@@ -1395,9 +1427,9 @@ const academicsModule = {
     const selectedGrades = this._subjectGrades(s);
     const gradeCheckboxes = this._allGradeGroups().map(group => `
       <div style="margin-bottom:10px;">
-        <div style="font-size:0.7rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">${group.label}</div>
+        <div style="font-size:0.7rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;">${group.label}</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px;">
-          ${group.grades.map(g => `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:4px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:0.8rem;${selectedGrades.includes(g) ? 'background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;font-weight:600;' : 'background:white;color:#475569;'}"><input type="checkbox" name="grades" value="${g}" ${selectedGrades.includes(g) ? 'checked' : ''} style="accent-color:#3b82f6;width:13px;height:13px;"> ${g}</label>`).join('')}
+          ${group.grades.map(g => `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;padding:4px 10px;border:1px solid var(--border-primary);border-radius:8px;font-size:0.8rem;${selectedGrades.includes(g) ? 'background:#eff6ff;border-color:#3b82f6;color:#1d4ed8;font-weight:600;' : 'background:var(--bg-secondary);color:var(--text-secondary);'}"><input type="checkbox" name="grades" value="${g}" ${selectedGrades.includes(g) ? 'checked' : ''} style="accent-color:#3b82f6;width:13px;height:13px;"> ${g}</label>`).join('')}
         </div>
       </div>`).join('');
     const content = `
@@ -1408,7 +1440,7 @@ const academicsModule = {
         </div>
         <div class="form-group">
           <label class="form-label">Applies to Grades *</label>
-          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;">${gradeCheckboxes}</div>
+          <div style="background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:10px;padding:14px;">${gradeCheckboxes}</div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
           <div class="form-group"><label class="form-label">Icon (emoji)</label><input type="text" class="form-input" name="icon" value="${this._esc(s.icon || '📚')}"></div>
@@ -1451,7 +1483,7 @@ const academicsModule = {
 
   _deleteSubject(id) {
     createModal('Delete Subject', `
-      <p style="color:#64748b;margin-bottom:20px;">Delete this subject? Existing grades will be kept.</p>
+      <p style="color:var(--text-tertiary);margin-bottom:20px;">Delete this subject? Existing grades will be kept.</p>
       <div class="flex gap-3">
         <button class="btn btn-ghost flex-1" onclick="closeModal(this)">Cancel</button>
         <button class="btn flex-1" style="background:#ef4444;color:white;" onclick="closeModal(this);academicsModule._confirmDeleteSubject('${id}')">Delete</button>

@@ -187,37 +187,47 @@ const schoolConfig = {
     },
 
     // Helper Methods
-    getCurrentTerm() {
-        const month = new Date().getMonth() + 1; // 1-12
+    /** A date's month (1-12). Accepts a Date, "YYYY-MM-DD" or nothing (today). */
+    _monthOf(date) {
+        if (typeof date === 'string' && /^d{4}-d{2}/.test(date)) return Number(date.slice(5, 7));
+        const d = date ? new Date(date) : new Date();
+        return (isNaN(d) ? new Date() : d).getMonth() + 1;
+    },
 
+    _yearOf(date) {
+        if (typeof date === 'string' && /^d{4}-d{2}/.test(date)) return Number(date.slice(0, 4));
+        const d = date ? new Date(date) : new Date();
+        return (isNaN(d) ? new Date() : d).getFullYear();
+    },
+
+    /** The term a date falls in. December counts with the Second Term, July–August with the First. */
+    termFor(date) {
+        const month = this._monthOf(date);
         for (const term of this.academicYear.terms) {
-            if (month >= term.startMonth && month <= term.endMonth) {
-                return term;
-            }
+            if (month >= term.startMonth && month <= term.endMonth) return term;
         }
+        if (month === 12) return this.academicYear.terms[1];
+        return this.academicYear.terms[0]; // July–August: the coming First Term
+    },
 
-        // If not in any term, return upcoming term
-        if (month === 12) return this.academicYear.terms[1]; // Second term
-        if (month >= 7 && month <= 8) return this.academicYear.terms[0]; // First term
+    /**
+     * The session a date belongs to, as "2026/2027". It turns over in July.
+     * Lessons start in September, but July–August are spent preparing the
+     * coming session and termFor() already treats them as its First Term;
+     * turning over in September paired that First Term with the finished
+     * session, so August showed (and billed) "2025/2026 First Term".
+     */
+    academicYearFor(date) {
+        const year = this._yearOf(date);
+        return this._monthOf(date) >= 7 ? `${year}/${year + 1}` : `${year - 1}/${year}`;
+    },
 
-        return this.academicYear.terms[0];
+    getCurrentTerm() {
+        return this.termFor();
     },
 
     getCurrentAcademicYear() {
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1;
-
-        // The session turns over in July. Lessons start in September, but
-        // July–August are spent preparing the coming session, and
-        // getCurrentTerm() already treats them as its First Term; turning over
-        // in September instead paired that First Term with the finished
-        // session, so August showed (and billed) "2025/2026 First Term".
-        if (month >= 7) {
-            return `${year}/${year + 1}`;
-        } else {
-            return `${year - 1}/${year}`;
-        }
+        return this.academicYearFor();
     },
 
     getAllGrades() {

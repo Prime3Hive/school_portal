@@ -88,6 +88,12 @@ describe('Term and session follow the school calendar', () => {
       eq(w.schoolConfig.getCurrentAcademicYear(), year);
     });
   }
+  // Any date, not only today: an assessment is filed under the term of its own date.
+  it('a date string gives its own term and session, whatever today is', () => {
+    const w = sandbox('2026-09-26T09:00:00');
+    eq(cases.map(([when]) => [w.schoolConfig.termFor(when.slice(0, 10)).name, w.schoolConfig.academicYearFor(when.slice(0, 10))]),
+      cases.map(([, term, year]) => [term, year]));
+  });
 });
 
 // ── Grading scale ───────────────────────────────────────────
