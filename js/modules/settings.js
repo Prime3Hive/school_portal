@@ -52,11 +52,8 @@ const settingsModule = {
       schoolAddress: 'Behind Civil Service Commission, Kertyo, Makurdi',
       schoolEmail: 'support@tbdacademy.org',
       schoolPhone: '0707 171 1692',
-      academicYear: '2025/2026',
-      currentTerm: 'Second Term',
       // The portal is designed light-first; dark is there for anyone who picks it.
       theme: 'light',
-      sessionTimeout: '24',
       currency: 'NGN',
       // The school's account, as printed on both published fee sheets.
       // No sort code appears on either, so none is invented here.
@@ -152,183 +149,104 @@ const settingsModule = {
   },
 
 
+  _esc(v) {
+    return typeof window.escapeHtml === 'function'
+      ? window.escapeHtml(v)
+      : String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  },
+
+  /**
+   * The term and session every page uses. They come from the date
+   * (school-config), not from a saved setting: an old "current term" field
+   * here was saved but read by nothing, so changing it did nothing.
+   */
+  _termCard() {
+    const term = schoolConfig.getCurrentTerm()?.name || '';
+    const year = schoolConfig.getCurrentAcademicYear();
+    const months = (schoolConfig.academicYear?.terms || []).map(t => `${t.name}: ${t.months[0]}–${t.months[t.months.length - 1]}`).join(' · ');
+    return `
+      <section class="ui-card">
+        <div class="ui-card-head"><h2 class="ui-card-title">Term and session</h2></div>
+        <div class="fp-owes">
+          <div><span class="ui-row-meta">This term</span><strong>${this._esc(term)}</strong></div>
+          <div><span class="ui-row-meta">Session</span><strong>${this._esc(year)}</strong></div>
+        </div>
+        <p class="ui-card-note" style="margin-top:12px;">Set by the date, the same on every page, bill and report card. ${this._esc(months)}.
+        December counts with the Second Term, and July–August with the next session's First Term, so bills raised in the holidays land on the coming term.</p>
+      </section>`;
+  },
+
   render() {
     const s = this.settings;
+    const e = (v) => this._esc(v ?? '');
+    const field = (id, label, value, type = 'text', extra = '') => `
+      <label class="form-group"><span class="form-label">${label}</span>
+        <input type="${type}" id="${id}" class="form-input" value="${e(value)}" ${extra}></label>`;
 
     return `
-      <div class="module-container animate-fadeIn">
-        <div class="module-header">
+      <div class="ui-page">
+        <div class="ui-page-head">
           <div>
-            <h1 class="module-title">⚙️ Settings</h1>
-            <p class="module-subtitle">Configure your school portal preferences</p>
+            <h1 class="ui-page-title">Settings</h1>
+            <p class="ui-page-sub">School details, the bank account parents pay into, and backups</p>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-          <!-- School Information -->
-          <div class="card">
-            <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
-              🏫 School Information
-            </h3>
-            <form onsubmit="settingsModule.saveSchoolInfo(event)">
-              <div class="form-group">
-                <label class="form-label">School Name</label>
-                <input type="text" id="settingSchoolName" class="form-input"
-                  value="${s.schoolName}" required>
+        <div class="set-grid">
+          <section class="ui-card">
+            <div class="ui-card-head"><h2 class="ui-card-title">School</h2></div>
+            <form class="fp-form" onsubmit="settingsModule.saveSchoolInfo(event)">
+              ${field('settingSchoolName', 'Name', s.schoolName, 'text', 'required')}
+              ${field('settingSchoolAddress', 'Address', s.schoolAddress)}
+              <div class="fp-grid">
+                ${field('settingSchoolEmail', 'Email', s.schoolEmail, 'email')}
+                ${field('settingSchoolPhone', 'Phone', s.schoolPhone, 'tel')}
               </div>
-              <div class="form-group">
-                <label class="form-label">School Address</label>
-                <input type="text" id="settingSchoolAddress" class="form-input"
-                  value="${s.schoolAddress}">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Contact Email</label>
-                <input type="email" id="settingSchoolEmail" class="form-input"
-                  value="${s.schoolEmail}">
-              </div>
-              <div class="form-group">
-                <label class="form-label">Contact Phone</label>
-                <input type="tel" id="settingSchoolPhone" class="form-input"
-                  value="${s.schoolPhone}">
-              </div>
-              <div style="display: flex; justify-content: flex-end; margin-top: var(--space-4);">
-                <button type="submit" class="btn btn-primary">💾 Save School Info</button>
-              </div>
+              <div class="ui-actions" style="justify-content:flex-end;"><button type="submit" class="ui-btn ui-btn-primary">Save</button></div>
             </form>
-          </div>
+          </section>
 
-          <!-- Academic Settings -->
-          <div class="card">
-            <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
-              📅 Academic Settings
-            </h3>
-            <form onsubmit="settingsModule.saveAcademicSettings(event)">
-              <div class="form-group">
-                <label class="form-label">Academic Year</label>
-                <input type="text" id="settingAcademicYear" class="form-input"
-                  value="${s.academicYear}" placeholder="e.g. 2024/2025">
+          <section class="ui-card">
+            <div class="ui-card-head"><h2 class="ui-card-title">Bank account for fees</h2></div>
+            <p class="ui-card-note" style="margin-bottom:12px;">Shown to parents paying by transfer, and on payment forms and receipts.</p>
+            <form class="fp-form" onsubmit="settingsModule.saveBankDetails(event)">
+              <div class="fp-grid">
+                ${field('settingBankName', 'Bank', s.bankName)}
+                ${field('settingBankAccountNo', 'Account number', s.bankAccountNo, 'text', 'maxlength="20" inputmode="numeric"')}
+                ${field('settingBankAccountName', 'Account name', s.bankAccountName)}
+                ${field('settingBankSortCode', 'Sort code (if any)', s.bankSortCode, 'text', 'maxlength="20"')}
               </div>
-              <div class="form-group">
-                <label class="form-label">Current Term</label>
-                <select id="settingCurrentTerm" class="form-select">
-                  ${schoolConfig.termOptionsHTML(s.currentTerm)}
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Currency</label>
-                <select id="settingCurrency" class="form-select">
-                  <option value="NGN" ${s.currency === 'NGN' ? 'selected' : ''}>Nigerian Naira (NGN ₦)</option>
-                  <option value="USD" ${s.currency === 'USD' ? 'selected' : ''}>US Dollar (USD $)</option>
-                  <option value="GBP" ${s.currency === 'GBP' ? 'selected' : ''}>British Pound (GBP £)</option>
-                </select>
-              </div>
-              <div style="display: flex; justify-content: flex-end; margin-top: var(--space-4);">
-                <button type="submit" class="btn btn-primary">💾 Save Academic Settings</button>
-              </div>
+              <div class="ui-actions" style="justify-content:flex-end;"><button type="submit" class="ui-btn ui-btn-primary">Save</button></div>
             </form>
-          </div>
+          </section>
 
-          <!-- Appearance Settings -->
-          <div class="card">
-            <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
-              🎨 Appearance
-            </h3>
-            <div class="form-group">
-              <label class="form-label">Theme</label>
-              <div style="display: flex; gap: var(--space-3); margin-top: var(--space-2);">
-                <button onclick="settingsModule.setTheme('dark')"
-                  class="btn ${s.theme === 'dark' ? 'btn-primary' : 'btn-ghost'}"
-                  style="flex: 1;">
-                  🌙 Dark Mode
-                </button>
-                <button onclick="settingsModule.setTheme('light')"
-                  class="btn ${s.theme === 'light' ? 'btn-primary' : 'btn-ghost'}"
-                  style="flex: 1;">
-                  ☀️ Light Mode
-                </button>
-              </div>
+          ${this._termCard()}
+
+          <section class="ui-card">
+            <div class="ui-card-head"><h2 class="ui-card-title">Appearance</h2></div>
+            <div class="app-filters" role="group" aria-label="Theme">
+              <button type="button" class="ui-btn${s.theme !== 'dark' ? ' ui-btn-primary' : ''}" aria-pressed="${s.theme !== 'dark'}" onclick="settingsModule.setTheme('light')">Light</button>
+              <button type="button" class="ui-btn${s.theme === 'dark' ? ' ui-btn-primary' : ''}" aria-pressed="${s.theme === 'dark'}" onclick="settingsModule.setTheme('dark')">Dark</button>
             </div>
+          </section>
 
-            <div class="form-group" style="margin-top: var(--space-6);">
-              <label class="form-label">Session Timeout</label>
-              <select id="settingSessionTimeout" class="form-select"
-                onchange="settingsModule.saveSessionTimeout(this.value)">
-                <option value="8" ${s.sessionTimeout === '8' ? 'selected' : ''}>8 hours (default)</option>
-                <option value="24" ${s.sessionTimeout === '24' ? 'selected' : ''}>24 hours</option>
-                <option value="48" ${s.sessionTimeout === '48' ? 'selected' : ''}>48 hours</option>
-                <option value="720" ${s.sessionTimeout === '720' ? 'selected' : ''}>30 days (Remember me)</option>
-              </select>
-              <p style="font-size: var(--font-size-xs); color: var(--text-tertiary); margin-top: var(--space-1);">
-                Session timeout applies to new logins only.
-              </p>
+          <section class="ui-card set-wide">
+            <div class="ui-card-head"><h2 class="ui-card-title">Backup and data</h2></div>
+            <div class="ui-row">
+              <div class="ui-row-main">
+                <div class="ui-row-title">Download a backup</div>
+                <div class="ui-row-meta">Every record (pupils, staff, fees, payments, results, inventory, applications, logs) as one ZIP file.</div>
+              </div>
+              <button type="button" class="ui-btn" id="export-backup-btn" onclick="settingsModule.exportAllData()">Download backup</button>
             </div>
-          </div>
-
-          <!-- Bank Account Details -->
-          <div class="card">
-            <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
-              🏦 Bank Account Details
-            </h3>
-            <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-5);">
-              These details are shown to parents when recording a bank deposit payment.
-            </p>
-            <form onsubmit="settingsModule.saveBankDetails(event)">
-              <div class="grid grid-cols-2 gap-4">
-                <div class="form-group">
-                  <label class="form-label">Bank Name</label>
-                  <input type="text" id="settingBankName" class="form-input" value="${s.bankName || ''}">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Account Number</label>
-                  <input type="text" id="settingBankAccountNo" class="form-input" value="${s.bankAccountNo || ''}" maxlength="20">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Account Name</label>
-                  <input type="text" id="settingBankAccountName" class="form-input" value="${s.bankAccountName || ''}">
-                </div>
-                <div class="form-group">
-                  <label class="form-label">Sort Code</label>
-                  <input type="text" id="settingBankSortCode" class="form-input" value="${s.bankSortCode || ''}" maxlength="20">
-                </div>
+            <div class="ui-row">
+              <div class="ui-row-main">
+                <div class="ui-row-title set-danger">Delete all records</div>
+                <div class="ui-row-meta">Removes pupils, staff, fees, payments, results, inventory and applications. Settings, the fee structure and subjects stay. Logins stay and are removed in Users &amp; access. Download a backup first.</div>
               </div>
-              <div style="display: flex; justify-content: flex-end; margin-top: var(--space-4);">
-                <button type="submit" class="btn btn-primary">💾 Save Bank Details</button>
-              </div>
-            </form>
-          </div>
-
-          <!-- Data Management -->
-          <div class="card">
-            <h3 style="font-size: var(--font-size-xl); font-weight: var(--font-weight-semibold); margin-bottom: var(--space-6);">
-              🗄️ Data Management
-            </h3>
-            <div style="display: flex; flex-direction: column; gap: var(--space-4);">
-
-              <div style="padding: var(--space-4); background: var(--bg-tertiary); border-radius: var(--radius-md);">
-                <h4 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2);">📥 Export Data Backup</h4>
-                <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-3);">
-                  Downloads a complete ZIP backup of all portal data — students, staff, payments, fees, applications, attendance, inventory, audit logs, and more.
-                </p>
-                <button class="btn btn-secondary btn-sm" id="export-backup-btn" onclick="settingsModule.exportAllData()">
-                  📥 Export Data Backup
-                </button>
-              </div>
-
-              <div style="padding: var(--space-4); background: rgba(239,68,68,0.06); border: 1px solid var(--color-danger); border-radius: var(--radius-md);">
-                <h4 style="font-weight: var(--font-weight-semibold); margin-bottom: var(--space-2); color: var(--color-danger);">⛔ Clear All Data</h4>
-                <p style="font-size: var(--font-size-sm); color: var(--text-secondary); margin-bottom: var(--space-3);">
-                  Permanently deletes all transactional data — students, staff, payments, fee items, assessments, grades, attendance, inventory records, applications, audit logs, and invitations.
-                  <strong style="color:var(--color-danger)"> School settings, fee structure, and subject catalog are preserved.</strong>
-                </p>
-                <button class="btn btn-danger btn-sm" onclick="settingsModule.confirmClearAll()">
-                  🗑️ Clear All Data
-                </button>
-              </div>
-
+              <button type="button" class="ui-btn pc-danger" onclick="settingsModule.confirmClearAll()">Delete all records…</button>
             </div>
-          </div>
-
+          </section>
         </div>
       </div>
     `;
@@ -337,7 +255,7 @@ const settingsModule = {
   async saveSchoolInfo(event) {
     event.preventDefault();
     const btn = event.target.querySelector('button[type="submit"]');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
       const updates = {
         schoolName:    document.getElementById('settingSchoolName').value.trim(),
@@ -347,47 +265,20 @@ const settingsModule = {
       };
       const { ok, error } = await this.saveSettings(updates);
       this._applyToSchoolConfig(this.settings);
-      if (ok) {
-        showToast('School information updated!', 'success');
-      } else {
-        showToast('Save failed: ' + (error || 'Could not reach database'), 'error');
-      }
+      showToast(ok ? 'School details saved' : 'Save failed: ' + (error || 'could not reach the database'), ok ? 'success' : 'error');
     } catch (e) {
       console.error('[Settings] saveSchoolInfo error:', e);
       showToast('Unexpected error: ' + e.message, 'error');
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '💾 Save School Info'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
     }
   },
 
-  async saveAcademicSettings(event) {
-    event.preventDefault();
-    const btn = event.target.querySelector('button[type="submit"]');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
-    try {
-      const updates = {
-        academicYear: document.getElementById('settingAcademicYear').value.trim(),
-        currentTerm:  document.getElementById('settingCurrentTerm').value,
-        currency:     document.getElementById('settingCurrency').value
-      };
-      const { ok, error } = await this.saveSettings(updates);
-      if (ok) {
-        showToast('Academic settings updated!', 'success');
-      } else {
-        showToast('Save failed: ' + (error || 'Could not reach database'), 'error');
-      }
-    } catch (e) {
-      console.error('[Settings] saveAcademicSettings error:', e);
-      showToast('Unexpected error: ' + e.message, 'error');
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '💾 Save Academic Settings'; }
-    }
-  },
 
   async saveBankDetails(event) {
     event.preventDefault();
     const btn = event.target.querySelector('button[type="submit"]');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Saving...'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
     try {
       const updates = {
         bankName:        (document.getElementById('settingBankName')?.value || '').trim(),
@@ -397,7 +288,7 @@ const settingsModule = {
       };
       const { ok, error } = await this.saveSettings(updates);
       if (ok) {
-        showToast('Bank details updated!', 'success');
+        showToast('Bank details saved', 'success');
       } else {
         showToast('Save failed: ' + (error || 'Could not reach database'), 'error');
       }
@@ -405,14 +296,14 @@ const settingsModule = {
       console.error('[Settings] saveBankDetails error:', e);
       showToast('Unexpected error: ' + e.message, 'error');
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '💾 Save Bank Details'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Save'; }
     }
   },
 
   setTheme(theme) {
     this.saveSettings({ theme });
     this.applyTheme(theme);
-    showToast(`${theme === 'dark' ? 'Dark' : 'Light'} mode enabled!`, 'success');
+    showToast(`${theme === 'dark' ? 'Dark' : 'Light'} theme on`, 'success');
     // Re-render to update button states
     const container = document.getElementById('main-content');
     if (container) {
@@ -428,14 +319,9 @@ const settingsModule = {
     }
   },
 
-  saveSessionTimeout(value) {
-    this.saveSettings({ sessionTimeout: value });
-    showToast('Session timeout preference saved!', 'info');
-  },
-
   async exportAllData() {
     const btn = document.getElementById('export-backup-btn');
-    if (btn) { btn.disabled = true; btn.textContent = ' Preparing backup…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Preparing…'; }
 
     try {
       // Dynamically load JSZip from CDN if not already present
@@ -483,7 +369,9 @@ const settingsModule = {
         try {
           let rows = [];
           if (window.supabaseClient) {
-            const { data } = await window.supabaseClient.from(t.name).select('*');
+            // One select returns at most 1000 rows; page through the lot.
+            const { data, error } = await dataManager._fetchAllPages(t.name, 'id');
+            if (error) throw new Error(error.message);
             rows = data || [];
           } else {
             rows = dataManager.getAll(t.key) || [];
@@ -524,37 +412,36 @@ const settingsModule = {
       a.click();
       URL.revokeObjectURL(url);
 
-      showToast('Full data backup downloaded as ZIP!', 'success');
+      showToast('Backup downloaded', 'success');
       if (typeof writeAuditLog === 'function') writeAuditLog('DATA_EXPORT', 'All Tables', `Full ZIP backup exported on ${dateStr}`);
 
     } catch (err) {
       console.error('[Settings] exportAllData error:', err);
       showToast('Export failed: ' + err.message, 'error');
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = ' Export Data Backup'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Download backup'; }
     }
   },
 
-  confirmResetData() {
-    if (confirm(' This will remove all current data and reload sample demo data. Are you sure?')) {
-      const keys = Object.keys(localStorage).filter(k => k.startsWith('tbd_academy_') && k !== this.SETTINGS_KEY);
-      keys.forEach(k => localStorage.removeItem(k));
-      // Re-seed
-      dataManager.seedSampleData();
-      // No user seeding: the demo accounts (admin123 / teacher123) and the
-      // localStorage auth path that read them were removed. Accounts come from
-      // Supabase only — create them in User Management.
-      showToast('Demo data has been reset successfully!', 'success');
-    }
+  confirmClearAll() {
+    createModal('Delete all records', `
+      <p>This permanently deletes every pupil, staff member, fee, payment, result, inventory record, application and log. It cannot be undone.</p>
+      <p class="ui-card-note" style="margin-top:8px;">Settings, the fee structure and subjects are kept. Download a backup first.</p>
+      <label class="form-group" style="margin-top:14px;"><span class="form-label">Type DELETE EVERYTHING to confirm</span>
+        <input type="text" id="clearAllTyped" class="form-input" autocomplete="off"></label>
+      <div class="ui-actions" style="justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="ui-btn" onclick="closeModal(this)">Cancel</button>
+        <button type="button" class="ui-btn pc-danger" onclick="settingsModule._clearAll(this)">Delete</button>
+      </div>`);
   },
 
-  async confirmClearAll() {
-    if (!confirm('⛔ WARNING: This will permanently delete all transactional data — students, staff, payments, assessments, grades, attendance, inventory records, applications, and audit logs.\n\nSchool settings, fee structure, and subject catalog will be preserved.\n\nThis cannot be undone. Continue?')) return;
-    if (!confirm('Last chance — are you absolutely sure?')) return;
-
-    const btn = document.querySelector('[onclick="settingsModule.confirmClearAll()"]');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ Clearing…'; }
-    showToast('Clearing data…', 'info');
+  async _clearAll(btn) {
+    if (document.getElementById('clearAllTyped')?.value.trim() !== 'DELETE EVERYTHING') {
+      showToast('Type DELETE EVERYTHING to confirm', 'warning');
+      return;
+    }
+    closeModal(btn);
+    showToast('Deleting records…', 'info');
 
     // Tables to wipe — structural tables (school_settings, subject_catalog, school_schedules, fee structure in settings_json) are preserved
     const tables = [
@@ -580,19 +467,9 @@ const settingsModule = {
         }
       }
 
-      // Delete all student auth users
-      try {
-        const { data: invs } = await supabaseClient.from('invitations').select('id').eq('role', 'student');
-        if (invs?.length) {
-          for (const inv of invs) {
-            try { await supabaseClient.from('profiles').delete().eq('id', inv.id); } catch(_) {}
-          }
-        }
-      } catch(_) {}
     }
 
-    showToast('All data cleared successfully. Structural data preserved.', 'success');
-    if (btn) { btn.disabled = false; btn.textContent = '🗑️ Clear All Data'; }
+    showToast('Records deleted. Settings, fee structure and subjects kept; logins are removed in Users & access.', 'success');
     if (typeof writeAuditLog === 'function') writeAuditLog('CLEAR_ALL_DATA', 'System', 'All transactional data cleared via Settings');
   }
 };
