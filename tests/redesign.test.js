@@ -525,6 +525,42 @@ describe('Assignments: per-pupil rows grouped into one assignment', () => {
   });
 });
 
+// ── Pupil timetable and tasks ───────────────────────────────
+describe('Pupil timetable: from the class timetable', () => {
+  const kid = { id: 'K', name: 'Kid', grade: 'Basic 2', section: 'B' };
+  const data = {
+    schoolSchedules: [
+      { day: 'monday', grade: 'Basic 2', section: 'B', subject: 'English', start_time: '09:00:00', end_time: '09:40:00', type: 'class' },
+      { day: 'Monday', grade: 'Basic 2', section: 'B', subject: 'Maths', start_time: '08:00', end_time: '08:40', type: 'class' },
+      { day: 'Monday', grade: 'Basic 2', subject: 'Assembly', start_time: '07:45', end_time: '08:00' },          // whole year group
+      { day: 'Monday', grade: 'Basic 2', section: 'A', subject: 'Other arm', start_time: '08:00' },
+      { day: 'Monday', grade: 'Basic 2', section: 'B', subject: 'Dropped', start_time: '10:00', status: 'inactive' },
+      { day: 'Saturday', grade: 'Basic 2', section: 'B', subject: 'Weekend', start_time: '10:00' }
+    ],
+    studentSchedules: [{ student_id: 'K', day: 'Tuesday', subject: 'Own row', start_time: '08:00' }]
+  };
+  const w = sandbox('2026-09-28T08:20:00', data, ['js/score-book.js', 'js/pupil-data.js']);
+  const week = w.pupilData.timetable(kid);
+  it('Monday: whole-group and own-arm lessons, in time order, whatever the day\'s case', () => eq(week.Monday.map(l => l.subject), ['Assembly', 'Maths', 'English']));
+  it('times are trimmed to hours and minutes', () => eq([week.Monday[2].start, week.Monday[2].end], ['09:00', '09:40']));
+  it('a pupil\'s own rows are ignored when the class has a timetable', () => eq(week.Tuesday.length, 0));
+  it('today\'s lessons (a Monday) are the same list', () => eq(w.pupilData.lessonsToday(kid).length, 3));
+  it('with no class timetable, the pupil\'s own rows are used', () => {
+    const w2 = sandbox('2026-09-28T08:20:00', { schoolSchedules: [], studentSchedules: data.studentSchedules }, ['js/score-book.js', 'js/pupil-data.js']);
+    eq(w2.pupilData.timetable(kid).Tuesday.map(l => l.subject), ['Own row']);
+  });
+});
+
+describe('Pupil tasks: what state each task is in', () => {
+  const w = sandbox('2026-09-28T09:00:00', {}, ['js/modules/student-tasks.js']);
+  const s = (t) => w.myTasksModule.stateOf(t, '2026-09-28');
+  it('not handed in, due today → to do', () => eq(s({ status: 'pending', dueDate: '2026-09-28' }), 'todo'));
+  it('not handed in, due yesterday → late', () => eq(s({ status: 'pending', dueDate: '2026-09-27' }), 'late'));
+  it('handed in after the due date is not late', () => eq(s({ status: 'submitted', dueDate: '2026-09-01' }), 'handed'));
+  it('marked needs a mark', () => eq([s({ status: 'graded', score: 7 }), s({ status: 'graded', score: null })], ['marked', 'handed']));
+  it('a mark of 0 is still a mark', () => eq(s({ status: 'graded', score: 0 }), 'marked'));
+});
+
 // ── Label tidying ───────────────────────────────────────────
 describe('Older pages lose leading emoji, not words', () => {
   const src = read('js/portal-shell.js');

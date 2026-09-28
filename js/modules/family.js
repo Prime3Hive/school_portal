@@ -212,7 +212,7 @@
             <h2 class="ui-card-title" id="fam-day-h">Today's lessons</h2>
             ${lessons.map((l, i) => `
               <div class="ui-row" style="${i === 0 ? 'border-top:0;' : ''} padding:10px 0;">
-                <div class="tt-time">${esc(time(l.start_time || l.startTime) || '—')}</div>
+                <div class="tt-time">${esc(time(l.start || l.start_time || l.startTime) || '—')}</div>
                 <div class="ui-row-main"><div class="ui-row-title" style="font-size:0.875rem;">${esc(l.subject || l.title || 'Lesson')}</div>${l.teacher ? `<div class="ui-row-meta">${esc(l.teacher)}</div>` : ''}</div>
               </div>`).join('')}
           </section>` : ''}

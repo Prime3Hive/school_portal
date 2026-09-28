@@ -1452,3 +1452,24 @@ button.sd-row:focus-visible { outline: 2px solid var(--brand-navy-light); outlin
   .tt-figs { align-items: flex-start; }
   #main-content table.tt-marks-table, .modal-body table.tt-marks-table { min-width: 0; }
 }
+
+/* ============================================
+   PUPIL TIMETABLE AND TASKS
+   ============================================ */
+.sch-days { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.sch-day {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 10px 4px; border: 1px solid var(--border-primary); border-radius: 12px;
+  background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; font-weight: 600; cursor: pointer;
+}
+.sch-day small { font-weight: 500; font-size: 0.75rem; color: var(--text-tertiary); }
+.sch-day i { position: absolute; top: 6px; right: 6px; width: 6px; height: 6px; border-radius: 50%; background: var(--brand-red); }
+.sch-day.is-on { background: var(--brand-navy); border-color: var(--brand-navy); color: #fff; }
+.sch-day.is-on small { color: rgba(255, 255, 255, 0.75); }
+.sch-day:focus-visible { outline: 2px solid var(--brand-navy-light); outline-offset: 2px; }
+.sch-time { display: flex; flex-direction: column; width: 72px; flex-shrink: 0; font-size: 0.8125rem; font-variant-numeric: tabular-nums; }
+.sch-time span { color: var(--text-tertiary); font-size: 0.75rem; }
+.sch-lesson.is-now { background: var(--ui-good-bg); border-radius: 10px; padding-left: 8px; padding-right: 8px; }
+.tk-h { margin: 12px 0 0; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-tertiary); }
+.tk-mark { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.8125rem; color: var(--text-tertiary); white-space: nowrap; }
+.tk-mark strong { font-size: 1rem; color: var(--text-primary); font-variant-numeric: tabular-nums; }

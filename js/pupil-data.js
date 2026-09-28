@@ -194,14 +194,39 @@
     return n ? `Term fees (payment ${n + 1})` : 'Term fees';
   }
 
-  /** Today's lessons for the pupil's class, from the school timetable. */
-  function lessonsToday(student) {
-    const day = new Date().toLocaleDateString('en-GB', { weekday: 'long' }).toLowerCase();
-    return all('schoolSchedules')
-      .filter(s => String(s.day || '').toLowerCase() === day && s.grade === student.grade && (!s.section || s.section === student.section))
-      .filter(s => String(s.status || 'active').toLowerCase() !== 'inactive')
-      .sort((a, b) => String(a.start_time || a.startTime || '').localeCompare(String(b.start_time || b.startTime || '')));
+  const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+  const startOf = (r) => String(r.start_time || r.startTime || '');
+
+  /**
+   * The pupil's week, Monday to Friday, lessons in time order. It comes from
+   * the class timetable (schoolSchedules, kept in Academics); a pupil's own
+   * rows (studentSchedules) are used only when their class has none. The old
+   * timetable page read the per-pupil rows alone, which nothing fills, so it
+   * was empty even where the class had a timetable.
+   */
+  function timetable(student) {
+    const week = Object.fromEntries(WEEKDAYS.map(d => [d, []]));
+    if (!student) return week;
+    const dayName = (v) => WEEKDAYS.find(d => d.toLowerCase() === String(v || '').trim().toLowerCase());
+    const lesson = (r, day) => ({
+      day, subject: r.subject || r.title || 'Lesson', teacher: r.teacher || '', room: r.room || '',
+      start: startOf(r).slice(0, 5), end: String(r.end_time || r.endTime || '').slice(0, 5), period: r.period ?? null
+    });
+    let rows = all('schoolSchedules')
+      .filter(r => r.grade === student.grade && (!r.section || r.section === student.section))
+      .filter(r => !r.type || r.type === 'class' || r.type === 'lesson')
+      .filter(r => String(r.status || 'active').toLowerCase() !== 'inactive');
+    if (!rows.length) rows = all('studentSchedules').filter(r => idOf(r) === student.id);
+    rows.forEach(r => { const d = dayName(r.day); if (d) week[d].push(lesson(r, d)); });
+    WEEKDAYS.forEach(d => week[d].sort((a, b) => a.start.localeCompare(b.start)));
+    return week;
   }
 
-  window.pupilData = { termScope, gradeFor, fees, paymentState, results, termResult, classResults, ordinal, lessonsToday, allocationPreview, nextFeeTypeLabel };
+  /** Today's lessons for the pupil's class (none at the weekend). */
+  function lessonsToday(student) {
+    const day = new Date().toLocaleDateString('en-GB', { weekday: 'long' });
+    return timetable(student)[day] || [];
+  }
+
+  window.pupilData = { termScope, gradeFor, fees, paymentState, results, termResult, classResults, ordinal, timetable, lessonsToday, allocationPreview, nextFeeTypeLabel };
 })();
