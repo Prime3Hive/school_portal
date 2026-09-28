@@ -88,6 +88,12 @@ describe('Term and session follow the school calendar', () => {
       eq(w.schoolConfig.getCurrentAcademicYear(), year);
     });
   }
+  it('marks for a dated assessment with no term are filed under the term of its date', () => {
+    const w = sandbox('2026-09-26T09:00:00', {}, ['js/score-book.js']);
+    const june = { date: '2026-06-20', totalMarks: 60 };
+    eq([w.scoreBook.termOf(june), w.scoreBook.yearOf(june), w.scoreBook.termOf({}), w.scoreBook.termOf({ term: 'Second Term', date: '2026-06-20' })],
+      ['Third Term', '2025-2026', 'First Term', 'Second Term']);
+  });
   // Any date, not only today: an assessment is filed under the term of its own date.
   it('a date string gives its own term and session, whatever today is', () => {
     const w = sandbox('2026-09-26T09:00:00');
