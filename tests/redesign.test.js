@@ -657,6 +657,25 @@ describe('Users & access: an action says "done" only when something changed', ()
     eq(log.profile, [['TBD/STU/1', { status: 'inactive' }]]);
   });
 
+  it('"No login yet" lists active records without a login — the same people the figure counts', async () => {
+    const { m, ready } = setup();
+    await ready;
+    const pick = (f) => m._users.filter(u => m._matchesFilter(u, f)).map(u => u.id);
+    eq([pick('nologin'), pick('suspended'), pick('student')], [['P2'], ['TBD/ADM/1'], ['TBD/STU/1', 'P2', 'P3']]);
+    eq(pick('nologin').length, m.figures().noLogin);
+  });
+
+  it('a new tab starts with an empty search; typing in the current tab keeps it', async () => {
+    const { m, ready } = setup();
+    await ready;
+    m.currentTab = 'students';
+    m.searchQuery = 'has';
+    m.switchTab('students');
+    const kept = m.searchQuery;
+    m.showFiltered('nologin');
+    eq([kept, m.searchQuery, m.currentTab, m.currentFilter], ['has', '', 'users', 'nologin']);
+  });
+
   it('the Suspended tab lists logins only, not inactive records that have none', async () => {
     const { m, ready } = setup();
     await ready;

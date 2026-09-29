@@ -479,7 +479,7 @@ const userManagementModule = {
         ${kpi('Logins', f.accounts, `${f.signedIn} have signed in`, "userManagementModule.switchTab('users')")}
         ${kpi('Never signed in', f.neverSignedIn, f.neverSignedIn ? 'details may not have reached them' : 'everyone has signed in', "userManagementModule.switchTab('invitations')")}
         ${kpi('Suspended', f.suspended, 'cannot sign in', "userManagementModule.switchTab('suspended')")}
-        ${kpi('No login yet', f.noLogin, 'pupils and staff on record', "userManagementModule.switchTab('students')")}
+        ${kpi('No login yet', f.noLogin, 'pupils and staff on record', "userManagementModule.showFiltered('nologin')")}
       </div>`;
   },
 
@@ -493,10 +493,36 @@ const userManagementModule = {
   },
 
   switchTab(tab) {
+    // A new tab starts with an empty search and page 1; the search boxes also
+    // call switchTab on their own tab, and must keep what is being typed.
+    if (tab !== this.currentTab) {
+      this.searchQuery = '';
+      this.currentPage = 1;
+      this.currentFilter = 'all';
+    }
     this.currentTab = tab;
     // Re-render in place from the data init() loaded; no round-trip.
     const container = this._container;
     if (container) container.innerHTML = this.render();
+  },
+
+  /** Open Everyone with one filter applied, e.g. from a figure at the top. */
+  showFiltered(filter) {
+    this.switchTab('users');
+    this.currentFilter = filter;
+    this._rerenderTab();
+  },
+
+  /** Whether a listed person passes the Everyone tab's filter. */
+  _matchesFilter(u, filter = this.currentFilter) {
+    const off = u.status === 'inactive' || u.status === 'suspended';
+    switch (filter) {
+      case 'all': return true;
+      case 'nologin': return !this._hasLogin(u) && String(u.status || 'active').toLowerCase() === 'active';
+      case 'suspended': return this._hasLogin(u) && off;
+      case 'active': return !off;
+      default: return u.role === filter;
+    }
   },
 
   // Lightweight re-render for search/filter/pagination changes — no data fetch
@@ -601,9 +627,7 @@ const userManagementModule = {
         String(u.email || '').toLowerCase().includes(q) ||
         String(u.id || '').toLowerCase().includes(q);
 
-      const matchesFilter = this.currentFilter === 'all' || u.role === this.currentFilter || u.status === this.currentFilter;
-
-      return matchesSearch && matchesFilter;
+      return matchesSearch && this._matchesFilter(u);
     });
 
     // Apply sorting
@@ -651,12 +675,10 @@ const userManagementModule = {
             </div>
             <select style="padding:8px 12px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);font-size:0.85rem;color:var(--text-secondary);background:var(--bg-secondary);outline:none;cursor:pointer;"
               onchange="userManagementModule.currentFilter = this.value; userManagementModule.currentPage = 1; userManagementModule._rerenderTab()">
-              <option value="all" ${this.currentFilter === 'all' ? 'selected' : ''}>All Roles</option>
-              <option value="admin" ${this.currentFilter === 'admin' ? 'selected' : ''}>Administrators</option>
-              <option value="teacher" ${this.currentFilter === 'teacher' ? 'selected' : ''}>Teachers</option>
-              <option value="staff" ${this.currentFilter === 'staff' ? 'selected' : ''}>Staff</option>
-              <option value="active" ${this.currentFilter === 'active' ? 'selected' : ''}>Active Only</option>
-              <option value="inactive" ${this.currentFilter === 'inactive' ? 'selected' : ''}>Inactive Only</option>
+              ${[['all', 'Everyone'], ['admin', 'Administrators'], ['teacher', 'Teachers'], ['staff', 'Office staff'],
+                ['student', 'Pupils'], ['guardian', 'Parents'], ['active', 'Active only'], ['suspended', 'Suspended logins'],
+                ['nologin', 'No login yet']]
+                .map(([v, label]) => `<option value="${v}" ${this.currentFilter === v ? 'selected' : ''}>${label}</option>`).join('')}
             </select>
             <select style="padding:8px 12px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);font-size:0.85rem;color:var(--text-secondary);background:var(--bg-secondary);outline:none;cursor:pointer;"
               onchange="userManagementModule.itemsPerPage = parseInt(this.value); userManagementModule.currentPage = 1; userManagementModule._rerenderTab()">
@@ -875,64 +897,6 @@ const userManagementModule = {
           </button>
         </div>
       </div>
-    `;
-  },
-
-  // ============================================
-  // APPLICANTS TAB
-  // ============================================
-  renderApplicantsTab() {
-    const applications = dataManager.getAll('applications') || [];
-    const acceptedApplicants = applications.filter(app => app.status === 'accepted');
-
-    return `
-      <div class="card">
-      <h3 class="text-xl font-semibold mb-6">Accepted Applicants Ready for Conversion</h3>
-
-        ${acceptedApplicants.length === 0 ? `
-          <div class="empty-state">
-            <div class="empty-state-icon">📝</div>
-            <h3 class="empty-state-title">No Pending Conversions</h3>
-            <p class="empty-state-description">All accepted applicants have been converted to students.</p>
-          </div>
-        ` : `
-          <div class="table-responsive">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Grade</th>
-                  <th>DOB</th>
-                  <th>Applied</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${acceptedApplicants.map(app => this.renderApplicantRow(app)).join('')}
-              </tbody>
-            </table>
-          </div>
-        `}
-      </div>
-    `;
-  },
-
-  renderApplicantRow(app) {
-    return `
-      <tr>
-        <td><strong>${app.studentName}</strong></td>
-        <td>${app.parentEmail}</td>
-        <td>${app.grade}</td>
-        <td>${app.dateOfBirth}</td>
-        <td>${new Date(app.submittedAt).toLocaleDateString()}</td>
-        <td>
-          <button class="btn btn-success btn-sm" 
-                  onclick="userManagementModule.convertToStudent('${app.id}')">
-            Convert to Student
-          </button>
-        </td>
-      </tr>
     `;
   },
 
@@ -1604,125 +1568,6 @@ const userManagementModule = {
     showToast(`${displayName} has been permanently deleted.`, 'success');
     writeAuditLog('PERMANENT_DELETE_USER', userId, `${displayName} permanently deleted by admin`);
     this.switchTab('suspended');
-  },
-
-  // ============================================
-  // ACTIONS - APPLICANT CONVERSION
-  // ============================================
-  convertToStudent(applicationId) {
-    const applications = dataManager.getAll('applications') || [];
-    const app = applications.find(a => a.id === applicationId);
-
-    if (!app) {
-      showToast('Application not found', 'danger');
-      return;
-    }
-
-    const content = `
-      <form id="convert-form" onsubmit="userManagementModule.submitConversion(event, '${applicationId}')">
-        <p class="mb-4">Convert <strong>${app.studentName}</strong> to student?</p>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Grade</label>
-            <select class="form-select" name="grade" required>
-              ${schoolConfig.gradeOptionsHTML(app.grade)}
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Section</label>
-            <select class="form-select" name="section" required>
-              ${['A', 'B', 'C', 'D'].map(s => `<option value="${s}">${s}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-success">Convert to Student</button>
-        </div>
-      </form>
-    `;
-
-    showModal('Convert Applicant to Student', content);
-  },
-
-  async submitConversion(event, applicationId) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const data = Object.fromEntries(formData);
-
-    const applications = dataManager.getAll('applications') || [];
-    const app = applications.find(a => a.id === applicationId);
-
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Converting...'; }
-
-    try {
-      // create-account allocates the school ID and password and writes the
-      // student record; the credentials are emailed before this returns.
-      const result = await authManager.createAccount({
-        email: app.parentEmail,
-        role: 'student',
-        fullName: app.studentName,
-        grade: data.grade,
-        section: data.section,
-        dateOfBirth: app.dateOfBirth
-      });
-
-      if (!result.success) {
-        showToast(result.error || 'Failed to convert applicant', 'danger');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Convert to Student'; }
-        return;
-      }
-
-      const studentId = result.schoolId;
-      const password = result.password;
-
-      // Update application status
-      app.status = 'converted';
-      app.studentId = studentId;
-      await dataManager.update('applications', applicationId, { status: 'converted', studentId: studentId });
-
-      await this._reload();
-      this._invitations = await authManager.getInvitations();
-
-      showToast(`Applicant converted successfully! Student ID: ${studentId} `, 'success');
-      writeAuditLog('CONVERT_APPLICANT', app.studentName, `Application ID: ${applicationId} | New Student ID: ${studentId} `);
-      closeModal();
-
-      setTimeout(() => {
-        const credContent = `
-    <p class="mb-4">Student account created from application!</p>
-          <div style="background: var(--bg-tertiary); padding: var(--space-4); border-radius: var(--radius-md);">
-            <p><strong>Student ID:</strong> ${studentId}</p>
-            <p><strong>Password:</strong> ${password}</p>
-            <p class="text-sm text-secondary mt-2">Share these credentials with the parent</p>
-          </div>
-          <button class="btn btn-primary mt-3" onclick="navigator.clipboard.writeText('Student ID: ${studentId}\\nPassword: ${password}'); showToast('Copied!', 'success');">
-            Copy Credentials
-          </button>
-  `;
-        showModal('Student Credentials', credContent);
-      }, 500);
-
-      this.switchTab('applicants');
-    } catch (error) {
-      showToast(error.message || 'Failed to convert applicant', 'danger');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Convert to Student'; }
-    }
-  },
-
-  // ============================================
-  // HELPER FUNCTIONS
-  // ============================================
-  generateStudentId() {
-    const users = this._users;
-    const students = users.filter(u => u.role === 'student');
-    const year = new Date().getFullYear();
-    const nextNumber = students.length + 1;
-    return `STU-${year}-${String(nextNumber).padStart(3, '0')}`;
   },
 
   viewUser(userId) {
