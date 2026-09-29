@@ -8,7 +8,9 @@
 //   authManager.getRedirectUrl(role)
 //   authManager.changePassword(schoolId, currentPwd, newPwd)
 //   authManager.getUsers()   / getUserById()
-//   authManager.updateUser() / deleteUser()
+//   authManager.updateUser()     own name/email only
+//   authManager.updateAccount()  suspend / restore / change role (edge function)
+//   authManager.deleteUser()     remove a login (edge function)
 //
 // ── ACCOUNTS ────────────────────────────────
 // There is no self-signup. An admin creates every account, and exactly two
@@ -109,6 +111,19 @@ class AuthManager {
             return { success: false, error: 'Your account is inactive. Contact your administrator.' };
         }
 
+        // Administrators pass a second factor before the portal opens. The
+        // password step has already given Supabase a session (aal1); it is
+        // kept, but nothing is cached until the code is entered.
+        if (profile.role === 'admin') {
+            const mfa = await this.mfaState();
+            if (mfa.step) return { success: false, mfa: mfa.step, factorId: mfa.factorId };
+        }
+
+        return this._completeLogin(profile, data.session);
+    }
+
+    /** Everything after the last check has passed: stamp, cache, report. */
+    async _completeLogin(profile, supabaseSession) {
         // Stamp last_login. Goes through an RPC because a direct UPDATE only
         // lands if the profiles RLS policy lets a user write their own row —
         // and the admin console now treats a null last_login as "credentials
@@ -118,7 +133,7 @@ class AuthManager {
         const { error: stampError } = await supabaseClient.rpc('record_login');
         if (stampError) console.warn('record_login:', stampError.message);
 
-        const session = this._buildSession(profile, data.session);
+        const session = this._buildSession(profile, supabaseSession);
         this._sessionCache = session;
         this._saveLocalSession(session);
 
@@ -127,6 +142,105 @@ class AuthManager {
             session,
             mustChangePassword: profile.must_change_password
         };
+    }
+
+    // ─────────────────────────────────────────
+    // Two-step sign-in (administrators)
+    //
+    // An authenticator-app code (TOTP) on top of the password. Enforced here
+    // and by the admin edge functions; migration 0033 makes the database
+    // enforce it too.
+    // ─────────────────────────────────────────
+
+    /**
+     * What a password-only admin session still has to do:
+     *   { step: 'challenge', factorId } — enter a code
+     *   { step: 'enroll' }              — set up an authenticator first
+     *   { step: null }                  — nothing: already passed, or two-step
+     *                                     sign-in is switched off for the project
+     */
+    async mfaState() {
+        const { data: aal, error } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+        if (error) return { step: 'enroll' };
+        if (aal.currentLevel === 'aal2') return { step: null };
+        const { data: factors } = await supabaseClient.auth.mfa.listFactors();
+        const verified = (factors?.totp || []).find(f => f.status === 'verified');
+        if (verified) return { step: 'challenge', factorId: verified.id };
+        if (localStorage.getItem('mfa_unavailable') === '1') return { step: null };
+        return { step: 'enroll' };
+    }
+
+    /** Start setting up an authenticator. Returns { factorId, qr, secret }. */
+    async mfaEnroll() {
+        // A half-finished earlier attempt blocks a new one.
+        const { data: factors } = await supabaseClient.auth.mfa.listFactors();
+        for (const f of (factors?.all || []).filter(f => f.status !== 'verified')) {
+            await supabaseClient.auth.mfa.unenroll({ factorId: f.id });
+        }
+        const { data, error } = await supabaseClient.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Portal authenticator' });
+        if (error) {
+            // Switched off for the project: do not lock every admin out over a
+            // setting. Remembered on this device so the portal guard lets them in.
+            if (error.code === 'mfa_totp_enroll_not_enabled' || /not.*enabled|disabled/i.test(error.message || '')) {
+                localStorage.setItem('mfa_unavailable', '1');
+                return { success: false, unavailable: true, error: 'Two-step sign-in is not switched on for this portal yet.' };
+            }
+            return { success: false, error: error.message };
+        }
+        localStorage.removeItem('mfa_unavailable');
+        return { success: true, factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret };
+    }
+
+    /** Check a code, then finish signing in exactly as login() would have. */
+    async mfaVerify(factorId, code) {
+        const { error } = await supabaseClient.auth.mfa.challengeAndVerify({ factorId, code: String(code).trim() });
+        if (error) return { success: false, error: 'That code did not work. Check the time on your phone and try the newest code.' };
+        return this.finishPendingLogin();
+    }
+
+    /** Complete a sign-in whose password step already happened. */
+    async finishPendingLogin() {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return { success: false, error: 'Your sign-in expired. Enter your ID and password again.' };
+        const profile = await this._fetchProfile(session.user.id);
+        if (!profile) return { success: false, error: 'Account profile not found. Contact your administrator.' };
+        return this._completeLogin(profile, session);
+    }
+
+    // ─────────────────────────────────────────
+    // Forgotten password (self-service)
+    // ─────────────────────────────────────────
+
+    /** Ask for a reset link. Answers the same way whether or not the ID exists. */
+    async requestPasswordReset(schoolId) {
+        try {
+            const res = await fetch(`${SUPABASE_URL}/functions/v1/request-password-reset`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}`, 'apikey': SUPABASE_ANON },
+                body: JSON.stringify({ schoolId })
+            });
+            const result = await res.json().catch(() => ({}));
+            if (!res.ok) return { success: false, error: result.error || 'Could not send the link. Try again later.' };
+            return result;
+        } catch {
+            return { success: false, error: 'We could not reach the portal. Check your connection and try again.' };
+        }
+    }
+
+    /** Spend a reset link's token and set the new password, then sign out. */
+    async completePasswordReset(tokenHash, newPassword) {
+        const { error: otpError } = await supabaseClient.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' });
+        if (otpError) return { success: false, error: 'This link has expired or has already been used. Ask for a new one from the sign-in page.' };
+        const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+        if (error) {
+            await supabaseClient.auth.signOut();
+            return { success: false, error: error.message };
+        }
+        await supabaseClient.rpc('clear_must_change_password');
+        await supabaseClient.auth.signOut();
+        this._sessionCache = null;
+        this._clearLocalSession();
+        return { success: true };
     }
 
     // ─────────────────────────────────────────
@@ -197,7 +311,7 @@ class AuthManager {
      * Fails closed: no Supabase, no session.
      *
      * @param {string[]} [allowedRoles] - roles permitted on this page
-     * @returns {Promise<{ok: boolean, reason?: 'offline'|'unauthenticated'|'inactive'|'forbidden', session: object|null}>}
+     * @returns {Promise<{ok: boolean, reason?: 'offline'|'unauthenticated'|'inactive'|'forbidden'|'mfa', session: object|null}>}
      */
     async requireSession(allowedRoles = null) {
         if (!window.supabaseReady || !window.supabaseClient) {
@@ -225,6 +339,18 @@ class AuthManager {
             this._sessionCache = null;
             this._clearLocalSession();
             return { ok: false, reason: 'inactive', session: null };
+        }
+
+        // An admin who has not passed the second factor goes back to the
+        // sign-in page to do it. Their Supabase session is kept (it is the
+        // password step); the cached one is not.
+        if (profile.role === 'admin') {
+            const mfa = await this.mfaState();
+            if (mfa.step) {
+                this._sessionCache = null;
+                localStorage.removeItem('sb_session');
+                return { ok: false, reason: 'mfa', session: null };
+            }
         }
 
         const built = this._buildSession(profile, session);
@@ -377,8 +503,11 @@ class AuthManager {
      * soon as this returns, and create-account has already emailed the
      * credentials via Resend.
      *
-     * payload: { email, role, fullName, department?, grade?, section?,
-     *            dateOfBirth?, gender?, photoUrl?, guardian? }
+     * payload: { email, role, fullName, recordId?, department?, grade?,
+     *            section?, dateOfBirth?, gender?, photoUrl?, guardian? }
+     *
+     * recordId attaches the login to a pupil or staff record already on file
+     * instead of creating a new one.
      *
      * Returns { success, schoolId, userId, authId, password, emailSent,
      *           emailMessage } — `password` is the one and only time the
@@ -391,6 +520,7 @@ class AuthManager {
             email:       payload.email,
             role:        payload.role,
             fullName:    payload.fullName,
+            recordId:    payload.recordId || null,
             department:  payload.department || null,
             grade:       payload.grade || null,
             section:     payload.section || null,
@@ -425,49 +555,48 @@ class AuthManager {
         return this.createAccount(payload);
     }
 
+    /**
+     * Change the signed-in person's own name or email (My profile). The
+     * database lets the browser write these two columns and no others
+     * (migration 0032); role and status go through updateAccount().
+     */
     async updateUser(schoolId, updates) {
         if (!window.supabaseReady) return { success: false, error: 'Cannot update an account while offline.' };
-        // Build only the fields that are provided
         const patch = { updated_at: new Date().toISOString() };
         if (updates.fullName !== undefined) patch.full_name = updates.fullName;
         if (updates.email !== undefined) patch.email = updates.email;
-        if (updates.role !== undefined) patch.role = updates.role;
-        if (updates.permissions !== undefined) patch.permissions = updates.permissions;
-        if (updates.status !== undefined) patch.status = updates.status;
 
-        const { error } = await supabaseClient
-            .from('profiles').update(patch).eq('school_id', schoolId);
-        if (!error) await this.refreshUsers();
-        return { success: !error, error: error?.message };
+        // .select() so an update that matched nothing is a failure, not a
+        // silent success.
+        const { data, error } = await supabaseClient
+            .from('profiles').update(patch).eq('school_id', schoolId).select('id');
+        if (error) return { success: false, error: error.message };
+        if (!data?.length) return { success: false, error: 'Nothing was changed.' };
+        await this.refreshUsers();
+        return { success: true };
     }
 
+    /**
+     * Suspend, restore or change the role of a login. update-account checks
+     * the caller is an admin, refuses changes to their own account and to the
+     * last active admin, blocks the login itself on suspend, and moves the
+     * staff record with the role.
+     *
+     * action: 'suspend' | 'restore' | 'set_role'
+     */
+    async updateAccount(schoolId, action, role) {
+        if (!window.supabaseReady) return { success: false, error: 'Cannot change an account while offline.' };
+        const result = await this._callAccountFunction('update-account', { schoolId, action, role });
+        if (result.success) await this.refreshUsers();
+        return result;
+    }
+
+    /** Remove a login. The pupil or staff record stays, without a login. */
     async deleteUser(schoolId) {
         if (!window.supabaseReady) return { success: false, error: 'Cannot delete an account while offline.' };
-
-        try {
-            const session = await supabaseClient.auth.getSession();
-            const accessToken = session.data.session?.access_token;
-            if (!accessToken) return { success: false, error: 'Not authenticated' };
-
-            const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-user`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`,
-                    'apikey': SUPABASE_ANON
-                },
-                body: JSON.stringify({ schoolId })
-            });
-
-            const result = await res.json();
-            if (!res.ok) return { success: false, error: result.error || 'Failed to delete user' };
-
-            await this.refreshUsers();
-            return { success: true };
-        } catch (err) {
-            console.error('deleteUser error:', err);
-            return { success: false, error: err.message };
-        }
+        const result = await this._callAccountFunction('delete-user', { schoolId });
+        await this.refreshUsers();
+        return result;
     }
 
     async changePassword(schoolId, currentPassword, newPassword) {
@@ -477,17 +606,23 @@ class AuthManager {
         this._changingPassword = true;
 
         try {
-            // 1. Verify current password by attempting a fresh sign-in
-            const email = schoolIdToEmail(schoolId.trim().toUpperCase());
-            const { data: signInData, error: authError } = await supabaseClient.auth.signInWithPassword({
-                email, password: currentPassword
-            });
-            if (authError) {
-                this._changingPassword = false;
-                return { success: false, error: 'Current password is incorrect.' };
+            // 1. Verify the current password with a fresh sign-in — except for
+            //    an administrator on the forced first change who has just
+            //    passed their two-step code. A password-only sign-in here would
+            //    drop the session back to one factor, and Supabase refuses a
+            //    password change from that on an account with two-step sign-in.
+            const { data: aal } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
+            const justVerified = aal?.currentLevel === 'aal2' && this._sessionCache?.mustChangePassword;
+            if (!justVerified) {
+                const email = schoolIdToEmail(schoolId.trim().toUpperCase());
+                const { error: authError } = await supabaseClient.auth.signInWithPassword({
+                    email, password: currentPassword
+                });
+                if (authError) {
+                    this._changingPassword = false;
+                    return { success: false, error: 'Current password is incorrect.' };
+                }
             }
-
-            const userId = signInData.user.id;
 
             // 2. Update the password via Supabase Auth
             const { error: updateError } = await supabaseClient.auth.updateUser({ password: newPassword });
@@ -496,11 +631,9 @@ class AuthManager {
                 return { success: false, error: updateError.message };
             }
 
-            // 3. Flip must_change_password using auth UUID (reliable with RLS)
-            const { error: profileError } = await supabaseClient
-                .from('profiles')
-                .update({ must_change_password: false })
-                .eq('id', userId);
+            // 3. Clear the first-login flag. An RPC: the browser may not write
+            //    this column directly (migration 0032).
+            const { error: profileError } = await supabaseClient.rpc('clear_must_change_password');
 
             if (profileError) {
                 console.warn('Profile update warning:', profileError.message);

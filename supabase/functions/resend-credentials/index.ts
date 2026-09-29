@@ -18,15 +18,12 @@ import {
   corsHeaders,
   credentialEmail,
   generatePassword,
+  isDeliverable,
   json,
   requireAdmin,
   roleLabel,
   serviceClient,
 } from "../_shared/accounts.ts";
-
-function isDeliverable(address: string): boolean {
-  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(address.trim()) && !address.trim().toLowerCase().endsWith("@tbd.internal");
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });

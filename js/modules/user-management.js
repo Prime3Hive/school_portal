@@ -1,188 +1,107 @@
 // ============================================
-// USER MANAGEMENT MODULE - ENTERPRISE v3.0
-// Comprehensive administrative hub for managing all system users
-// Features: RBAC, Audit Logs, Bulk Invitations, Pagination
-// Last Updated: 2026-02-24
+// USERS & ACCESS
+// Who can sign in to the portal, and what they can do.
+//
+// Every change to a login goes through an edge function that checks the
+// caller is an admin: create-account, resend-credentials, update-account
+// (suspend / restore / change role) and delete-user. The browser can no
+// longer write a profile's role or status itself (migration 0032).
 // ============================================
 
-// ── Shared helpers ──────────────────────────────────────────────────────────
+// ── Credentials dialog ──────────────────────────────────────────────────────
+// Shown once, right after a password is generated. Also used by the Staff page.
 
-/** Current academic year sourced from schoolConfig (or fallback). */
-const UM_ACADEMIC_YEAR = window.CURRENT_ACADEMIC_YEAR || (window.schoolConfig?.getCurrentAcademicYear?.()) || '2025-2026';
+/** Text the dialog's copy buttons put on the clipboard. Held here rather than
+ *  in onclick attributes, where a quote in a name would break out. */
+let _credentialCopies = {};
 
-// writeAuditLog() is defined globally in js/audit-logger.js (loaded before this module).
-
-/**
- * Renders a ready-to-send email template in a modal.
- * Admin copies the full text and manually emails the recipient.
- *
- * @param {string} recipientName  - Full name of the new user
- * @param {string} recipientEmail - Email address (shown for reference)
- * @param {string} role           - Role label e.g. 'Staff', 'Student', 'Teacher'
- * @param {string} loginId        - School/login ID (username)
- * @param {string} password       - Temporary password
- */
-function showEmailTemplate(recipientName, recipientEmail, role, loginId, password) {
-  const school = window.schoolConfig?.name || 'TBD International Academy';
-  const portal = `${window.location.origin}/login.html`;
-  const subject = `Your ${school} Portal Access — ${role} Account`;
-  // Pre-escape for safe use inside onclick single-quoted string
-  const subjectSafe = subject.replace(/'/g, '\u2019');
-
-  const emailBody =
-    `Dear ${recipientName},
-
-Welcome to ${school}! Your ${role.toLowerCase()} portal account has been created.
-
-Please use the credentials below to log in:
-
-  Portal URL : ${portal}
-  Login ID   : ${loginId}
-  Password   : ${password}
-
-Important:
-• You will be prompted to change your password immediately after your first login.
-• Keep your credentials confidential and do not share them.
-
-If you have any trouble accessing the portal, please contact the school admin.
-
-Best regards,
-${school} Administration`;
-
-  const html = `
-    <div style="display:flex;flex-direction:column;gap:var(--space-4)">
-      <div style="display:flex;gap:var(--space-3);align-items:center;padding:var(--space-3) var(--space-4);
-                  background:rgba(19,127,236,0.08);border-radius:var(--radius-md);border-left:3px solid var(--color-primary)">
-        <div>
-          <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px">To</div>
-          <div style="font-weight:600;color:var(--text-primary)">${recipientName}</div>
-          <div style="font-size:0.85rem;color:var(--text-secondary)">${recipientEmail}</div>
-        </div>
-        <div style="margin-left:auto;text-align:right">
-          <div style="font-size:0.75rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:2px">Subject</div>
-          <div style="font-size:0.85rem;font-weight:500">${subject}</div>
-        </div>
-      </div>
-
-      <textarea id="email-template-body" rows="14" readonly
-        style="width:100%;font-family:monospace;font-size:0.85rem;padding:var(--space-4);
-               background:var(--bg-tertiary);border:1px solid var(--border-primary);
-               border-radius:var(--radius-md);color:var(--text-primary);resize:vertical;line-height:1.6">${emailBody}</textarea>
-
-      <div style="display:flex;gap:var(--space-3)">
-        <button class="btn btn-primary" style="flex:1" onclick="
-          navigator.clipboard.writeText(document.getElementById('email-template-body').value);
-          showToast('Email template copied to clipboard!', 'success');
-        ">📋 Copy Email</button>
-        <button class="btn" style="flex:1;background:var(--bg-tertiary);border:1px solid var(--border-primary)"
-
-          onclick="navigator.clipboard.writeText(document.getElementById('email-subject-hidden').value);showToast('Subject line copied!', 'info');"
-
-          >📌 Copy Subject</button>
-
-
-
-      <input type="hidden" id="email-subject-hidden" value="${subjectSafe}">
-      </div>
-
-      <p style="font-size:0.8rem;color:var(--text-secondary);text-align:center;margin:0">
-        Copy the email above and send it to the recipient manually via your email client.
-      </p>
-    </div>
-    `;
-  showModal(`📧 Email Template — ${role} Access`, html);
+function copyCredentialText(kind) {
+  const text = _credentialCopies[kind] || '';
+  const done = () => showToast('Copied', 'success');
+  const fail = () => showToast('Could not copy. Select the text and copy it instead.', 'warning');
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(done, fail);
+  else fail();
 }
 
-/**
- * Enhanced credential modal shown after account creation.
- * Includes: credential card, copy button, email template with copy, and mailto link.
- */
 function showCredentialModal(recipientName, recipientEmail, role, loginId, password, emailSent, emailMessage) {
   const school = window.schoolConfig?.name || 'TBD International Academy';
-  // Everything below lands in HTML; the name and email come from a form.
   const h = (v) => (window.escapeHtml ? window.escapeHtml(v) : String(v ?? ''));
   const portal = `${window.location.origin}/login.html`;
+  const roleText = String(role || '');
 
-  const emailStatus = emailSent
-    ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#dcfce7;border:1px solid #86efac;border-radius:10px;margin-bottom:16px;">
-         <span style="font-size:1.1rem;">✅</span>
-         <span style="color:#166534;font-size:0.85rem;">Invitation email sent to <strong>${h(recipientEmail)}</strong></span>
-       </div>`
-    : `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:#fef9c3;border:1px solid #fde047;border-radius:10px;margin-bottom:16px;">
-         <span style="font-size:1.1rem;">⚠️</span>
-         <span style="color:#854d0e;font-size:0.85rem;">${h(emailMessage || 'Email could not be sent.')}  Please share credentials manually.</span>
-       </div>`;
+  const emailBody = `Dear ${recipientName},\n\nYour ${roleText.toLowerCase()} account on the ${school} portal is ready.\n\n  Portal   : ${portal}\n  Login ID : ${loginId}\n  Password : ${password}\n\nYou will be asked to choose your own password the first time you sign in. Keep these details private.\n\n${school}`;
+  const subject = `Your ${school} portal login`;
+  _credentialCopies = {
+    credentials: `Login ID: ${loginId}\nPassword: ${password}\nPortal: ${portal}`,
+    email: emailBody
+  };
+  const mailto = `mailto:${encodeURIComponent(recipientEmail || '')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
 
-  const emailBody = `Dear ${recipientName},\n\nWelcome to ${school}! Your ${role.toLowerCase()} portal account has been created.\n\nPlease use the credentials below to log in:\n\n  Portal URL : ${portal}\n  Login ID   : ${loginId}\n  Password   : ${password}\n\nImportant:\n- You will be prompted to change your password on first login.\n- Keep your credentials confidential.\n\nBest regards,\n${school} Administration`;
+  const status = emailSent
+    ? `<p class="ui-chip is-good" style="margin:0">Emailed to ${h(recipientEmail)}</p>`
+    : `<p class="ui-chip is-warn" style="margin:0;white-space:normal">${h(emailMessage || 'The email could not be sent.')} Give these details to the person yourself.</p>`;
 
-  const subject = `Your ${school} Portal Access - ${role} Account`;
-  const mailtoHref = `mailto:${encodeURIComponent(recipientEmail)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
-
-  // Escape for safe embedding in onclick attributes
-  const credText = `Login ID: ${loginId}\nPassword: ${password}\nPortal: ${portal}`;
-  const credTextEsc = credText.replace(/'/g, "\\'").replace(/\n/g, "\\n");
-  const emailBodyEsc = emailBody.replace(/'/g, "\\'").replace(/\n/g, "\\n");
-
-  const html = `
-    <div style="display:flex;flex-direction:column;gap:16px;">
-      ${emailStatus}
-
-      <!-- Credential Card -->
-      <div style="background:linear-gradient(135deg,#f0f4ff 0%,#e8ecff 100%);border:1px solid #c7d2fe;border-radius:12px;padding:20px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;">
-          <span style="font-size:1.3rem;">🔑</span>
-          <span style="font-weight:700;color:#3730a3;font-size:0.95rem;">Account Credentials</span>
-        </div>
-        <div style="display:grid;grid-template-columns:100px 1fr;gap:8px 12px;font-size:0.88rem;">
-          <span style="color:#6366f1;font-weight:600;">Name</span>
-          <span style="color:var(--text-primary);font-weight:600;">${h(recipientName)}</span>
-          <span style="color:#6366f1;font-weight:600;">Login ID</span>
-          <code style="background:var(--bg-secondary);padding:2px 10px;border-radius:6px;font-family:'Courier New',monospace;font-weight:700;border:1px solid var(--border-primary);color:var(--text-primary);">${h(loginId)}</code>
-          <span style="color:#6366f1;font-weight:600;">Password</span>
-          <code style="background:var(--bg-secondary);padding:2px 10px;border-radius:6px;font-family:'Courier New',monospace;font-weight:700;border:1px solid var(--border-primary);color:var(--text-primary);">${h(password)}</code>
-          <span style="color:#6366f1;font-weight:600;">Role</span>
-          <span style="color:var(--text-primary);">${h(role)}</span>
-          <span style="color:#6366f1;font-weight:600;">Portal</span>
-          <a href="${portal}" style="color:#4f46e5;text-decoration:underline;font-size:0.82rem;">${portal}</a>
-        </div>
-        <div style="margin-top:12px;padding-top:10px;border-top:1px solid #c7d2fe;">
-          <span style="font-size:0.78rem;color:#6366f1;">🔒 User must change password on first login &middot; Account is active immediately</span>
-        </div>
+  showModal(`Login ready: ${h(role)}`, `
+    <div style="display:flex;flex-direction:column;gap:14px">
+      ${status}
+      <dl class="um-cred">
+        <dt>Name</dt><dd>${h(recipientName)}</dd>
+        <dt>Login ID</dt><dd><code>${h(loginId)}</code></dd>
+        <dt>Password</dt><dd><code>${h(password)}</code></dd>
+        <dt>Portal</dt><dd>${h(portal)}</dd>
+      </dl>
+      <p class="ui-row-meta" style="margin:0">This password is shown only now. They must change it when they first sign in.</p>
+      <div class="ui-actions">
+        <button type="button" class="ui-btn ui-btn-primary" onclick="copyCredentialText('credentials')">Copy login details</button>
+        <a class="ui-btn" href="${mailto}">Open in email</a>
+        <button type="button" class="ui-btn" onclick="copyCredentialText('email')">Copy a ready-made email</button>
       </div>
+      <button type="button" class="ui-btn" onclick="closeModal(this)">Done</button>
+    </div>`);
+}
 
-      <!-- Action Buttons -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <button class="btn btn-primary" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;"
-          onclick="navigator.clipboard.writeText('${credTextEsc}');showToast('Credentials copied!','success');">
-          📋 Copy Credentials
-        </button>
-        <a href="${mailtoHref}" class="btn" style="display:flex;align-items:center;justify-content:center;gap:6px;padding:10px;
-          background:var(--bg-tertiary);border:1px solid var(--border-primary);text-decoration:none;color:var(--text-primary);border-radius:var(--radius-md);">
-          ✉️ Open Email Client
-        </a>
-      </div>
+// ── CSV helpers ─────────────────────────────────────────────────────────────
 
-      <!-- Email Template (collapsible) -->
-      <details style="border:1px solid var(--border-primary);border-radius:10px;overflow:hidden;">
-        <summary style="padding:10px 14px;cursor:pointer;font-size:0.85rem;font-weight:600;color:var(--text-secondary);background:var(--bg-primary);user-select:none;">
-          📧 View Email Template
-        </summary>
-        <div style="padding:12px 14px;background:var(--bg-secondary);">
-          <textarea id="cred-email-body" rows="10" readonly
-            style="width:100%;font-family:monospace;font-size:0.82rem;padding:12px;background:var(--bg-primary);border:1px solid var(--border-primary);
-                   border-radius:8px;color:var(--text-primary);resize:vertical;line-height:1.6;box-sizing:border-box;">${h(emailBody)}</textarea>
-          <button class="btn btn-secondary" style="width:100%;margin-top:8px;font-size:0.85rem;"
-            onclick="navigator.clipboard.writeText(document.getElementById('cred-email-body').value);showToast('Email template copied!','success');">
-            📋 Copy Email Template
-          </button>
-        </div>
-      </details>
+/** RFC 4180-ish: quoted fields, doubled quotes, commas and newlines inside quotes, CRLF, BOM. */
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = '', quoted = false;
+  const s = String(text || '').replace(/^﻿/, '');
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (quoted) {
+      if (c === '"' && s[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') quoted = false;
+      else field += c;
+    } else if (c === '"') quoted = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && s[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.some(v => v.trim())) rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  row.push(field);
+  if (row.some(v => v.trim())) rows.push(row);
+  return rows.map(r => r.map(v => v.trim()));
+}
 
-      <button class="btn btn-ghost" style="width:100%;" onclick="closeModal()">Done</button>
-    </div>
-  `;
+/** One CSV cell. A leading = + - @ is neutralised so a spreadsheet does not run it as a formula. */
+function csvCell(value) {
+  let v = String(value ?? '');
+  if (/^[=+\-@]/.test(v)) v = "'" + v;
+  return `"${v.replace(/"/g, '""')}"`;
+}
 
-  showModal(`✅ Account Created — ${role}`, html);
+function downloadCsv(filename, rows) {
+  const blob = new Blob([rows.map(r => r.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // ── Module ───────────────────────────────────────────────────────────────────
@@ -192,55 +111,24 @@ const userManagementModule = {
   currentFilter: 'all',
   searchQuery: '',
   currentPage: 1,
-  itemsPerPage: 10,
-  sortBy: 'createdAt',
-  sortOrder: 'desc',
+  itemsPerPage: 25,
   auditLogs: [],
-
-  // Built-in system roles (always present)
-  _systemRoles: [
-    { id: 'admin', name: 'Administrator', permissions: ['all'] },
-    { id: 'teacher', name: 'Teacher', permissions: ['view_students', 'edit_grades', 'view_classes'] },
-    { id: 'staff', name: 'Staff', permissions: ['view_students', 'view_classes'] },
-    { id: 'student', name: 'Student', permissions: ['view_own_data'] }
-  ],
-
-  // In-memory store for custom roles added this session
-  _customRoles: [],
-
-  // Computed property: system roles + custom roles (Supabase-seeded on first access)
-  _customRolesLoaded: false,
-  get roles() {
-    if (!this._customRolesLoaded && this._customRoles.length === 0) {
-      this._customRolesLoaded = true;
-      // Load from Supabase asynchronously
-      if (window.supabaseReady && window.supabaseClient) {
-        window.supabaseClient.from('custom_roles').select('*').then(({ data }) => {
-          if (data && data.length > 0) {
-            this._customRoles = data.map(r => ({
-              id: r.role_id, name: r.role_name, permissions: r.permissions || [], system: false
-            }));
-          }
-        }).catch(() => {});
-      }
-    }
-    const customIds = new Set(this._customRoles.map(r => r.id));
-    return [
-      ...this._systemRoles.filter(r => !customIds.has(r.id)),
-      ...this._customRoles
-    ];
-  },
-
-  // Setter so submitCreateRole() can do: this.roles.push(...) — we intercept and store to _customRoles
-  // (Note: push won't trigger the setter so we use _customRoles directly in submitCreateRole)
+  _auditState: 'idle',      // idle | loading | ready | error
+  _auditError: '',
+  _auditSearch: '',
+  _auditCategory: 'all',
 
   _users: [],
   _invitations: [],
-  _loading: false,
   _initId: 0,        // incremented on every init() call — stale calls self-cancel
-  _container: null,  // stored container ref so switchTab() always targets the right node
+  _container: null,
 
-  // ── Helper: wraps a promise with a timeout; resolves with fallback value on timeout ──
+  ROLE_LABELS: { admin: 'Administrators', staff: 'Office staff', teacher: 'Teachers', guardian: 'Parents', student: 'Pupils' },
+  ROLE_NAME: { admin: 'Administrator', teacher: 'Teacher', staff: 'Office staff', student: 'Pupil', guardian: 'Parent' },
+  /** Roles a login can be given here. Pupils get theirs from the Pupils page
+   *  or through "Give a login" on their record, so their class and fees come with it. */
+  ASSIGNABLE_ROLES: ['admin', 'teacher', 'staff', 'guardian'],
+
   _withTimeout(promise, ms, fallback) {
     const timer = new Promise(resolve => setTimeout(() => resolve(fallback), ms));
     return Promise.race([promise, timer]);
@@ -248,110 +136,69 @@ const userManagementModule = {
 
   async init(container) {
     if (!container) return;
-
-    // ── Init-guard: stamp this call with a unique ID. ──────────────────────────
-    // If the user navigates away and back before this async function finishes,
-    // _initId will have been incremented and stale continuations will bail out.
     const myId = ++this._initId;
-    this._container = container; // store so switchTab() always writes to the right node
-
+    this._container = container;
     const isStale = () => this._initId !== myId;
 
-    console.log('[UM] init start #' + myId + ', currentTab:', this.currentTab);
-
-    // Show loading state
     container.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:400px;"><div class="spinner"></div></div>';
-
-    // Reset state for clean re-entry
     this._users = [];
     this._invitations = [];
+    this._auditState = 'idle';
 
-    // Load auth users + invitations from Supabase.
-    // Wrapped with a 10-second timeout so a stalled network call never
-    // leaves the spinner on screen forever — falls back to cached data.
     try {
-      this._loading = true;
-      console.log('[UM] #' + myId + ' fetching users + invitations...');
-      const TIMEOUT_MS = 10_000;
       const [users, invitations] = await Promise.all([
-        this._withTimeout(authManager.getUsers(), TIMEOUT_MS, authManager.getAllUsers() || []),
-        this._withTimeout(authManager.getInvitations(), TIMEOUT_MS, [])
+        this._withTimeout(authManager.getUsers(), 10_000, authManager.getAllUsers() || []),
+        this._withTimeout(authManager.getInvitations(), 10_000, [])
       ]);
-
-      // Bail out if a newer init() call has taken over
-      if (isStale()) { console.log('[UM] #' + myId + ' is stale after fetch — aborting'); return; }
-
+      if (isStale()) return;
       this._users = users || [];
       this._invitations = invitations || [];
-      console.log('[UM] #' + myId + ' fetched', this._users.length, 'users,', this._invitations.length, 'invitations');
     } catch (e) {
-      console.error('[UM] Failed to load user management data:', e);
+      console.error('[UM] Failed to load logins:', e);
       if (isStale()) return;
       this._users = authManager.getAllUsers() || [];
-      this._invitations = [];
     }
 
-    // Merge students + staff from Supabase directory tables so list tabs
-    // show ALL records, not just those with portal auth accounts.
     try {
-      console.log('[UM] #' + myId + ' merging directory data...');
       await this._mergeDirectoryData();
-      if (isStale()) { console.log('[UM] #' + myId + ' is stale after merge — aborting'); return; }
-      console.log('[UM] #' + myId + ' merge complete, total users:', this._users.length);
+      if (isStale()) return;
     } catch (e) {
       console.error('[UM] _mergeDirectoryData failed:', e);
       if (isStale()) return;
     }
 
-    this._loading = false;
-
     try {
-      console.log('[UM] #' + myId + ' rendering tab:', this.currentTab);
       container.innerHTML = this.render();
-      console.log('[UM] #' + myId + ' init complete');
     } catch (e) {
       console.error('[UM] render failed:', e);
-      if (!isStale()) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">⚠️</div><h3>Error rendering module</h3><p>' + e.message + '</p></div>';
-      }
+      container.innerHTML = `<div class="ui-page"><section class="ui-card"><p class="ui-empty">This page could not be drawn: ${this._esc(e.message)}</p></section></div>`;
     }
 
-    // Listen for data changes to auto-refresh. Remove the previous visit's
-    // handler before replacing it; removing the new one (as this used to) left
-    // a stale listener behind on every visit.
     if (this._onDataChange) window.removeEventListener('datamanager:change', this._onDataChange);
     this._onDataChange = (e) => {
       if (isStale()) return;
       if (['students', 'staff', 'invitations'].includes(e.detail?.collection)) {
-        this._mergeDirectoryData().then(() => {
-          if (!isStale() && this._container) this._container.innerHTML = this.render();
-        });
+        this._reload().then(() => { if (!isStale()) this._rerenderAll(); });
       }
     };
     window.addEventListener('datamanager:change', this._onDataChange);
   },
 
   /**
-   * Merges records from the `students` and `staff` Supabase tables into
-   * this._users so that list tabs display them even without auth accounts.
-   * Awaits Supabase refresh to guarantee data is loaded before reading.
-   * Deduplicates by email then by id.
+   * Pupil and staff records with no login, merged into this._users so the
+   * lists show everyone on record. A record points at its login through
+   * auth_id; one that does is not listed again.
    */
   async _mergeDirectoryData() {
-    // Wait for DataManager's shared boot promise — instant if already loaded
     await dataManager.waitForReady();
     const studentsDir = dataManager.getAll('students');
     const staffDir = dataManager.getAll('staff');
 
     const seenEmails = new Set(this._users.map(u => (u.email || '').toLowerCase()).filter(Boolean));
     const seenIds = new Set(this._users.map(u => u.id).filter(Boolean));
-    // A pupil's or staff member's record points at their login through
-    // auth_id; without this check a person with a login was also listed as a
-    // separate "no login" record whenever the emails differed.
     const loginIds = new Set(this._users.filter(u => u._source !== 'directory').map(u => u.authId).filter(Boolean));
     const hasLogin = (r) => loginIds.has(r.authId || r.auth_id);
 
-    // ── Students ──
     for (const s of (studentsDir || [])) {
       const email = (s.email || '').toLowerCase();
       if (email && seenEmails.has(email)) continue;
@@ -360,14 +207,16 @@ const userManagementModule = {
       const uid = s.id || ('stu-' + (s.roll_no || s.rollNo || s.name?.replace(/\s+/g, '-').toLowerCase() || crypto.randomUUID()));
       this._users.push({
         id: uid,
-        fullName: s.name || 'Unknown Student',
+        recordId: s.id,
+        _record: 'students',
+        fullName: s.name || 'Unknown pupil',
         email: s.email || '',
         role: 'student',
         status: s.status || 'active',
         grade: s.grade,
         section: s.section,
-        department: `Grade ${s.grade || '?'}${s.section ? ' - Sec ' + s.section : ''} `,
-        createdAt: s.admission_date || s.created_at || new Date().toISOString(),
+        department: s.grade ? `Grade ${s.grade}${s.section ? ' ' + s.section : ''}` : '',
+        createdAt: s.admission_date || s.created_at || null,
         phone: s.phone || '',
         _source: 'directory'
       });
@@ -375,22 +224,22 @@ const userManagementModule = {
       seenIds.add(uid);
     }
 
-    // ── Staff ──
     for (const s of (staffDir || [])) {
       const email = (s.email || '').toLowerCase();
       if (email && seenEmails.has(email)) continue;
       if (s.id && seenIds.has(s.id)) continue;
       if (hasLogin(s)) continue;
       const uid = s.id || ('stf-' + (s.email?.split('@')[0] || s.name?.replace(/\s+/g, '-').toLowerCase() || crypto.randomUUID()));
-      const role = isTeachingStaff(s) ? 'teacher' : 'staff';
       this._users.push({
         id: uid,
-        fullName: s.name || 'Unknown Staff',
+        recordId: s.id,
+        _record: 'staff',
+        fullName: s.name || 'Unknown staff member',
         email: s.email || '',
-        role: role,
+        role: isTeachingStaff(s) ? 'teacher' : 'staff',
         status: s.status || 'active',
         department: s.role || s.position || '',
-        createdAt: s.hire_date || s.created_at || new Date().toISOString(),
+        createdAt: s.hire_date || s.created_at || null,
         phone: s.phone || '',
         _source: 'directory'
       });
@@ -398,7 +247,6 @@ const userManagementModule = {
       seenIds.add(uid);
     }
   },
-
 
   _esc(v) {
     return typeof window.escapeHtml === 'function' ? window.escapeHtml(v) : String(v ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
@@ -409,17 +257,44 @@ const userManagementModule = {
     return this._esc(escapeJs(v));
   },
 
+  _date(v, opts = { day: 'numeric', month: 'short', year: 'numeric' }) {
+    if (!v) return '';
+    const d = new Date(v);
+    return isNaN(d) ? '' : d.toLocaleDateString('en-GB', opts);
+  },
+
+  _find(id) {
+    return this._users.find(u => u.id === id || u.schoolId === id) || null;
+  },
+
+  /** A record merged from the students or staff table has no login behind it. */
+  _hasLogin(user) {
+    return !!user && user._source !== 'directory';
+  },
+
+  _isOff(u) {
+    return u.status === 'inactive' || u.status === 'suspended';
+  },
+
+  _isSelf(user) {
+    const me = authManager.getSession();
+    return !!(me && user && (user.authId === me.supabaseId || user.schoolId === me.userId));
+  },
+
+  /** Reload logins and the merged records (getUsers alone drops the records). */
+  async _reload() {
+    this._users = await authManager.getUsers(true) || [];
+    await this._mergeDirectoryData();
+  },
+
   /**
-   * The figures at the top. this._users holds login accounts (from profiles)
-   * and, merged in, pupil and staff records that have no login
-   * (_source 'directory'). The old figures counted both as "users", so every
-   * pupil without a login showed as "never signed in", and the status chart
-   * counted pupils twice (merged records plus the students table again).
+   * The figures at the top. Logins (profiles) are counted apart from pupil
+   * and staff records that have no login.
    */
   figures(users = this._users) {
     const accounts = users.filter(u => u._source !== 'directory');
     const noLogin = users.filter(u => u._source === 'directory' && String(u.status || 'active').toLowerCase() === 'active');
-    const off = (u) => u.status === 'inactive' || u.status === 'suspended';
+    const off = (u) => this._isOff(u);
     const roles = ['admin', 'staff', 'teacher', 'guardian', 'student'];
     return {
       accounts: accounts.length,
@@ -436,8 +311,9 @@ const userManagementModule = {
     };
   },
 
-  ROLE_LABELS: { admin: 'Administrators', staff: 'Office staff', teacher: 'Teachers', guardian: 'Parents', student: 'Pupils' },
-
+  // ============================================
+  // FRAME
+  // ============================================
   render() {
     if (!authManager.hasPermission('all')) {
       return `<div class="ui-page"><section class="ui-card"><h2 class="ui-card-title">Not available</h2><p class="ui-empty">Only administrators can manage logins.</p></section></div>`;
@@ -447,11 +323,8 @@ const userManagementModule = {
         ${this.renderHeader()}
         ${this.renderStats()}
         ${this.renderTabs()}
-        <div class="um-tab-content">
-          ${this.renderTabContent()}
-        </div>
-      </div>
-    `;
+        <div class="um-tab-content">${this.renderTabContent()}</div>
+      </div>`;
   },
 
   renderHeader() {
@@ -462,7 +335,7 @@ const userManagementModule = {
           <p class="ui-page-sub">Who can sign in to the portal, and what they can do</p>
         </div>
         <div class="ui-actions">
-          ${this.currentTab === 'users' ? '<button type="button" class="ui-btn" onclick="userManagementModule.showBulkInviteModal()">Add many</button>' : ''}
+          <button type="button" class="ui-btn" onclick="userManagementModule.showBulkInviteModal()">Add many</button>
           <button type="button" class="ui-btn ui-btn-primary" onclick="userManagementModule.showInviteModal()">Give someone a login</button>
         </div>
       </div>`;
@@ -493,17 +366,18 @@ const userManagementModule = {
   },
 
   switchTab(tab) {
-    // A new tab starts with an empty search and page 1; the search boxes also
-    // call switchTab on their own tab, and must keep what is being typed.
+    // A new tab starts with an empty search and page 1.
     if (tab !== this.currentTab) {
       this.searchQuery = '';
       this.currentPage = 1;
       this.currentFilter = 'all';
     }
     this.currentTab = tab;
-    // Re-render in place from the data init() loaded; no round-trip.
-    const container = this._container;
-    if (container) container.innerHTML = this.render();
+    this._rerenderAll();
+  },
+
+  _rerenderAll() {
+    if (this._container) this._container.innerHTML = this.render();
   },
 
   /** Open Everyone with one filter applied, e.g. from a figure at the top. */
@@ -513,9 +387,41 @@ const userManagementModule = {
     this._rerenderTab();
   },
 
+  /**
+   * Redraw the tab below the tabs, keeping the cursor where it was. The search
+   * boxes live inside this area, so without this every keystroke dropped focus.
+   */
+  _rerenderTab() {
+    const contentEl = this._container?.querySelector('.um-tab-content');
+    if (!contentEl) return this._rerenderAll();
+    const active = document.activeElement;
+    const focusId = active && contentEl.contains(active) ? active.id : '';
+    const caret = focusId && typeof active.selectionStart === 'number' ? active.selectionStart : null;
+    contentEl.innerHTML = this.renderTabContent();
+    if (focusId) {
+      const el = document.getElementById(focusId);
+      if (el) {
+        el.focus();
+        if (caret !== null && el.setSelectionRange) el.setSelectionRange(caret, caret);
+      }
+    }
+  },
+
+  onSearch(value) {
+    this.searchQuery = value;
+    this.currentPage = 1;
+    this._rerenderTab();
+  },
+
+  _matchesSearch(u) {
+    const q = this.searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return [u.fullName, u.email, u.id, u.department].some(v => String(v || '').toLowerCase().includes(q));
+  },
+
   /** Whether a listed person passes the Everyone tab's filter. */
   _matchesFilter(u, filter = this.currentFilter) {
-    const off = u.status === 'inactive' || u.status === 'suspended';
+    const off = this._isOff(u);
     switch (filter) {
       case 'all': return true;
       case 'nologin': return !this._hasLogin(u) && String(u.status || 'active').toLowerCase() === 'active';
@@ -525,57 +431,65 @@ const userManagementModule = {
     }
   },
 
-  // Lightweight re-render for search/filter/pagination changes — no data fetch
-  _rerenderTab() {
-    const contentEl = this._container?.querySelector('.um-tab-content');
-    if (contentEl) {
-      contentEl.innerHTML = this.renderTabContent();
-    } else {
-      const container = this._container;
-      if (container) container.innerHTML = this.render();
-    }
+  _searchBox(placeholder) {
+    return `
+      <label class="sd-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="search" id="um-search" placeholder="${placeholder}" aria-label="${placeholder}"
+          value="${this._esc(this.searchQuery)}" oninput="userManagementModule.onSearch(this.value)">
+      </label>`;
   },
 
   renderTabContent() {
     switch (this.currentTab) {
-      case 'overview':
-        return this.renderOverviewTab();
-      case 'users':
-        return this.renderUsersTab();
-      case 'students':
-        return this.renderStudentsTab();
-      case 'invitations':
-        return this.renderInvitationsTab();
-      case 'roles':
-        return this.renderRolesTab();
-      case 'suspended':
-        return this.renderSuspendedTab();
-      case 'audit':
-        return this.renderAuditTab();
-      default:
-        return '';
+      case 'overview': return this.renderOverviewTab();
+      case 'users': return this.renderUsersTab();
+      case 'students': return this.renderStudentsTab();
+      case 'invitations': return this.renderInvitationsTab();
+      case 'roles': return this.renderRolesTab();
+      case 'suspended': return this.renderSuspendedTab();
+      case 'audit': return this.renderAuditTab();
+      default: return '';
     }
   },
 
+  /** The state shown on a row, from the login if there is one. */
+  _state(user) {
+    if (!this._hasLogin(user)) {
+      return this._isOff(user) ? { label: user.role === 'student' ? 'Withdrawn' : 'Inactive', tone: '' } : { label: 'No login', tone: '' };
+    }
+    if (this._isOff(user)) return { label: 'Suspended', tone: 'is-warn' };
+    if (!user.lastLogin) return { label: 'Never signed in', tone: 'is-warn' };
+    if (user.mustChangePassword) return { label: 'Temporary password', tone: 'is-warn' };
+    return { label: 'Active', tone: 'is-good' };
+  },
+
+  _avatar(name) {
+    return `<span class="sd-avatar" aria-hidden="true">${this._esc(String(name || '?').trim().charAt(0).toUpperCase())}</span>`;
+  },
+
+  _list(rows, empty) {
+    return rows.length ? rows.join('') : `<p class="ui-empty">${empty}</p>`;
+  },
+
   // ============================================
-  // OVERVIEW TAB
+  // OVERVIEW
   // ============================================
   renderOverviewTab() {
     const f = this.figures();
-    const e = (v) => this._esc(v);
-    const accounts = this._users.filter(u => u._source !== 'directory');
+    const accounts = this._users.filter(u => this._hasLogin(u));
     const recent = [...accounts].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 6);
-    const waiting = accounts.filter(u => u.status !== 'inactive' && u.status !== 'suspended' && !u.lastLogin)
+    const waiting = accounts.filter(u => !this._isOff(u) && !u.lastLogin)
       .sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0)).slice(0, 6);
     const top = Math.max(1, ...f.byRole.map(r => r.accounts + r.noLogin));
     const row = (u, meta) => `
       <div class="ui-row">
-        <span class="sd-avatar" aria-hidden="true">${e(String(u.fullName || '?').trim().charAt(0).toUpperCase())}</span>
+        ${this._avatar(u.fullName)}
         <div class="ui-row-main">
-          <div class="ui-row-title">${e(u.fullName || 'Unnamed')}</div>
-          <div class="ui-row-meta">${e([this.ROLE_LABELS[u.role]?.replace(/s$/, '') || u.role, u.id, meta].filter(Boolean).join(' · '))}</div>
+          <div class="ui-row-title">${this._esc(u.fullName || 'Unnamed')}</div>
+          <div class="ui-row-meta">${this._esc([this.ROLE_NAME[u.role] || u.role, u.id, meta].filter(Boolean).join(' · '))}</div>
         </div>
-        <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUserDetails('${this._js(u.id)}')">View</button>
+        <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUser('${this._js(u.id)}')">View</button>
       </div>`;
 
     return `
@@ -584,756 +498,130 @@ const userManagementModule = {
           <div class="ui-card-head"><h2 class="ui-card-title">By role</h2><span class="ui-card-note">with a login / on record only</span></div>
           ${f.byRole.map(r => `
             <div class="um-role">
-              <div class="um-role-top"><span>${this.ROLE_LABELS[r.role] || r.role}</span><strong>${r.accounts}${r.noLogin ? ` <span class="ui-row-meta">+ ${r.noLogin} no login</span>` : ''}</strong></div>
+              <div class="um-role-top"><span>${this.ROLE_LABELS[r.role] || this._esc(r.role)}</span><strong>${r.accounts}${r.noLogin ? ` <span class="ui-row-meta">+ ${r.noLogin} no login</span>` : ''}</strong></div>
               <div class="um-bar"><span style="width:${(r.accounts / top) * 100}%"></span><i style="width:${(r.noLogin / top) * 100}%"></i></div>
             </div>`).join('') || '<p class="ui-empty">No one yet.</p>'}
         </section>
 
         <section class="ui-card">
           <div class="ui-card-head"><h2 class="ui-card-title">Not signed in yet</h2><button type="button" class="ui-link" onclick="userManagementModule.switchTab('invitations')">All logins issued</button></div>
-          ${waiting.length ? waiting.map(u => row(u, u.createdAt ? `issued ${new Date(u.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '')).join('')
-            : '<p class="ui-empty">Everyone with a login has signed in.</p>'}
+          ${this._list(waiting.map(u => row(u, u.createdAt ? `issued ${this._date(u.createdAt, { day: 'numeric', month: 'short' })}` : '')), 'Everyone with a login has signed in.')}
         </section>
 
         <section class="ui-card">
           <div class="ui-card-head"><h2 class="ui-card-title">Newest logins</h2><button type="button" class="ui-link" onclick="userManagementModule.switchTab('users')">Everyone</button></div>
-          ${recent.length ? recent.map(u => row(u, u.lastLogin ? 'has signed in' : 'not signed in')).join('') : '<p class="ui-empty">No logins yet.</p>'}
+          ${this._list(recent.map(u => row(u, u.lastLogin ? 'has signed in' : 'not signed in')), 'No logins yet.')}
         </section>
       </div>`;
   },
 
-  getRoleBadgeColor(role) {
-    const colors = {
-      'admin': 'danger',
-      'teacher': 'primary',
-      'staff': 'info',
-      'student': 'success'
-    };
-    return colors[role] || 'secondary';
-  },
-
   // ============================================
-  // ALL USERS TAB - COMPREHENSIVE USER LISTING
+  // EVERYONE
   // ============================================
   renderUsersTab() {
-    const allUsers = this._users;
+    const filtered = this._users.filter(u => this._matchesSearch(u) && this._matchesFilter(u))
+      // Newest first; records with no date go last rather than looking brand new.
+      .sort((a, b) => (b.createdAt ? new Date(b.createdAt).getTime() : -Infinity) - (a.createdAt ? new Date(a.createdAt).getTime() : -Infinity));
 
-    // Apply filters and search
-    const q = this.searchQuery.toLowerCase();
-    let filteredUsers = allUsers.filter(u => {
-      // A profile can have no name or email; this used to throw on either.
-      const matchesSearch = !q ||
-        String(u.fullName || '').toLowerCase().includes(q) ||
-        String(u.email || '').toLowerCase().includes(q) ||
-        String(u.id || '').toLowerCase().includes(q);
-
-      return matchesSearch && this._matchesFilter(u);
-    });
-
-    // Apply sorting
-    filteredUsers.sort((a, b) => {
-      let aVal = a[this.sortBy];
-      let bVal = b[this.sortBy];
-
-      if (this.sortBy === 'createdAt') {
-        aVal = new Date(aVal).getTime();
-        bVal = new Date(bVal).getTime();
-      }
-
-      if (this.sortOrder === 'asc') {
-        return aVal > bVal ? 1 : -1;
-      } else {
-        return aVal < bVal ? 1 : -1;
-      }
-    });
-
-    // Pagination
-    const totalPages = Math.ceil(filteredUsers.length / this.itemsPerPage);
-    const startIndex = (this.currentPage - 1) * this.itemsPerPage;
-    const paginatedUsers = filteredUsers.slice(startIndex, startIndex + this.itemsPerPage);
+    const pages = Math.max(1, Math.ceil(filtered.length / this.itemsPerPage));
+    if (this.currentPage > pages) this.currentPage = pages;
+    const start = (this.currentPage - 1) * this.itemsPerPage;
+    const page = filtered.slice(start, start + this.itemsPerPage);
+    const filters = [['all', 'Everyone'], ['admin', 'Administrators'], ['teacher', 'Teachers'], ['staff', 'Office staff'],
+      ['student', 'Pupils'], ['guardian', 'Parents'], ['active', 'Active only'], ['suspended', 'Suspended logins'], ['nologin', 'No login yet']];
 
     return `
-      <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
-        <!-- Header + Filters -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-4);">
-          <div>
-            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">All Users</h3>
-            <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">${filteredUsers.length ? `Showing ${startIndex + 1}–${Math.min(startIndex + this.itemsPerPage, filteredUsers.length)} of ${filteredUsers.length}` : 'No matches'}</p>
-          </div>
-          <div style="display:flex;gap:var(--space-3);flex-wrap:wrap;align-items:center;">
-            <div style="position:relative;">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"
-                style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <input type="text" placeholder="Search by name, email, ID..."
-                style="padding:8px 12px 8px 34px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);
-                  font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);background:var(--bg-secondary);"
-                value="${this._esc(this.searchQuery)}"
-                oninput="userManagementModule.searchQuery = this.value; userManagementModule.currentPage = 1; userManagementModule._rerenderTab()"
-                onfocus="this.style.borderColor='var(--brand-navy)'" onblur="this.style.borderColor='#e2e8f0'">
-            </div>
-            <select style="padding:8px 12px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);font-size:0.85rem;color:var(--text-secondary);background:var(--bg-secondary);outline:none;cursor:pointer;"
-              onchange="userManagementModule.currentFilter = this.value; userManagementModule.currentPage = 1; userManagementModule._rerenderTab()">
-              ${[['all', 'Everyone'], ['admin', 'Administrators'], ['teacher', 'Teachers'], ['staff', 'Office staff'],
-                ['student', 'Pupils'], ['guardian', 'Parents'], ['active', 'Active only'], ['suspended', 'Suspended logins'],
-                ['nologin', 'No login yet']]
-                .map(([v, label]) => `<option value="${v}" ${this.currentFilter === v ? 'selected' : ''}>${label}</option>`).join('')}
-            </select>
-            <select style="padding:8px 12px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);font-size:0.85rem;color:var(--text-secondary);background:var(--bg-secondary);outline:none;cursor:pointer;"
-              onchange="userManagementModule.itemsPerPage = parseInt(this.value); userManagementModule.currentPage = 1; userManagementModule._rerenderTab()">
-              <option value="10" ${this.itemsPerPage === 10 ? 'selected' : ''}>10 / page</option>
-              <option value="25" ${this.itemsPerPage === 25 ? 'selected' : ''}>25 / page</option>
-              <option value="50" ${this.itemsPerPage === 50 ? 'selected' : ''}>50 / page</option>
-            </select>
-          </div>
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="sd-filters">
+          ${this._searchBox('Search by name, email or ID')}
+          <select class="sd-select" aria-label="Show" onchange="userManagementModule.currentFilter = this.value; userManagementModule.currentPage = 1; userManagementModule._rerenderTab()">
+            ${filters.map(([v, label]) => `<option value="${v}" ${this.currentFilter === v ? 'selected' : ''}>${label}</option>`).join('')}
+          </select>
+          <select class="sd-select" aria-label="Per page" onchange="userManagementModule.itemsPerPage = parseInt(this.value, 10); userManagementModule.currentPage = 1; userManagementModule._rerenderTab()">
+            ${[10, 25, 50].map(n => `<option value="${n}" ${this.itemsPerPage === n ? 'selected' : ''}>${n} a page</option>`).join('')}
+          </select>
         </div>
-
-        <!-- User Cards -->
-        <div style="display:grid;gap:var(--space-3);">
-          ${paginatedUsers.length === 0 ? `
-            <div style="text-align:center;padding:var(--space-10);color:var(--text-tertiary);">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
-                style="margin:0 auto var(--space-3);display:block;opacity:0.4;">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-              <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:var(--text-tertiary);">No users found</p>
-              <p style="margin:0;font-size:0.8rem;">Try adjusting your search or filters</p>
-            </div>
-          ` : paginatedUsers.map(user => this.renderUserRow(user)).join('')}
-        </div>
-
-        <!--Pagination -->
-    ${totalPages > 1 ? `
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:var(--space-6);
-            padding-top:var(--space-4);border-top:1px solid #f1f5f9;">
-            <button onclick="userManagementModule.currentPage--; userManagementModule._rerenderTab()"
-              ${this.currentPage === 1 ? 'disabled' : ''}
-              style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;
-                background:var(--bg-secondary);color:${this.currentPage === 1 ? 'var(--text-tertiary)' : 'var(--text-secondary)'};
-                border:1px solid ${this.currentPage === 1 ? 'var(--bg-tertiary)' : 'var(--border-primary)'};
-                border-radius:var(--radius-md);font-size:0.8rem;font-weight:600;cursor:${this.currentPage === 1 ? 'not-allowed' : 'pointer'};">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
-              Previous
-            </button>
-            <div style="display:flex;gap:4px;">
-              ${Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-      let pageNum;
-      if (totalPages <= 5) pageNum = i + 1;
-      else if (this.currentPage <= 3) pageNum = i + 1;
-      else if (this.currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-      else pageNum = this.currentPage - 2 + i;
-      const isActive = this.currentPage === pageNum;
-      return `<button onclick="userManagementModule.currentPage = ${pageNum}; userManagementModule._rerenderTab()"
-                  style="width:34px;height:34px;border-radius:8px;border:1px solid ${isActive ? 'var(--brand-navy)' : '#e2e8f0'};
-                    background:${isActive ? 'linear-gradient(135deg,var(--brand-navy),var(--brand-navy))' : 'var(--bg-secondary)'};
-                    color:${isActive ? 'white' : '#475569'};font-weight:${isActive ? '700' : '500'};
-                    font-size:0.85rem;cursor:pointer;">${pageNum}</button>`;
-    }).join('')}
-            </div>
-            <button onclick="userManagementModule.currentPage++; userManagementModule._rerenderTab()"
-              ${this.currentPage === totalPages ? 'disabled' : ''}
-              style="display:inline-flex;align-items:center;gap:6px;padding:7px 16px;
-                background:var(--bg-secondary);color:${this.currentPage === totalPages ? 'var(--text-tertiary)' : 'var(--text-secondary)'};
-                border:1px solid ${this.currentPage === totalPages ? 'var(--bg-tertiary)' : 'var(--border-primary)'};
-                border-radius:var(--radius-md);font-size:0.8rem;font-weight:600;cursor:${this.currentPage === totalPages ? 'not-allowed' : 'pointer'};">
-              Next
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
-            </button>
-          </div>
-        ` : ''
-      }
-      </div>
-    `;
-  },
-
-  /** A record merged from the students or staff table has no login behind it. */
-  _hasLogin(user) {
-    return !!user && user._source !== 'directory';
-  },
-
-  /** Reload logins and the merged records (getUsers alone drops the records). */
-  async _reload() {
-    this._users = await authManager.getUsers(true) || [];
-    await this._mergeDirectoryData();
+        <p class="ui-row-meta" style="padding:0 14px;">${filtered.length ? `${start + 1}–${Math.min(start + this.itemsPerPage, filtered.length)} of ${filtered.length}` : ''}</p>
+        ${this._list(page.map(u => this.renderUserRow(u)), 'No one matches. Try another search or filter.')}
+        ${pages > 1 ? `
+          <div class="ui-actions" style="justify-content:space-between;padding:12px 14px;">
+            <button type="button" class="ui-btn ui-btn-sm" ${this.currentPage === 1 ? 'disabled' : ''} onclick="userManagementModule.currentPage--; userManagementModule._rerenderTab()">Previous</button>
+            <span class="ui-row-meta">Page ${this.currentPage} of ${pages}</span>
+            <button type="button" class="ui-btn ui-btn-sm" ${this.currentPage === pages ? 'disabled' : ''} onclick="userManagementModule.currentPage++; userManagementModule._rerenderTab()">Next</button>
+          </div>` : ''}
+      </section>`;
   },
 
   renderUserRow(user) {
     const e = (v) => this._esc(v ?? '');
     const id = this._js(user.id);
     const login = this._hasLogin(user);
-    const off = user.status === 'inactive' || user.status === 'suspended';
-    const role = { admin: 'Administrator', teacher: 'Teacher', staff: 'Office staff', student: 'Pupil', guardian: 'Parent' }[user.role] || user.role;
-    const state = !login ? { label: 'No login', tone: '' }
-      : off ? { label: 'Suspended', tone: 'is-warn' }
-      : !user.lastLogin ? { label: 'Never signed in', tone: 'is-warn' }
-      : user.mustChangePassword ? { label: 'Temporary password', tone: 'is-warn' }
-      : { label: 'Active', tone: 'is-good' };
-    const when = login && user.lastLogin ? `last in ${new Date(user.lastLogin).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}` : '';
+    const off = this._isOff(user);
+    const state = this._state(user);
+    const when = login && user.lastLogin ? `last in ${this._date(user.lastLogin, { day: 'numeric', month: 'short' })}` : '';
+    const self = this._isSelf(user);
     return `
       <div class="ui-row um-row">
-        <span class="sd-avatar" aria-hidden="true">${e(String(user.fullName || '?').trim().charAt(0).toUpperCase())}</span>
+        ${this._avatar(user.fullName)}
         <div class="ui-row-main">
-          <div class="ui-row-title">${e(user.fullName || 'Unnamed')}</div>
-          <div class="ui-row-meta">${e([role, login ? user.id : '', user.email, user.department, when].filter(x => String(x || '').trim()).join(' · '))}</div>
+          <div class="ui-row-title">${e(user.fullName || 'Unnamed')}${self ? ' <span class="ui-row-meta">(you)</span>' : ''}</div>
+          <div class="ui-row-meta">${e([this.ROLE_NAME[user.role] || user.role, login ? user.id : '', user.email, user.department, when].filter(x => String(x || '').trim()).join(' · '))}</div>
         </div>
         <span class="ui-chip ${state.tone}">${state.label}</span>
         <div class="ui-actions um-actions">
-          <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUserDetails('${id}')">View</button>
-          ${login ? `
+          <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUser('${id}')">View</button>
+          ${login ? (self ? '' : `
             <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.editUserRole('${id}')">Role</button>
-            <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.resendCredentials('${this._js(user.schoolId || user.id)}')">New password</button>
-            <button type="button" class="ui-btn ui-btn-sm${off ? '' : ' pc-danger'}" onclick="userManagementModule.toggleUserStatus('${id}')">${off ? 'Restore' : 'Suspend'}</button>`
-          : `<button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.showInviteModal()">Give a login</button>`}
+            ${off ? '' : `<button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.resendCredentials('${this._js(user.schoolId || user.id)}')">New password</button>`}
+            <button type="button" class="ui-btn ui-btn-sm${off ? '' : ' pc-danger'}" onclick="userManagementModule.toggleUserStatus('${id}')">${off ? 'Restore' : 'Suspend'}</button>`)
+          : (off ? '' : `<button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.giveLogin('${id}')">Give a login</button>`)}
         </div>
-      </div>
-    `;
-  },
-
-  sortTable(column) {
-    if (this.sortBy === column) {
-      this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
-    } else {
-      this.sortBy = column;
-      this.sortOrder = 'asc';
-    }
-    this.switchTab('users');
+      </div>`;
   },
 
   // ============================================
-  // STUDENTS TAB
+  // PUPILS
   // ============================================
   renderStudentsTab() {
-    const users = this._users;
-    const students = users.filter(u => u.role === 'student');
-    const filtered = students.filter(s => !this.searchQuery ||
-      (s.fullName || '').toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-      (s.email || '').toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-      (s.id || '').toLowerCase().includes(this.searchQuery.toLowerCase())
-    );
-
+    const pupils = this._users.filter(u => u.role === 'student' && this._matchesSearch(u))
+      .sort((a, b) => String(a.fullName || '').localeCompare(String(b.fullName || '')));
     return `
-      <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-4);">
-          <div>
-            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">Students</h3>
-            <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">${filtered.length} student${filtered.length !== 1 ? 's' : ''} found</p>
-          </div>
-          <div style="position:relative;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"
-              style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input type="text" placeholder="Search students..."
-              style="padding:8px 12px 8px 34px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);
-                font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);"
-              value="${this._esc(this.searchQuery)}"
-              oninput="userManagementModule.searchQuery = this.value; userManagementModule.switchTab('students')"
-              onfocus="this.style.borderColor='#ea580c'" onblur="this.style.borderColor='#e2e8f0'">
-          </div>
-        </div>
-
-        <div style="display:grid;gap:var(--space-3);">
-          ${filtered.length === 0 ? `
-            <div style="text-align:center;padding:var(--space-10);color:var(--text-tertiary);">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
-                style="margin:0 auto var(--space-3);display:block;opacity:0.4;">
-                <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
-              </svg>
-              <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:var(--text-tertiary);">No students found</p>
-              <p style="margin:0;font-size:0.8rem;">Try a different search term</p>
-            </div>
-          ` : filtered.map(user => this.renderStudentRow(user)).join('')}
-        </div>
-      </div>
-    `;
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="sd-filters">${this._searchBox('Search pupils')}</div>
+        <p class="ui-row-meta" style="padding:0 14px;">${pupils.length} pupil${pupils.length === 1 ? '' : 's'}. New pupils are added from Students → Add student, which also sets up their fees and subjects.</p>
+        ${this._list(pupils.map(u => this.renderStudentRow(u)), 'No pupils match.')}
+      </section>`;
   },
 
   renderStudentRow(user) {
     const e = (v) => this._esc(v ?? '');
     const id = this._js(user.id);
-    const sts = user.status === 'active'
-      ? { color: '#16a34a', bg: '#f0fdf4', label: 'Active' }
-      : { color: '#6b7280', bg: '#f9fafb', label: e(user.status || 'Inactive') };
+    const record = this._studentRecordFor(user);
+    const withdrawn = String(record?.status || user.status || 'active') !== 'active';
+    const state = this._hasLogin(user) || !withdrawn ? this._state(user) : { label: 'Withdrawn', tone: '' };
+    const grade = record?.grade ?? user.grade;
+    const section = record?.section ?? user.section;
     return `
-      <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:var(--radius-xl);transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.07)'" onmouseout="this.style.boxShadow='none'">
-        <div style="flex-shrink:0;width:46px;height:46px;border-radius:50%;background:#fff7ed;color:#ea580c;
-          border:2px solid #ea580c33;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;">
-          ${e(String(user.fullName || user.id || '?').charAt(0).toUpperCase())}
+      <div class="ui-row um-row">
+        ${this._avatar(user.fullName)}
+        <div class="ui-row-main">
+          <div class="ui-row-title">${e(user.fullName || 'Unnamed')}</div>
+          <div class="ui-row-meta">${e([this._hasLogin(user) ? user.id : '', grade ? `Grade ${grade}${section ? ' ' + section : ''}` : '', user.email].filter(Boolean).join(' · '))}</div>
         </div>
-        <div style="flex:1.5;min-width:0;">
-          <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${e(user.fullName || 'N/A')}</div>
-          <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${e(user.id)}</div>
+        <span class="ui-chip ${state.tone}">${state.label}</span>
+        <div class="ui-actions um-actions">
+          <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewUser('${id}')">View</button>
+          ${record && !withdrawn ? `
+            <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.editStudent('${id}')">Change class</button>
+            ${this._hasLogin(user) ? '' : `<button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.giveLogin('${id}')">Give a login</button>`}
+            <button type="button" class="ui-btn ui-btn-sm pc-danger" onclick="userManagementModule.deleteStudent('${id}')">Withdraw</button>` : ''}
         </div>
-        <div style="flex:2;min-width:0;">
-          <div style="font-size:0.82rem;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e(user.email || 'N/A')}</div>
-        </div>
-        <div style="flex-shrink:0;display:flex;gap:var(--space-2);">
-          ${user.grade ? `<span style="background:#fff7ed;color:#ea580c;border:1px solid #ea580c33;padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;">Grade ${e(user.grade)}</span>` : ''}
-          ${user.section ? `<span style="background:var(--bg-primary);color:var(--text-tertiary);border:1px solid var(--border-primary);padding:3px 10px;border-radius:20px;font-size:0.75rem;font-weight:600;">Sec ${e(user.section)}</span>` : ''}
-        </div>
-        <span style="display:inline-flex;align-items:center;gap:5px;background:${sts.bg};color:${sts.color};
-          border:1px solid ${sts.color}22;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;flex-shrink:0;">
-          <span style="width:6px;height:6px;border-radius:50%;background:${sts.color};display:inline-block;"></span>
-          ${sts.label}
-        </span>
-        <div style="flex-shrink:0;display:flex;gap:6px;">
-          <button onclick="userManagementModule.viewUser('${id}')" title="View"
-            style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
-            onmouseover="this.style.borderColor='#ea580c';this.style.color='#ea580c'"
-            onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-          </button>
-          <button onclick="userManagementModule.editStudent('${id}')" title="Edit"
-            style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
-            onmouseover="this.style.borderColor='#ea580c';this.style.color='#ea580c'"
-            onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button onclick="userManagementModule.deleteStudent('${id}')" title="Withdraw" aria-label="Withdraw"
-            style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:8px;border:1px solid #fee2e2;background:#fff5f5;color:#dc2626;cursor:pointer;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-          </button>
-        </div>
-      </div>
-    `;
-  },
-
-  // ============================================
-  // ACCESS LOG TAB
-  //
-  // Every row here is a live account, not a pending ticket. Nothing expires
-  // and nothing waits to be accepted — the question this tab answers is
-  // "who has been given a login, and have they used it yet?", which is read
-  // from the profile (last_login), not from the issuance row's status.
-  // ============================================
-
-  /** Pair an issuance row with the account it created. */
-  _accountFor(invitation) {
-    return this._users.find(u => u.schoolId === invitation.school_id) || null;
-  },
-
-  renderInvitationsTab() {
-    const invitations = this._invitations;
-    const states = invitations.map(inv => {
-      const user = this._accountFor(inv);
-      if (!user) return 'deleted';
-      if (user.status === 'inactive' || user.status === 'suspended') return 'suspended';
-      return user.lastLogin ? 'active' : 'never';
-    });
-
-    const count = (s) => states.filter(x => x === s).length;
-
-    const statCards = [
-      { label: 'Accounts issued', value: invitations.length, color: '#7c3aed', bg: '#f5f3ff', icon: '<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>' },
-      { label: 'Signed in', value: count('active'), color: '#16a34a', bg: '#f0fdf4', icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>' },
-      { label: 'Never signed in', value: count('never'), color: '#d97706', bg: '#fffbeb', icon: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>' },
-      { label: 'Suspended', value: count('suspended'), color: '#dc2626', bg: '#fef2f2', icon: '<circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' },
-    ];
-
-    return `
-      <div style="display:grid;gap:var(--space-6);">
-        <!-- Stat pills row -->
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:var(--space-4);">
-          ${statCards.map(s => `
-            <div style="background:${s.bg};border:1px solid ${s.color}22;border-radius:var(--radius-xl);
-              padding:var(--space-5);display:flex;align-items:center;gap:var(--space-4);">
-              <div style="width:44px;height:44px;border-radius:12px;background:${s.color}18;
-                display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="${s.color}" stroke-width="2">${s.icon}</svg>
-              </div>
-              <div>
-                <div style="font-size:1.8rem;font-weight:800;color:${s.color};line-height:1;">${s.value}</div>
-                <div style="font-size:0.78rem;color:var(--text-tertiary);font-weight:600;margin-top:2px;">${s.label}</div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-
-        <!-- Invitations list -->
-        <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);">
-        <div>
-          <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">Accounts issued</h3>
-          <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">${invitations.length} account${invitations.length !== 1 ? 's' : ''} created by an administrator</p>
-        </div>
-      </div>
-      <div style="display:grid;gap:var(--space-3);">
-        ${invitations.length === 0 ? `
-              <div style="text-align:center;padding:var(--space-10);color:var(--text-tertiary);">
-                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
-                  style="margin:0 auto var(--space-3);display:block;opacity:0.4;">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/>
-                  <line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/>
-                </svg>
-                <p style="margin:0 0 4px;font-weight:600;font-size:0.9rem;color:var(--text-tertiary);">No accounts created yet</p>
-                <p style="margin:0;font-size:0.8rem;">Use the Add User button above to create one</p>
-              </div>
-            ` : invitations.map(inv => this.renderInvitationRow(inv)).join('')}
-      </div>
-        </div>
-      </div>
-    `;
-  },
-
-  renderInvitationRow(invitation) {
-    const user = this._accountFor(invitation);
-
-    // State comes from the account, not from this row. A row whose account has
-    // been deleted is shown as such rather than as a live invitation.
-    let status;
-    if (!user) status = 'deleted';
-    else if (user.status === 'inactive' || user.status === 'suspended') status = 'suspended';
-    else if (!user.lastLogin) status = 'never';
-    else status = 'active';
-
-    const roleConfig = {
-      admin: { color: '#7c3aed', bg: '#f5f3ff', label: 'Admin' },
-      teacher: { color: '#0891b2', bg: '#ecfeff', label: 'Teacher' },
-      staff: { color: '#0d9488', bg: '#f0fdfa', label: 'Staff' },
-      student: { color: '#ea580c', bg: '#fff7ed', label: 'Student' },
-      guardian: { color: '#c026d3', bg: '#fdf4ff', label: 'Guardian' }
-    };
-    const statusConfig = {
-      active:    { color: '#16a34a', bg: '#f0fdf4', label: 'Signed in' },
-      never:     { color: '#d97706', bg: '#fffbeb', label: 'Never signed in' },
-      suspended: { color: '#dc2626', bg: '#fef2f2', label: 'Suspended' },
-      deleted:   { color: '#64748b', bg: '#f8fafc', label: 'Account deleted' }
-    };
-    const e = (v) => this._esc(v ?? '');
-    const rcfg = roleConfig[invitation.role] || { color: '#64748b', bg: '#f8fafc', label: e(invitation.role || 'Unknown') };
-    const scfg = statusConfig[status];
-    const name = e(invitation.full_name || invitation.metadata?.fullName || 'N/A');
-    const dept = e(invitation.school_id || invitation.metadata?.department || '');
-    const token = this._js(invitation.token);
-    const sentDate = new Date(invitation.created_at || invitation.createdAt || Date.now()).toLocaleDateString();
-    const lastSeen = user?.lastLogin ? new Date(user.lastLogin).toLocaleDateString() : 'not yet';
-
-    return `
-      <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);background:var(--bg-primary);border:1px solid var(--border-primary);border-radius:var(--radius-xl);transition:box-shadow 0.2s;" onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.07)'" onmouseout="this.style.boxShadow='none'">
-
-        <!-- Icon avatar -->
-        <div style="flex-shrink:0;width:46px;height:46px;border-radius:50%;
-          background:${scfg.bg};color:${scfg.color};border:2px solid ${scfg.color}33;
-          display:flex;align-items:center;justify-content:center;">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-        </div>
-
-        <!-- Name + Email -->
-        <div style="flex:1.5;min-width:0;">
-          <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${name}</div>
-          <div style="font-size:0.75rem;color:var(--text-tertiary);">${e(invitation.email)}</div>
-        </div>
-        <div style="flex:1;min-width:0;font-size:0.8rem;color:var(--text-tertiary);">${dept}</div>
-
-        <!-- Role badge -->
-        <span style="background:${rcfg.bg};color:${rcfg.color};border:1px solid ${rcfg.color}33;
-          padding:4px 12px;border-radius:20px;font-size:0.72rem;font-weight:700;flex-shrink:0;">${rcfg.label}</span>
-
-        <!-- Status badge -->
-        <span style="display:inline-flex;align-items:center;gap:5px;background:${scfg.bg};color:${scfg.color};
-          border:1px solid ${scfg.color}22;padding:4px 12px;border-radius:20px;font-size:0.72rem;font-weight:700;flex-shrink:0;">
-          <span style="width:6px;height:6px;border-radius:50%;background:${scfg.color};display:inline-block;"></span>
-          ${scfg.label}
-        </span>
-
-        <!--Dates -->
-        <div style="flex-shrink:0;text-align:right;min-width:90px;">
-          <div style="font-size:0.75rem;color:var(--text-tertiary);">Created ${sentDate}</div>
-          <div style="font-size:0.72rem;color:var(--text-tertiary);">Signed in ${lastSeen}</div>
-        </div>
-
-        <!--Actions -->
-    <div style="flex-shrink:0;display:flex;gap:6px;">
-      ${user ? `
-            <button onclick="userManagementModule.viewInvitationDetails('${token}')" title="View Details"
-              style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-                border-radius:8px;border:1px solid var(--border-primary);background:var(--bg-secondary);color:var(--text-secondary);cursor:pointer;"
-              onmouseover="this.style.borderColor='#7c3aed';this.style.color='#7c3aed'"
-              onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
-            <button onclick="userManagementModule.resendCredentials('${this._js(invitation.school_id)}')" title="Email a new password"
-              style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-                border-radius:8px;border:1px solid #dbeafe;background:#eff6ff;color:#2563eb;cursor:pointer;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.5"/></svg>
-            </button>
-          ` : ''}
-      <button onclick="userManagementModule.deleteInvitation('${token}')" title="Delete"
-        style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;
-              border-radius:8px;border:1px solid #fee2e2;background:#fff5f5;color:#dc2626;cursor:pointer;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" /></svg>
-      </button>
-        </div>
-      </div>
-    `;
-  },
-
-  // ============================================
-  // ACTIONS - STAFF
-  // ============================================
-  showInviteStaffModal() {
-    const content = `
-      <form id="invite-staff-form" onsubmit="userManagementModule.submitStaffInvitation(event)">
-        <div class="form-group">
-          <label class="form-label">Email *</label>
-          <input type="email" class="form-input" name="email" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Role *</label>
-          <select class="form-select" name="role" required>
-            <option value="">Select Role</option>
-            <option value="teacher">Teacher</option>
-            <option value="staff">Non-Teaching Staff</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Full Name *</label>
-          <input type="text" class="form-input" name="fullName" required>
-        </div>
-
-        <div class="form-actions">
-          <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-success">Send Invitation</button>
-        </div>
-      </form>
-    `;
-
-    showModal('Invite Staff Member', content);
-  },
-
-  async submitStaffInvitation(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const data = Object.fromEntries(formData);
-    const session = authManager.getSession();
-
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Validating...'; }
-
-    try {
-      // Validate email format and uniqueness
-      if (typeof validationManager !== 'undefined') {
-        const validation = await validationManager.validateUserInput({
-          email: data.email
-        }, { checkUniqueness: true, excludeTable: 'staff' });
-
-        if (!validation.isValid) {
-          validation.errors.forEach(err => showToast(err.message, 'error'));
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Invitation'; }
-          return;
-        }
-      }
-
-      if (submitBtn) { submitBtn.textContent = 'Creating account...'; }
-
-      const result = await authManager.createAccount({
-        email: data.email,
-        role: data.role,
-        fullName: data.fullName,
-        department: data.department || null
-      });
-
-      if (!result.success) {
-        showToast(result.error || 'Failed to create staff account', 'danger');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Invitation'; }
-        return;
-      }
-
-      showToast(result.emailSent ? 'Account created and credentials emailed.' : 'Account created.', 'success');
-      writeAuditLog('CREATE_STAFF', data.email, `Role: ${data.role} | Name: ${data.fullName} | ID: ${result.schoolId}`);
-      closeModal();
-
-      this._invitations = await authManager.getInvitations(true);
-      await this._reload();
-
-      setTimeout(() => showCredentialModal(
-        data.fullName,
-        data.email,
-        data.role.charAt(0).toUpperCase() + data.role.slice(1),
-        result.schoolId,
-        result.password,
-        result.emailSent,
-        result.emailMessage
-      ), 400);
-
-      this.switchTab('users');
-    } catch (error) {
-      showToast(error.message || 'Failed to create account', 'danger');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Send Invitation'; }
-    }
-  },
-
-  generateStaffId(role) {
-    const users = this._users;
-    const staff = users.filter(u => u.role === role);
-    const year = new Date().getFullYear();
-    const nextNumber = staff.length + 1;
-    const prefix = role === 'teacher' ? 'TCH' : 'STF';
-    return `${prefix}-${year}-${String(nextNumber).padStart(3, '0')}`;
-  },
-
-  generateDefaultPassword() {
-    // Generate a random 8-character password
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    let password = '';
-    for (let i = 0; i < 8; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
-  },
-
-  async removeStaff(userId) {
-    if (confirm('Are you sure you want to remove this staff member?')) {
-      await authManager.updateUser(userId, { status: 'inactive' });
-      await this._reload(); // force-refresh after mutation
-      showToast('Staff member removed successfully', 'success');
-      writeAuditLog('REMOVE_STAFF', userId, 'Status set to inactive');
-      this.switchTab('staff');
-    }
-  },
-
-  // ============================================
-  // ACTIONS - STUDENTS
-  // ============================================
-  showAddStudentModal() {
-    const content = `
-      <form id="add-student-form" onsubmit="userManagementModule.submitAddStudent(event)">
-        <div class="form-group">
-          <label class="form-label">Full Name *</label>
-          <input type="text" class="form-input" name="fullName" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Email *</label>
-          <input type="email" class="form-input" name="email" required>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Date of Birth *</label>
-          <input type="date" class="form-input" name="dateOfBirth" required>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div class="form-group">
-            <label class="form-label">Grade *</label>
-            <select class="form-select" name="grade" required>
-              ${schoolConfig.gradeOptionsHTML()}
-            </select>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Section *</label>
-            <select class="form-select" name="section" required>
-              <option value="">Select Section</option>
-              ${['A', 'B', 'C', 'D'].map(s => `<option value="${s}">${s}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-
-        <div class="form-actions">
-          <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-success">Add Student</button>
-        </div>
-      </form>
-    `;
-
-    showModal('Add New Student', content);
-  },
-
-  async submitAddStudent(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const data = Object.fromEntries(formData);
-
-    const submitBtn = event.target.querySelector('button[type="submit"]');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Validating...'; }
-
-    try {
-      // Validate email format and uniqueness
-      if (typeof validationManager !== 'undefined') {
-        const validation = await validationManager.validateUserInput({
-          email: data.email
-        }, { checkUniqueness: true, excludeTable: 'students' });
-
-        if (!validation.isValid) {
-          validation.errors.forEach(err => showToast(err.message, 'error'));
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Add Student'; }
-          return;
-        }
-      }
-
-      if (submitBtn) { submitBtn.textContent = 'Creating account...'; }
-
-      // create-account allocates the school ID and password and writes the
-      // student record; the credentials are emailed before this returns.
-      const result = await authManager.createAccount({
-        email: data.email,
-        role: 'student',
-        fullName: data.fullName,
-        grade: data.grade,
-        section: data.section,
-        dateOfBirth: data.dateOfBirth
-      });
-
-      if (!result.success) {
-        showToast(result.error || 'Failed to add student', 'danger');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Add Student'; }
-        return;
-      }
-
-      const studentId = result.schoolId;
-      const password = result.password;
-
-      showToast(`Student added successfully! ID: ${studentId} `, 'success');
-      writeAuditLog('ADD_STUDENT', data.email, `Name: ${data.fullName} | Grade: ${data.grade} -${data.section} | ID: ${studentId} `);
-
-      // Auto-apply grade fee structure
-      if (typeof feeManager !== 'undefined' && result.authId && data.grade) {
-        supabaseClient.from('students').select('id').eq('auth_id', result.authId).single()
-          .then(({ data: rec }) => {
-            // This term's fees only. The one-off uniform set is billed from Add student
-            // ("New to the school this term") and from approved applications, where the
-            // office says whether the pupil is new; this form does not ask.
-            if (rec?.id) feeManager.applyFeeStructure(rec.id, data.grade)
-              .then(r => { if (!r.success) console.warn('[UserMgmt] Fee structure apply:', r.error); });
-          });
-      }
-
-      // Auto-enroll in grade subjects (look up actual UUID via authId)
-      if (typeof subjectManager !== 'undefined' && result.authId) {
-        subjectManager.autoEnrollByAuthId(result.authId, data.grade, data.section)
-          .then(r => { if (!r.success && !r.existing) console.warn('[UserMgmt] Subject auto-enroll:', r.error); });
-      }
-
-      closeModal();
-
-      await this._reload();
-
-      setTimeout(() => showCredentialModal(
-        data.fullName,
-        data.email,
-        'Student',
-        studentId,
-        password,
-        result.emailSent,
-        result.emailMessage
-      ), 400);
-
-      this.switchTab('students');
-    } catch (error) {
-      showToast(error.message || 'Failed to add student', 'danger');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Add Student'; }
-    }
+      </div>`;
   },
 
   /**
    * The students-table row behind a listed pupil. A merged record's id is the
-   * row id; a login points at its row through auth_id. Grade, section and
-   * enrolment status live on this row, not on the login's profile.
+   * row id; a login points at its row through auth_id.
    */
   _studentRecordFor(user) {
     if (!user) return null;
@@ -1343,21 +631,18 @@ const userManagementModule = {
   },
 
   editStudent(userId) {
-    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    const user = this._find(userId);
     if (!user) { showToast('Pupil not found', 'danger'); return; }
     const record = this._studentRecordFor(user);
     if (!record) { showToast(`${user.fullName} has no student record to edit.`, 'info'); return; }
 
-    const content = `
+    showModal(`Change class: ${this._esc(user.fullName)}`, `
       <form id="edit-student-form" onsubmit="userManagementModule.submitEditStudent(event, '${this._js(userId)}')">
         <div class="grid grid-cols-2 gap-4">
           <div class="form-group">
             <label class="form-label">Grade</label>
-            <select class="form-select" name="grade">
-              ${schoolConfig.gradeOptionsHTML(record.grade)}
-            </select>
+            <select class="form-select" name="grade">${schoolConfig.gradeOptionsHTML(record.grade)}</select>
           </div>
-
           <div class="form-group">
             <label class="form-label">Section</label>
             <select class="form-select" name="section">
@@ -1365,24 +650,18 @@ const userManagementModule = {
             </select>
           </div>
         </div>
-
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Update Student</button>
+          <button type="submit" class="btn btn-primary">Save</button>
         </div>
-      </form>
-    `;
-
-    showModal(`Edit pupil - ${this._esc(user.fullName)}`, content);
+      </form>`);
   },
 
-  // Grade and section are written to the students table. They used to go to
-  // authManager.updateUser, which only writes profile fields and drops these,
-  // so nothing saved and the page still said "updated".
+  // Grade and section live on the students row, not on the login's profile.
   async submitEditStudent(event, userId) {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.target));
-    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    const user = this._find(userId);
     const record = this._studentRecordFor(user);
     if (!record) { showToast('Not changed: this pupil has no student record to update.', 'danger'); return; }
 
@@ -1396,11 +675,10 @@ const userManagementModule = {
     this.switchTab('students');
   },
 
-  // Withdrawal marks the student record inactive; it deletes nothing. It used
-  // to update a profile by the record's id, which matched nothing for a pupil
-  // without a login, and still reported "deleted".
+  // Withdrawal marks the student record inactive and suspends the login if
+  // there is one; it deletes nothing.
   async deleteStudent(userId) {
-    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    const user = this._find(userId);
     const record = this._studentRecordFor(user);
     if (!record) { showToast('Not changed: this pupil has no student record.', 'danger'); return; }
     const login = this._hasLogin(user);
@@ -1408,8 +686,8 @@ const userManagementModule = {
 
     const saved = await dataManager.update('students', record.id, { status: 'inactive' });
     if (!saved) { showToast('Not changed: the student record could not be saved.', 'danger'); return; }
-    if (login) {
-      const result = await authManager.updateUser(user.schoolId, { status: 'inactive' });
+    if (login && !this._isOff(user)) {
+      const result = await authManager.updateAccount(user.schoolId, 'suspend');
       if (!result?.success) showToast('Record withdrawn, but the login was not suspended: ' + (result?.error || 'unknown error'), 'warning');
     }
     await this._reload();
@@ -1419,1567 +697,686 @@ const userManagementModule = {
   },
 
   // ============================================
-  // SUSPENDED USERS TAB
+  // LOGINS ISSUED
+  //
+  // Every row is a login an admin created. Nothing waits to be accepted: the
+  // question is "have they used it yet?", read from the profile's last_login.
   // ============================================
 
-  renderSuspendedTab() {
-    // Logins only. An inactive pupil or staff record has no login to restore
-    // or delete; both actions matched nothing and still reported success.
-    const e = (v) => this._esc(v ?? '');
-    const suspendedUsers = this._users.filter(u => this._hasLogin(u) && (u.status === 'suspended' || u.status === 'inactive'));
-    const filtered = suspendedUsers.filter(u =>
-      !this.searchQuery ||
-      (u.fullName || '').toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-      (u.email || '').toLowerCase().includes(this.searchQuery.toLowerCase()) ||
-      (u.id || '').toLowerCase().includes(this.searchQuery.toLowerCase())
-    );
+  /** Pair an issuance row with the account it created. */
+  _accountFor(invitation) {
+    return this._users.find(u => u.schoolId && u.schoolId === invitation.school_id) || null;
+  },
 
-    const roleConfig = {
-      admin:   { color: '#7c3aed', bg: '#f5f3ff', label: 'Administrator' },
-      teacher: { color: '#0891b2', bg: '#ecfeff', label: 'Teacher' },
-      staff:   { color: '#0d9488', bg: '#f0fdfa', label: 'Staff' },
-      student: { color: '#ea580c', bg: '#fff7ed', label: 'Student' }
-    };
+  _issuedState(invitation) {
+    const user = this._accountFor(invitation);
+    if (!user) return 'deleted';
+    if (this._isOff(user)) return 'suspended';
+    return user.lastLogin ? 'active' : 'never';
+  },
 
-    const userCards = filtered.length === 0
-      ? `<div style="text-align:center;padding:var(--space-12);color:var(--text-tertiary);">
-           <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
-             style="margin:0 auto var(--space-4);display:block;opacity:0.25;">
-             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-             <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-           </svg>
-           <p style="margin:0 0 6px;font-weight:700;font-size:1rem;color:var(--text-tertiary);">No suspended users</p>
-           <p style="margin:0;font-size:0.85rem;">All accounts are currently active or pending.</p>
-         </div>`
-      : filtered.map(user => {
-          const cfg = roleConfig[user.role] || { color: '#64748b', bg: '#f8fafc', label: user.role || 'User' };
-          const statusLabel = user.status === 'suspended' ? 'Suspended' : 'Inactive';
-          const safeName = this._js(user.fullName || '');
-          const safeId = this._js(user.id);
-          return `
-            <div style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-4);
-              background:#fff8f8;border:1px solid #fecaca;border-radius:var(--radius-xl);
-              transition:box-shadow 0.2s;"
-              onmouseover="this.style.boxShadow='0 4px 16px rgba(220,38,38,0.09)'"
-              onmouseout="this.style.boxShadow='none'">
+  ISSUED_STATES: {
+    active: { label: 'Signed in', tone: 'is-good' },
+    never: { label: 'Never signed in', tone: 'is-warn' },
+    suspended: { label: 'Suspended', tone: 'is-warn' },
+    deleted: { label: 'Login deleted', tone: '' }
+  },
 
-              <div style="flex-shrink:0;width:46px;height:46px;border-radius:50%;
-                background:${cfg.bg};color:${cfg.color};border:2px solid ${cfg.color}33;
-                display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;opacity:0.75;">
-                ${e(String(user.fullName || user.id || '?').charAt(0).toUpperCase())}
-              </div>
-
-              <div style="flex:1.5;min-width:0;">
-                <div style="font-weight:700;font-size:0.9rem;color:var(--text-primary);">${e(user.fullName || 'N/A')}</div>
-                <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;">${e(user.id)}</div>
-              </div>
-
-              <div style="flex:2;min-width:0;">
-                <div style="font-size:0.82rem;color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${e(user.email || '—')}</div>
-                <div style="font-size:0.75rem;color:var(--text-tertiary);margin-top:2px;">${e(user.department)}</div>
-              </div>
-
-              <div style="flex-shrink:0;">
-                <span style="display:inline-flex;align-items:center;background:${cfg.bg};color:${cfg.color};
-                  border:1px solid ${cfg.color}33;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;">
-                  ${cfg.label}
-                </span>
-              </div>
-
-              <div style="flex-shrink:0;">
-                <span style="display:inline-flex;align-items:center;gap:5px;background:#fef2f2;color:#dc2626;
-                  border:1px solid #dc262622;padding:4px 12px;border-radius:20px;font-size:0.75rem;font-weight:700;">
-                  <span style="width:6px;height:6px;border-radius:50%;background:#dc2626;display:inline-block;"></span>
-                  ${statusLabel}
-                </span>
-              </div>
-
-              <div style="flex-shrink:0;display:flex;gap:6px;">
-                <button onclick="userManagementModule.unsuspendUser('${safeId}')" title="Unsuspend / Reactivate"
-                  style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;
-                    border-radius:8px;border:1px solid #bbf7d0;background:#f0fdf4;color:#16a34a;
-                    font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;"
-                  onmouseover="this.style.background='#dcfce7'"
-                  onmouseout="this.style.background='#f0fdf4'">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
-                  Unsuspend
-                </button>
-                <button onclick="userManagementModule.permanentlyDeleteUser('${safeId}', '${safeName}')" title="Delete Permanently"
-                  style="display:inline-flex;align-items:center;gap:5px;padding:6px 12px;
-                    border-radius:8px;border:1px solid #fecaca;background:#fff5f5;color:#dc2626;
-                    font-size:0.78rem;font-weight:600;cursor:pointer;white-space:nowrap;"
-                  onmouseover="this.style.background='#fee2e2'"
-                  onmouseout="this.style.background='#fff5f5'">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-                  Delete
-                </button>
-              </div>
-            </div>`;
-        }).join('');
-
+  renderInvitationsTab() {
+    const q = this.searchQuery.trim().toLowerCase();
+    const rows = this._invitations.filter(inv => !q ||
+      [inv.full_name, inv.email, inv.school_id].some(v => String(v || '').toLowerCase().includes(q)));
+    const count = (s) => this._invitations.filter(inv => this._issuedState(inv) === s).length;
     return `
-      <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-5);flex-wrap:wrap;gap:var(--space-4);">
-          <div>
-            <h3 style="margin:0 0 4px 0;font-size:1rem;font-weight:700;color:var(--text-primary);">🔒 Suspended / Inactive Users</h3>
-            <p style="margin:0;font-size:0.8rem;color:var(--text-tertiary);">
-              ${filtered.length} user${filtered.length !== 1 ? 's' : ''} — unsuspend to restore access, or permanently delete
-            </p>
-          </div>
-          <div style="position:relative;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"
-              style="position:absolute;left:10px;top:50%;transform:translateY(-50%);pointer-events:none;">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
-            <input type="text" placeholder="Search suspended users..."
-              style="padding:8px 12px 8px 34px;border:1px solid var(--border-primary);border-radius:var(--radius-lg);
-                font-size:0.85rem;width:240px;outline:none;color:var(--text-primary);"
-              value="${e(this.searchQuery)}"
-              oninput="userManagementModule.searchQuery = this.value; userManagementModule.switchTab('suspended')"
-              onfocus="this.style.borderColor='#dc2626'" onblur="this.style.borderColor='#e2e8f0'">
-          </div>
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="sd-filters">${this._searchBox('Search logins issued')}</div>
+        <p class="ui-row-meta" style="padding:0 14px;">
+          ${this._invitations.length} issued · ${count('active')} signed in · ${count('never')} never signed in · ${count('suspended')} suspended · ${count('deleted')} deleted
+        </p>
+        ${this._list(rows.map(inv => this.renderInvitationRow(inv)), this._invitations.length ? 'None match.' : 'No logins issued yet.')}
+      </section>`;
+  },
+
+  renderInvitationRow(invitation) {
+    const e = (v) => this._esc(v ?? '');
+    const user = this._accountFor(invitation);
+    const state = this.ISSUED_STATES[this._issuedState(invitation)];
+    const token = this._js(invitation.token);
+    const name = invitation.full_name || invitation.metadata?.fullName || 'Unnamed';
+    const meta = [this.ROLE_NAME[invitation.role] || invitation.role, invitation.school_id, invitation.email,
+      `issued ${this._date(invitation.created_at)}`, user?.lastLogin ? `last in ${this._date(user.lastLogin)}` : ''];
+    return `
+      <div class="ui-row um-row">
+        ${this._avatar(name)}
+        <div class="ui-row-main">
+          <div class="ui-row-title">${e(name)}</div>
+          <div class="ui-row-meta">${e(meta.filter(Boolean).join(' · '))}</div>
         </div>
-        <div style="display:grid;gap:var(--space-3);">
-          ${userCards}
+        <span class="ui-chip ${state.tone}">${state.label}</span>
+        <div class="ui-actions um-actions">
+          ${user ? `
+            <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.viewInvitationDetails('${token}')">View</button>
+            ${this._isOff(user) ? '' : `<button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.resendCredentials('${this._js(invitation.school_id)}')">New password</button>`}
+            ${this._isSelf(user) ? '' : `<button type="button" class="ui-btn ui-btn-sm pc-danger" onclick="userManagementModule.deleteInvitation('${token}')">Delete login</button>`}`
+          : `<button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.deleteInvitation('${token}')">Remove entry</button>`}
         </div>
-      </div>
-    `;
+      </div>`;
+  },
+
+  // ============================================
+  // SUSPENDED
+  // ============================================
+  renderSuspendedTab() {
+    // Logins only: an inactive record without a login has nothing to restore.
+    const rows = this._users.filter(u => this._hasLogin(u) && this._isOff(u) && this._matchesSearch(u));
+    return `
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="sd-filters">${this._searchBox('Search suspended logins')}</div>
+        <p class="ui-row-meta" style="padding:0 14px;">A suspended login cannot sign in, and any open session loses access. Restore to let them back in.</p>
+        ${this._list(rows.map(user => `
+          <div class="ui-row um-row">
+            ${this._avatar(user.fullName)}
+            <div class="ui-row-main">
+              <div class="ui-row-title">${this._esc(user.fullName || 'Unnamed')}</div>
+              <div class="ui-row-meta">${this._esc([this.ROLE_NAME[user.role] || user.role, user.id, user.email].filter(Boolean).join(' · '))}</div>
+            </div>
+            <span class="ui-chip is-warn">Suspended</span>
+            <div class="ui-actions um-actions">
+              <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.unsuspendUser('${this._js(user.id)}')">Restore</button>
+              <button type="button" class="ui-btn ui-btn-sm pc-danger" onclick="userManagementModule.permanentlyDeleteUser('${this._js(user.id)}')">Delete login</button>
+            </div>
+          </div>`), 'No suspended logins.')}
+      </section>`;
   },
 
   async unsuspendUser(userId) {
-    const user = this._users.find(u => u.id === userId);
+    const user = this._find(userId);
     if (!user) { showToast('User not found.', 'danger'); return; }
-    if (!confirm(`Unsuspend ${user.fullName || userId}?\n\nTheir account will be restored to active and they will be able to log in again.`)) return;
-    const result = await authManager.updateUser(userId, { status: 'active' });
-    if (!result || result.success === false) { showToast((result && result.error) || 'Failed to unsuspend user.', 'danger'); return; }
+    if (!confirm(`Restore ${user.fullName || userId}? They will be able to sign in again.`)) return;
+    const result = await authManager.updateAccount(user.schoolId || userId, 'restore');
+    if (!result?.success) { showToast('Not changed: ' + (result?.error || 'unknown error'), 'danger'); return; }
     await this._reload();
-    showToast(`${user.fullName || userId} has been unsuspended and is now active.`, 'success');
-    writeAuditLog('UNSUSPEND_USER', userId, `${user.fullName} reactivated by admin`);
-    this.switchTab('suspended');
+    showToast(`${user.fullName || userId} can sign in again`, 'success');
+    this._rerenderAll();
   },
 
-  async permanentlyDeleteUser(userId, userName) {
-    const displayName = userName || userId;
-    if (!confirm(`⚠️ PERMANENTLY DELETE "${displayName}"?\n\nThis removes their login account, profile, and all associated records.\n\nThis CANNOT be undone. Press OK to confirm.`)) return;
-    showToast('Deleting user…', 'info');
-    const result = await authManager.deleteUser(userId);
-    if (!result || result.success === false) { showToast((result && result.error) || 'Failed to delete user.', 'danger'); return; }
+  async permanentlyDeleteUser(userId) {
+    const user = this._find(userId);
+    if (!user) { showToast('User not found.', 'danger'); return; }
+    const name = user.fullName || userId;
+    if (!confirm(`Delete ${name}'s login?\n\nThey will not be able to sign in. Their pupil or staff record, marks and payments are kept, and they can be given a new login later.\n\nThis cannot be undone.`)) return;
+    showToast('Deleting…', 'info');
+    const result = await authManager.deleteUser(user.schoolId || userId);
     await this._reload();
-    showToast(`${displayName} has been permanently deleted.`, 'success');
-    writeAuditLog('PERMANENT_DELETE_USER', userId, `${displayName} permanently deleted by admin`);
-    this.switchTab('suspended');
-  },
-
-  viewUser(userId) {
-    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
-
-    if (!user) {
-      showToast('User not found', 'danger');
-      return;
-    }
-    const e = (v) => this._esc(v ?? '');
-
-    const content = `
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <p class="text-sm text-secondary mb-1">User ID</p>
-          <p class="font-semibold">${e(user.id)}</p>
-        </div>
-        <div>
-          <p class="text-sm text-secondary mb-1">Role</p>
-          <p>${createBadge(e(user.role), 'info')}</p>
-        </div>
-        <div>
-          <p class="text-sm text-secondary mb-1">Full Name</p>
-          <p class="font-semibold">${e(user.fullName)}</p>
-        </div>
-        <div>
-          <p class="text-sm text-secondary mb-1">Email</p>
-          <p>${e(user.email || '—')}</p>
-        </div>
-        <div>
-          <p class="text-sm text-secondary mb-1">Status</p>
-          <p>${createBadge(e(user.status), user.status === 'active' ? 'success' : 'secondary')}</p>
-        </div>
-        <div>
-          <p class="text-sm text-secondary mb-1">Created</p>
-          <p>${user.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}</p>
-        </div>
-        ${user.grade ? `
-          <div>
-            <p class="text-sm text-secondary mb-1">Grade</p>
-            <p>${e(user.grade)}</p>
-          </div>
-        ` : ''
-      }
-        ${user.section ? `
-          <div>
-            <p class="text-sm text-secondary mb-1">Section</p>
-            <p>${e(user.section)}</p>
-          </div>
-        ` : ''
-      }
-      </div>
-    `;
-
-    showModal(`User Details - ${e(user.fullName)}`, content);
+    this._rerenderAll();
+    if (!result?.success) { showToast(result?.error || 'Not deleted.', 'danger'); return; }
+    showToast(`${name}'s login was deleted`, 'success');
   },
 
   async toggleUserStatus(userId) {
-    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    const user = this._find(userId);
     if (!user) { showToast('User not found', 'danger'); return; }
-    // A record without a login has no profile to change: the update matched
-    // nothing, returned no error, and the page said "deactivated".
     if (!this._hasLogin(user)) { showToast(`${user.fullName} has no login to suspend.`, 'info'); return; }
-    const newStatus = user.status === 'active' ? 'inactive' : 'active';
-    if (!confirm(newStatus === 'active'
+    if (this._isSelf(user)) { showToast('You cannot suspend your own account.', 'info'); return; }
+    const restore = this._isOff(user);
+    if (!confirm(restore
       ? `Let ${user.fullName} sign in again?`
-      : `Suspend ${user.fullName}? They will not be able to sign in until restored.`)) return;
+      : `Suspend ${user.fullName}? They cannot sign in, and any session they have open loses access.`)) return;
 
-    const result = await authManager.updateUser(user.schoolId || userId, { status: newStatus });
+    const result = await authManager.updateAccount(user.schoolId || userId, restore ? 'restore' : 'suspend');
     if (!result?.success) { showToast('Not changed: ' + (result?.error || 'unknown error'), 'danger'); return; }
-    writeAuditLog(newStatus === 'active' ? 'user_activated' : 'user_suspended', userId, `Status changed to ${newStatus} for user ${user.fullName || userId}`);
     await this._reload();
-    showToast(newStatus === 'active' ? `${user.fullName} can sign in again` : `${user.fullName} suspended`, 'success');
-    if (this._container) this._container.innerHTML = this.render();
+    showToast(restore ? `${user.fullName} can sign in again` : `${user.fullName} suspended`, 'success');
+    this._rerenderAll();
   },
 
   // ============================================
-  // ROLES & PERMISSIONS TAB
+  // ROLES
+  //
+  // Read-only. What each role can open is set in js/permission-manager.js and
+  // enforced by the database's row rules. The old tab let permissions be
+  // "edited" in page memory, said "updated", and changed nothing.
   // ============================================
+  MODULE_LABELS: {
+    'admin-dashboard': 'Today', 'inventory': 'Inventory', 'fees-payments': 'Fees & payments',
+    'payment-checks': 'Payments to check', 'admin-profile': 'My profile', 'calendar': 'Calendar & events',
+    'teacher-today': 'Today', 'teacher-scores': 'Scores', 'my-classes': 'My classes', 'academics': 'Classes & lessons',
+    'family-home': 'Home', 'family-fees': 'Fees', 'family-results': 'Results', 'my-schedule': 'Timetable', 'my-tasks': 'Assignments'
+  },
+
+  ROLE_SUMMARY: {
+    admin: 'Everything, including Users & access, Settings and every record.',
+    staff: 'The office side: fees and payments, checking payments, inventory.',
+    teacher: 'Their own classes: marks, lessons, assignments and the timetable.',
+    student: 'Their own results, fees, timetable and assignments.',
+    guardian: 'Their own children\'s results and fees, and paying them.'
+  },
+
   renderRolesTab() {
+    const pm = window.permissionManager?.permissions || {};
+    const roles = ['admin', 'staff', 'teacher', 'student', 'guardian'];
+    const logins = (r) => this._users.filter(u => this._hasLogin(u) && u.role === r && !this._isOff(u)).length;
     return `
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:var(--space-6);">
-          <div>
-            <h3 class="text-xl font-semibold" style="margin:0 0 4px 0;">Role-Based Access Control</h3>
-            <p style="margin:0; color:var(--text-secondary); font-size:var(--font-size-sm);">Manage what each role can access and do in the system</p>
-          </div>
-        </div>
-
-        <div style="display:grid; gap:var(--space-4);">
-          ${this.roles.map(role => this.renderRoleRow(role)).join('')}
-        </div>
-      </div>
-    `;
-  },
-
-  renderRoleRow(role) {
-    const userCount = this._users.filter(u => u.role === role.id).length;
-    const roleConfig = {
-      admin: {
-        color: '#7c3aed', bg: '#f5f3ff', label: 'Administrator',
-        desc: 'Full system access and control',
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>'
-      },
-      teacher: {
-        color: '#0891b2', bg: '#ecfeff', label: 'Teacher',
-        desc: 'Manage classes, grades, and students',
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
-      },
-      staff: {
-        color: '#0d9488', bg: '#f0fdfa', label: 'Staff',
-        desc: 'View and manage school operations',
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
-      },
-      student: {
-        color: '#ea580c', bg: '#fff7ed', label: 'Student',
-        desc: 'Access to personal data and assignments',
-        icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>'
-      }
-    };
-    const cfg = roleConfig[role.id] || { color: '#64748b', bg: '#f8fafc', label: role.name, desc: '', icon: '' };
-
-    const permDisplay = role.permissions.slice(0, 4).map(perm =>
-      `<span style="display:inline-flex;align-items:center;background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}33;
-        padding:3px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;white-space:nowrap;">
-        ${perm.replace(/_/g, ' ')}
-      </span>`
-    ).join('');
-    const morePerms = role.permissions.length > 4
-      ? `<span style="display:inline-flex;align-items:center;color:var(--text-tertiary);font-size:0.75rem;font-weight:500;padding:3px 8px;">+${role.permissions.length - 4} more</span>`
-      : '';
-
-    return `
-      <div style="display:flex;align-items:flex-start;gap:var(--space-4);padding:var(--space-5);
-        background:var(--bg-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-xl);
-        transition:box-shadow 0.2s;" 
-        onmouseover="this.style.boxShadow='0 4px 16px rgba(0,0,0,0.08)'" 
-        onmouseout="this.style.boxShadow='none'">
-
-        <!-- Role Icon -->
-        <div style="flex-shrink:0;width:48px;height:48px;border-radius:var(--radius-lg);
-          background:${cfg.bg};color:${cfg.color};display:flex;align-items:center;
-          justify-content:center;border:1.5px solid ${cfg.color}33;">
-          ${cfg.icon}
-        </div>
-
-        <!-- Role Info -->
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:4px;">
-            <span style="font-size:1rem;font-weight:700;color:var(--text-primary);">${cfg.label}</span>
-            <span style="display:inline-flex;align-items:center;background:${cfg.color};color:white;
-              padding:2px 10px;border-radius:20px;font-size:0.72rem;font-weight:600;">
-              ${userCount} ${userCount === 1 ? 'user' : 'users'}
-            </span>
-          </div>
-          <p style="margin:0 0 var(--space-3) 0;font-size:0.85rem;color:var(--text-tertiary);">${cfg.desc}</p>
-          <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;">
-            ${permDisplay}${morePerms}
-          </div>
-        </div>
-
-        <!-- Actions -->
-        <div style="flex-shrink:0;display:flex;gap:var(--space-2);align-items:center;">
-          <button onclick="userManagementModule.viewRoleDetails('${role.id}')"
-            style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
-              background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border-primary);border-radius:var(--radius-md);
-              font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.15s;"
-            onmouseover="this.style.borderColor='${cfg.color}';this.style.color='${cfg.color}'"
-            onmouseout="this.style.borderColor='#e2e8f0';this.style.color='#475569'">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-              <circle cx="12" cy="12" r="3"/>
-            </svg>
-            View
-          </button>
-          ${role.id !== 'admin' ? `
-          <button onclick="userManagementModule.editRolePermissions('${role.id}')"
-            style="display:inline-flex;align-items:center;gap:6px;padding:7px 14px;
-              background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}55;border-radius:var(--radius-md);
-              font-size:0.8rem;font-weight:600;cursor:pointer;transition:all 0.15s;"
-            onmouseover="this.style.opacity='0.8'"
-            onmouseout="this.style.opacity='1'">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-            </svg>
-            Edit
-          </button>` : ''}
-        </div>
-      </div>
-    `;
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="ui-card-head"><h2 class="ui-card-title">What each role can open</h2></div>
+        <p class="ui-row-meta" style="margin:0 0 8px;">Set by the portal and enforced by the database, so it cannot be changed from here. To change what someone can do, change their role.</p>
+        ${roles.map(r => {
+          const modules = (pm[r]?.modules || []).filter(m => m !== 'all');
+          return `
+            <div class="ui-row">
+              <div class="ui-row-main">
+                <div class="ui-row-title">${this.ROLE_NAME[r]} <span class="ui-row-meta">· ${logins(r)} active login${logins(r) === 1 ? '' : 's'}</span></div>
+                <div class="ui-row-meta">${this._esc(this.ROLE_SUMMARY[r])}</div>
+                ${modules.length ? `<div class="ui-actions" style="margin-top:6px;flex-wrap:wrap;justify-content:flex-start">${modules.map(m => `<span class="ui-chip">${this._esc(this.MODULE_LABELS[m] || m)}</span>`).join('')}</div>` : ''}
+              </div>
+              <button type="button" class="ui-btn ui-btn-sm" onclick="userManagementModule.showFiltered('${r}')">See who</button>
+            </div>`;
+        }).join('')}
+      </section>`;
   },
 
   // ============================================
-  // ROLES — View & Edit Methods
+  // ACTIVITY LOG
+  //
+  // Written by every module and by the account edge functions. The database
+  // stamps who wrote each browser entry (migration 0032), so "by" is not
+  // whatever the browser claimed. Everything shown is escaped: entries carry
+  // text other people typed, such as lesson-plan titles and names.
   // ============================================
-
-  viewRoleDetails(roleId) {
-    const role = this.roles.find(r => r.id === roleId);
-    if (!role) return;
-
-    const roleConfig = {
-      admin: { color: '#7c3aed', bg: '#f5f3ff', label: 'Administrator' },
-      teacher: { color: '#0891b2', bg: '#ecfeff', label: 'Teacher' },
-      staff: { color: '#0d9488', bg: '#f0fdfa', label: 'Staff' },
-      student: { color: '#ea580c', bg: '#fff7ed', label: 'Student' }
-    };
-    const cfg = roleConfig[roleId] || { color: '#64748b', bg: '#f8fafc', label: role.name };
-
-    const userCount = this._users.filter(u => u.role === roleId).length;
-    const usersInRole = this._users.filter(u => u.role === roleId);
-
-    const content = `
-      <div>
-        <div style="display:flex;align-items:center;gap:var(--space-4);margin-bottom:var(--space-6);
-          padding:var(--space-4);background:${cfg.bg};border-radius:var(--radius-lg);border:1px solid ${cfg.color}22;">
-          <div style="font-size:1.1rem;font-weight:700;color:${cfg.color};">${cfg.label}</div>
-          <span style="background:${cfg.color};color:white;padding:2px 12px;border-radius:20px;font-size:0.78rem;font-weight:600;">
-            ${userCount} ${userCount === 1 ? 'user' : 'users'}
-          </span>
-        </div>
-
-        <div style="margin-bottom:var(--space-5);">
-          <p style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin:0 0 var(--space-3) 0;text-transform:uppercase;letter-spacing:0.05em;">Permissions</p>
-          <div style="display:flex;flex-wrap:wrap;gap:var(--space-2);">
-            ${role.permissions.map(p => `
-              <span style="display:inline-flex;align-items:center;gap:6px;background:${cfg.bg};color:${cfg.color};
-                border:1px solid ${cfg.color}33;padding:5px 12px;border-radius:20px;font-size:0.8rem;font-weight:600;">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                ${p.replace(/_/g, ' ')}
-              </span>
-            `).join('')}
-          </div>
-        </div>
-
-        ${usersInRole.length > 0 ? `
-          <div>
-            <p style="font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin:0 0 var(--space-3) 0;text-transform:uppercase;letter-spacing:0.05em;">Users in this role</p>
-            <div style="display:flex;flex-direction:column;gap:var(--space-2);">
-              ${usersInRole.slice(0, 8).map(u => `
-                <div style="display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);
-                  background:var(--bg-primary);border-radius:var(--radius-md);border:1px solid var(--border-primary);">
-                  <div style="width:34px;height:34px;border-radius:50%;background:${cfg.bg};color:${cfg.color};
-                    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.9rem;border:1.5px solid ${cfg.color}33;">
-                    ${(u.fullName || u.id).charAt(0).toUpperCase()}
-                  </div>
-                  <div style="flex:1;">
-                    <div style="font-weight:600;font-size:0.9rem;color:var(--text-primary);">${u.fullName || 'N/A'}</div>
-                    <div style="font-size:0.78rem;color:var(--text-tertiary);">${u.id}</div>
-                  </div>
-                  <span style="font-size:0.75rem;color:${u.status === 'active' ? '#16a34a' : '#dc2626'};
-                    font-weight:600;">${u.status || 'active'}</span>
-                </div>
-              `).join('')}
-              ${usersInRole.length > 8 ? `<p style="font-size:0.8rem;color:var(--text-tertiary);text-align:center;margin:var(--space-2) 0 0;">+${usersInRole.length - 8} more users</p>` : ''}
-            </div>
-          </div>
-        ` : `
-          <div style="text-align:center;padding:var(--space-6);color:var(--text-tertiary);">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin:0 auto var(--space-2);display:block;"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-            <p style="margin:0;font-size:0.875rem;">No users assigned to this role yet.</p>
-          </div>
-        `}
-      </div>
-    `;
-    showModal(`Role Details — ${cfg.label}`, content);
+  AUDIT_CATEGORIES: {
+    accounts: a => /account|user|role|login|credential|password|suspend|restor|invit/i.test(a),
+    students: a => /student|enrol|admission|application|admit|withdraw/i.test(a),
+    staff: a => /staff/i.test(a),
+    academics: a => /class|schedule|assessment|grade|lesson|subject/i.test(a),
+    finance: a => /pay|fee/i.test(a),
+    inventory: a => /inventory/i.test(a),
   },
 
-  editRolePermissions(roleId) {
-    const role = this.roles.find(r => r.id === roleId);
-    if (!role) return;
-
-    const roleConfig = {
-      teacher: { color: '#0891b2', bg: '#ecfeff', label: 'Teacher' },
-      staff: { color: '#0d9488', bg: '#f0fdfa', label: 'Staff' },
-      student: { color: '#ea580c', bg: '#fff7ed', label: 'Student' }
-    };
-    const cfg = roleConfig[roleId] || { color: '#64748b', bg: '#f8fafc', label: role.name };
-
-    const allPermissions = [
-      { id: 'view_students', label: 'View Students', desc: 'Browse and search the student directory' },
-      { id: 'edit_students', label: 'Edit Students', desc: 'Modify student profiles and records' },
-      { id: 'delete_students', label: 'Delete Students', desc: 'Remove student records from the system' },
-      { id: 'view_classes', label: 'View Classes', desc: 'Access timetables and class schedules' },
-      { id: 'manage_classes', label: 'Manage Classes', desc: 'Create, edit and delete class records' },
-      { id: 'edit_grades', label: 'Edit Grades', desc: 'Enter and modify student assessment grades' },
-      { id: 'view_grades', label: 'View Grades', desc: 'Read-only access to grade reports' },
-      { id: 'manage_fees', label: 'Manage Fees', desc: 'Record and edit fee payments' },
-      { id: 'view_fees', label: 'View Fees', desc: 'View payment records and balances' },
-      { id: 'manage_inventory', label: 'Manage Inventory', desc: 'Add, edit and assign inventory items' },
-      { id: 'view_inventory', label: 'View Inventory', desc: 'Browse inventory and view stock levels' },
-      { id: 'view_reports', label: 'View Reports', desc: 'Access analytics and summary reports' },
-      { id: 'manage_staff', label: 'Manage Staff', desc: 'Invite and manage staff members' },
-      { id: 'view_own_data', label: 'View Own Data', desc: 'Access personal profile and records only' },
-    ];
-
-    const current = new Set(role.permissions);
-
-    const content = `
-      <div>
-        <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-5);
-          padding:var(--space-4);background:${cfg.bg};border-radius:var(--radius-lg);border:1px solid ${cfg.color}22;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${cfg.color}" stroke-width="2">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-          </svg>
-          <div>
-            <div style="font-weight:700;color:${cfg.color};">Editing: ${cfg.label}</div>
-            <div style="font-size:0.78rem;color:var(--text-tertiary);">Toggle permissions on or off. Changes apply immediately.</div>
-          </div>
-        </div>
-
-        <div id="permissions-list" style="display:flex;flex-direction:column;gap:var(--space-2);">
-          ${allPermissions.map(perm => {
-      const isOn = current.has(perm.id);
-      return `
-              <label style="display:flex;align-items:center;gap:var(--space-4);padding:var(--space-3) var(--space-4);
-                background:${isOn ? cfg.bg : '#f8fafc'};border:1.5px solid ${isOn ? cfg.color + '44' : '#e2e8f0'};
-                border-radius:var(--radius-md);cursor:pointer;transition:all 0.15s;"
-                id="perm-row-${perm.id}"
-                onmouseover="this.style.borderColor='${cfg.color}44'"
-                onmouseout="this.style.borderColor=document.getElementById('perm-${perm.id}').checked ? '${cfg.color}44' : '#e2e8f0'">
-                <input type="checkbox" id="perm-${perm.id}" value="${perm.id}"
-                  ${isOn ? 'checked' : ''}
-                  style="display:none;"
-                  onchange="
-                    var row = document.getElementById('perm-row-${perm.id}');
-                    var toggle = document.getElementById('toggle-${perm.id}');
-                    if(this.checked){
-                      row.style.background='${cfg.bg}';row.style.borderColor='${cfg.color}44';
-                      toggle.style.background='${cfg.color}';toggle.style.justifyContent='flex-end';
-                      toggle.querySelector('div').style.transform='translateX(0)';
-                    } else {
-                      row.style.background='#f8fafc';row.style.borderColor='#e2e8f0';
-                      toggle.style.background='#cbd5e1';toggle.style.justifyContent='flex-start';
-                      toggle.querySelector('div').style.transform='translateX(0)';
-                    }
-                  ">
-                <!-- Toggle switch -->
-                <div id="toggle-${perm.id}" onclick="document.getElementById('perm-${perm.id}').click()"
-                  style="flex-shrink:0;width:40px;height:22px;border-radius:11px;display:flex;align-items:center;padding:2px;
-                    cursor:pointer;transition:all 0.2s;justify-content:${isOn ? 'flex-end' : 'flex-start'};
-                    background:${isOn ? cfg.color : '#cbd5e1'};">
-                  <div style="width:18px;height:18px;background:var(--bg-secondary);border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></div>
-                </div>
-                <div style="flex:1;">
-                  <div style="font-size:0.875rem;font-weight:600;color:var(--text-primary);">${perm.label}</div>
-                  <div style="font-size:0.76rem;color:var(--text-tertiary);">${perm.desc}</div>
-                </div>
-              </label>
-            `;
-    }).join('')}
-        </div>
-
-        <div style="display:flex;gap:var(--space-3);margin-top:var(--space-6);justify-content:flex-end;">
-          <button onclick="closeModal(this)"
-            style="padding:9px 20px;background:var(--bg-secondary);color:var(--text-secondary);border:1px solid var(--border-primary);
-              border-radius:var(--radius-md);font-weight:600;font-size:0.875rem;cursor:pointer;">
-            Cancel
-          </button>
-          <button onclick="userManagementModule.saveRolePermissions('${roleId}', this)"
-            style="display:inline-flex;align-items:center;gap:8px;padding:9px 22px;
-              background:${cfg.color};color:white;border:none;border-radius:var(--radius-md);
-              font-weight:600;font-size:0.875rem;cursor:pointer;">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-            Save Permissions
-          </button>
-        </div>
-      </div>
-    `;
-
-    showModal(`Edit Permissions — ${cfg.label}`, content);
-  },
-
-  saveRolePermissions(roleId, btn) {
-    const checkboxes = document.querySelectorAll('#permissions-list input[type="checkbox"]');
-    const selected = Array.from(checkboxes)
-      .filter(cb => cb.checked)
-      .map(cb => cb.value);
-
-    const role = this.roles.find(r => r.id === roleId);
-    if (!role) return;
-
-    role.permissions = selected;
-
-    // Visual feedback on button
-    btn.disabled = true;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Saved!';
-
-    this.logAuditEvent('role_permissions_updated', roleId,
-      `Permissions for ${role.name} updated: [${selected.join(', ')}]`);
-    writeAuditLog('role_permissions_updated', roleId, `${role.name} permissions: [${selected.join(', ')}]`);
-
-    closeModal(btn);
-    showToast(`${role.name} permissions updated successfully`, 'success');
-
-    // Re-render the roles tab to reflect changes
-    const container = this._container ||
-      document.getElementById('main-content');
-    this.init(container);
-  },
-
-  // ============================================
-  // AUDIT TRAIL TAB
-  // ============================================
-  renderAuditTab() {
-    // Kick off a live fetch and re-render once data arrives
-    if (window.supabaseReady) {
-      const container = this._container;
-      // Show placeholder (spinner) immediately while fetch is in progress
-      const contentEl = container?.querySelector('.tab-content');
-
-      // Fetch live from Supabase — ensures all admins see each other's activity
-      supabaseClient
-        .from('audit_logs')
-        .select('*')
-        .order('timestamp', { ascending: false })
-        .limit(500)
-        .then(({ data, error }) => {
-          if (!error && data) {
-            this.auditLogs = data;
-          } else {
-            // Fall back to cache
-            this.auditLogs = dataManager.getAll('auditLogs') || [];
-            this.auditLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-          }
-          // Re-render just the tab content if container still live
-          const live = this._container?.querySelector('.tab-content');
-          if (live) live.innerHTML = this._renderAuditTabContent();
-        })
-        .catch(() => {
-          this.auditLogs = dataManager.getAll('auditLogs') || [];
-          this.auditLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-          const live = this._container?.querySelector('.tab-content');
-          if (live) live.innerHTML = this._renderAuditTabContent();
-        });
+  async loadAuditLogs() {
+    this._auditState = 'loading';
+    const { data, error } = await supabaseClient
+      .from('audit_logs').select('*')
+      .order('timestamp', { ascending: false })
+      .limit(500);
+    if (error) {
+      this._auditState = 'error';
+      this._auditError = error.message;
+      this.auditLogs = [];
     } else {
-      // Offline / localStorage mode
-      this.auditLogs = dataManager.getAll('auditLogs') || [];
-      this.auditLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      this._auditState = 'ready';
+      this.auditLogs = data || [];
     }
-
-    // Return stub with spinner — will be replaced when fetch completes
-    const logs = this.auditLogs.slice(0, 100);
-    const isLoading = window.supabaseReady && logs.length === 0;
-
-    return this._renderAuditTabContent(isLoading);
+    if (this.currentTab === 'audit') this._rerenderTab();
   },
 
-  /** Internal renderer — called both on initial render and after live fetch resolves. */
-  _renderAuditTabContent(isLoading = false) {
-    const query = (this._auditSearch || '').toLowerCase();
-    const category = this._auditCategory || 'all';
-
-    const CATEGORY_MATCH = {
-      students:  a => /student|enroll|admission|application|admit/i.test(a),
-      staff:     a => /staff/i.test(a),
-      academics: a => /class|schedule|assessment|grade|lesson|subject/i.test(a),
-      finance:   a => /pay|fee/i.test(a),
-      inventory: a => /inventory/i.test(a),
-      system:    a => /login|logout|auth|signin|signout|setting|export|backup|user_created|user_deleted|invit/i.test(a),
-    };
-
-    let filtered = (category !== 'all' && CATEGORY_MATCH[category])
-      ? this.auditLogs.filter(l => CATEGORY_MATCH[category](l.action || ''))
-      : this.auditLogs;
-
-    if (query) {
-      filtered = filtered.filter(l =>
-        (l.action||'').toLowerCase().includes(query) ||
-        (l.performed_by||'').toLowerCase().includes(query) ||
-        (l.target||'').toLowerCase().includes(query) ||
-        (l.details||'').toLowerCase().includes(query));
-    }
-
-    const logs = filtered.slice(0, 500);
-
-    const CHIP_DEFS = [
-      { key:'all',       label:'All',       icon:'📋' },
-      { key:'students',  label:'Students',  icon:'👤' },
-      { key:'staff',     label:'Staff',     icon:'👥' },
-      { key:'academics', label:'Academics', icon:'🎓' },
-      { key:'finance',   label:'Finance',   icon:'💳' },
-      { key:'inventory', label:'Inventory', icon:'📦' },
-      { key:'system',    label:'System',    icon:'⚙️'  },
-    ];
-
-    return `
-      <div class="card" style="border:1px solid var(--border-primary);border-radius:var(--radius-xl);overflow:hidden;">
-        <!-- Header Section -->
-        <div style="background:linear-gradient(135deg, var(--brand-navy) 0%, var(--brand-navy) 100%);padding:var(--space-5);color:white;">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:var(--space-4);">
-            <div style="flex:1;min-width:250px;">
-              <div style="display:flex;align-items:center;gap:var(--space-3);margin-bottom:var(--space-2);">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-                <h3 style="margin:0;font-size:1.25rem;font-weight:700;">Security &amp; Audit Trail</h3>
-              </div>
-              <p style="margin:0;font-size:0.875rem;opacity:0.9;">
-                ${isLoading ? 'Loading activity logs…' : `${this.auditLogs.length} event${this.auditLogs.length !== 1 ? 's' : ''} recorded across all modules`}
-              </p>
-              <div style="margin-top:var(--space-3);">
-                <input type="text" placeholder="Search by action, user, target…" value="${this._auditSearch||''}"
-                  oninput="userManagementModule._auditSearch=this.value; const live=userManagementModule._container?.querySelector('.tab-content'); if(live) live.innerHTML=userManagementModule._renderAuditTabContent();"
-                  style="width:100%;max-width:320px;padding:8px 12px;border-radius:var(--radius-md);border:1px solid rgba(255,255,255,0.4);background:rgba(255,255,255,0.15);color:white;font-size:0.85rem;outline:none;">
-              </div>
-            </div>
-            <div style="display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap;">
-              <button onclick="userManagementModule.refreshAuditLogs()"
-                style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;
-                  background:rgba(255,255,255,0.2);color:white;border:1px solid rgba(255,255,255,0.3);
-                  border-radius:var(--radius-md);font-size:0.875rem;font-weight:600;cursor:pointer;
-                  backdrop-filter:blur(10px);transition:all 0.2s;"
-                onmouseover="this.style.background='rgba(255,255,255,0.3)';this.style.borderColor='rgba(255,255,255,0.5)'"
-                onmouseout="this.style.background='rgba(255,255,255,0.2)';this.style.borderColor='rgba(255,255,255,0.3)'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
-                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                </svg>
-                Refresh
-              </button>
-              <button onclick="userManagementModule.exportAuditLogs()"
-                style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;
-                  background:var(--bg-secondary);color:var(--brand-navy);border:1px solid white;
-                  border-radius:var(--radius-md);font-size:0.875rem;font-weight:600;cursor:pointer;
-                  transition:all 0.2s;"
-                onmouseover="this.style.background='#f8f9ff';this.style.transform='translateY(-2px)';this.style.boxShadow='0 4px 12px rgba(0,0,0,0.15)'"
-                onmouseout="this.style.background='white';this.style.transform='translateY(0)';this.style.boxShadow='none'">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                Export
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <!-- Category Filter Chips -->
-        <div style="padding:var(--space-3) var(--space-5);background:var(--bg-primary);border-bottom:1px solid var(--border-primary);
-          display:flex;gap:var(--space-2);flex-wrap:wrap;align-items:center;">
-          <span style="font-size:0.75rem;font-weight:600;color:var(--text-tertiary);white-space:nowrap;margin-right:4px;">Filter:</span>
-          ${CHIP_DEFS.map(c => {
-            const active = category === c.key;
-            return `<button onclick="userManagementModule._auditCategory='${c.key}';const live=userManagementModule._container?.querySelector('.tab-content');if(live)live.innerHTML=userManagementModule._renderAuditTabContent();"
-              style="display:inline-flex;align-items:center;gap:5px;padding:5px 11px;border-radius:20px;
-                border:1px solid ${active ? 'var(--brand-navy)' : '#e2e8f0'};
-                background:${active ? 'var(--brand-navy)' : 'white'};
-                color:${active ? 'white' : '#64748b'};
-                font-size:0.78rem;font-weight:${active ? '700' : '500'};cursor:pointer;
-                transition:all 0.15s;white-space:nowrap;"
-              onmouseover="if('${c.key}'!=='${category}'){this.style.borderColor='var(--brand-navy)';this.style.color='var(--brand-navy)';}"
-              onmouseout="if('${c.key}'!=='${category}'){this.style.borderColor='#e2e8f0';this.style.color='#64748b';}"
-              >${c.icon} ${c.label}</button>`;
-          }).join('')}
-          ${filtered.length !== this.auditLogs.length ? `
-            <span style="margin-left:auto;font-size:0.75rem;color:var(--text-tertiary);">
-              ${filtered.length} of ${this.auditLogs.length} events
-            </span>` : ''}
-        </div>
-
-        <!-- Content Section -->
-        <div style="padding:var(--space-5);">
-          ${isLoading ? `
-            <div style="display:flex;justify-content:center;align-items:center;padding:var(--space-10);">
-              <div class="spinner"></div>
-            </div>
-          ` : `
-            ${logs.length === 0 ? `
-              <div style="text-align:center;padding:var(--space-10);color:var(--text-tertiary);">
-                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"
-                  style="margin:0 auto var(--space-4);display:block;opacity:0.3;">
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
-                  <polyline points="10 9 9 9 8 9"/>
-                </svg>
-                <p style="margin:0 0 8px;font-weight:700;font-size:1.1rem;color:var(--text-tertiary);">No audit logs yet</p>
-                <p style="margin:0;font-size:0.875rem;">User actions will be logged here for security tracking</p>
-              </div>
-            ` : `
-              <!-- Column Headers -->
-              <div style="display:grid;grid-template-columns:auto 1.5fr 1fr 2fr 120px 140px;gap:var(--space-3);
-                padding:var(--space-3) var(--space-4);background:var(--bg-primary);border-radius:var(--radius-md);
-                margin-bottom:var(--space-3);font-size:0.75rem;font-weight:700;color:var(--text-tertiary);text-transform:uppercase;
-                letter-spacing:0.5px;">
-                <div>Type</div>
-                <div>Action</div>
-                <div>Target</div>
-                <div>Details</div>
-                <div style="text-align:right;">IP Address</div>
-                <div style="text-align:right;">Timestamp</div>
-              </div>
-
-              <!-- Log Rows -->
-              <div style="display:grid;gap:var(--space-2);max-height:600px;overflow-y:auto;">
-                ${logs.map(log => this.renderAuditLogRow(log)).join('')}
-              </div>
-
-              ${filtered.length > 500 ? `
-                <div style="margin-top:var(--space-5);padding:var(--space-4);background:var(--bg-primary);
-                  border-radius:var(--radius-md);text-align:center;font-size:0.875rem;color:var(--text-tertiary);">
-                  <strong>Showing 500 of ${filtered.length} total events.</strong> Export to view all records.
-                </div>
-              ` : ''}
-            `}
-          `}
-        </div>
-      </div>
-    `;
-  },
-
-  /** Live-refresh the audit log by re-opening the tab */
   refreshAuditLogs() {
-    this.switchTab('audit');
+    this.loadAuditLogs();
+    this._rerenderTab();
   },
 
+  _filteredAudit() {
+    const q = this._auditSearch.trim().toLowerCase();
+    const match = this.AUDIT_CATEGORIES[this._auditCategory];
+    return this.auditLogs.filter(l =>
+      (!match || match(l.action || '')) &&
+      (!q || [l.action, l.performed_by, l.target, this._auditDetails(l.details)].some(v => String(v || '').toLowerCase().includes(q))));
+  },
 
-
-  renderAuditLogRow(log) {
-    const action = (log.action || '').toLowerCase();
-    // Dynamic color/icon based on action category
-    let cfg;
-    if (action.includes('delete') || action.includes('clear') || action.includes('reject') || action.includes('suspend') || action.includes('remov')) {
-      cfg = { color: '#dc2626', bg: '#fef2f2', icon: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>' };
-    } else if (action.includes('creat') || action.includes('add') || action.includes('enroll') || action.includes('approv') || action.includes('admit')) {
-      cfg = { color: '#16a34a', bg: '#f0fdf4', icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>' };
-    } else if (action.includes('update') || action.includes('edit') || action.includes('chang') || action.includes('modif') || action.includes('save') || action.includes('grade')) {
-      cfg = { color: '#d97706', bg: '#fffbeb', icon: '<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>' };
-    } else if (action.includes('pay') || action.includes('fee') || action.includes('verif')) {
-      cfg = { color: '#0891b2', bg: '#ecfeff', icon: '<rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/>' };
-    } else if (action.includes('login') || action.includes('signin') || action.includes('auth')) {
-      cfg = { color: '#6366f1', bg: '#eef2ff', icon: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>' };
-    } else if (action.includes('logout') || action.includes('signout')) {
-      cfg = { color: '#64748b', bg: '#f8fafc', icon: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>' };
-    } else if (action.includes('export') || action.includes('download') || action.includes('backup')) {
-      cfg = { color: '#7c3aed', bg: '#f5f3ff', icon: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>' };
-    } else if (action.includes('invit')) {
-      cfg = { color: '#0891b2', bg: '#ecfeff', icon: '<path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>' };
-    } else {
-      cfg = { color: '#64748b', bg: '#f8fafc', icon: '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' };
+  /** Details arrive as text from the browser and as JSON from edge functions. */
+  _auditDetails(details) {
+    if (details == null) return '';
+    let v = details;
+    if (typeof v === 'string' && /^\s*\{/.test(v)) { try { v = JSON.parse(v); } catch { /* plain text */ } }
+    if (v && typeof v === 'object') {
+      return Object.entries(v).filter(([, x]) => x !== null && x !== '').map(([k, x]) => `${k.replace(/_/g, ' ')}: ${typeof x === 'object' ? JSON.stringify(x) : x}`).join(' · ');
     }
-    const actor = log.actor || log.performed_by || 'System';
-    const actionLabel = (log.action || 'unknown').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return String(v);
+  },
+
+  renderAuditTab() {
+    if (this._auditState === 'idle') this.loadAuditLogs();
+    const e = (v) => this._esc(v ?? '');
+    const logs = this._filteredAudit();
+    const chips = [['all', 'All'], ['accounts', 'Logins'], ['students', 'Pupils'], ['staff', 'Staff'], ['academics', 'Academics'], ['finance', 'Finance'], ['inventory', 'Inventory']];
+    const body = this._auditState === 'loading' || this._auditState === 'idle'
+      ? '<div style="display:flex;justify-content:center;padding:40px"><div class="spinner"></div></div>'
+      : this._auditState === 'error'
+        ? `<p class="ui-empty">The activity log could not be loaded: ${e(this._auditError)}</p>`
+        : this._list(logs.slice(0, 200).map(l => `
+            <div class="ui-row">
+              <div class="ui-row-main">
+                <div class="ui-row-title">${e(String(l.action || 'unknown').replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase()))}${l.target ? ` <span class="ui-row-meta">· ${e(l.target)}</span>` : ''}</div>
+                <div class="ui-row-meta">${e(this._auditDetails(l.details))}</div>
+                <div class="ui-row-meta">by ${e(l.performed_by || l.actor || 'System')}</div>
+              </div>
+              <span class="ui-row-meta" style="white-space:nowrap;text-align:right">${e(this._date(l.timestamp))}<br>${e(l.timestamp ? new Date(l.timestamp).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '')}</span>
+            </div>`), 'Nothing matches.');
 
     return `
-      <div style="display:grid;grid-template-columns:auto 1.5fr 1fr 2fr 120px 140px;gap:var(--space-3);
-        align-items:center;padding:var(--space-3) var(--space-4);
-        background:var(--bg-secondary);border:1px solid #f1f5f9;border-radius:var(--radius-lg);
-        transition:all 0.2s;cursor:default;"
-        onmouseover="this.style.background='#f8fafc';this.style.borderColor='#e2e8f0';this.style.boxShadow='0 2px 4px rgba(0,0,0,0.05)'"
-        onmouseout="this.style.background='white';this.style.borderColor='#f1f5f9';this.style.boxShadow='none'">
-
-        <!-- Action icon -->
-        <div style="width:40px;height:40px;border-radius:var(--radius-md);
-          background:${cfg.bg};color:${cfg.color};border:1px solid ${cfg.color}22;
-          display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${cfg.icon}</svg>
+      <section class="ui-card" style="margin-top:16px;">
+        <div class="sd-filters">
+          <label class="sd-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="um-audit-search" placeholder="Search action, person, details" aria-label="Search the activity log"
+              value="${e(this._auditSearch)}" oninput="userManagementModule._auditSearch = this.value; userManagementModule._rerenderTab()">
+          </label>
+          <button type="button" class="ui-btn" onclick="userManagementModule.refreshAuditLogs()">Refresh</button>
+          <button type="button" class="ui-btn" onclick="userManagementModule.exportAuditLogs()">Export these</button>
         </div>
-
-        <!-- Action label + actor -->
-        <div style="min-width:0;">
-          <div style="font-weight:700;font-size:0.875rem;color:var(--text-primary);margin-bottom:2px;">
-            ${actionLabel}
-          </div>
-          <div style="font-size:0.75rem;color:var(--text-tertiary);">
-            by <strong style="color:var(--text-secondary);">${actor}</strong>
-          </div>
+        <div class="ui-actions" style="padding:0 14px 8px;flex-wrap:wrap;justify-content:flex-start">
+          ${chips.map(([k, label]) => `<button type="button" class="ui-btn ui-btn-sm${this._auditCategory === k ? ' ui-btn-primary' : ''}" aria-pressed="${this._auditCategory === k}"
+            onclick="userManagementModule._auditCategory = '${k}'; userManagementModule._rerenderTab()">${label}</button>`).join('')}
         </div>
-
-        <!-- Target -->
-        <div style="min-width:0;font-size:0.8rem;color:var(--text-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-          title="${log.target || '—'}">
-          ${log.target || '—'}
-        </div>
-
-        <!-- Details -->
-        <div style="min-width:0;font-size:0.8rem;color:var(--text-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
-          title="${log.details || '—'}">
-          ${log.details || '—'}
-        </div>
-
-        <!-- IP Address -->
-        <div style="font-size:0.75rem;color:var(--text-tertiary);font-family:monospace;text-align:right;
-          background:var(--bg-primary);padding:4px 8px;border-radius:4px;">
-          ${log.ipAddress || 'N/A'}
-        </div>
-
-        <!-- Timestamp -->
-        <div style="font-size:0.75rem;color:var(--text-tertiary);text-align:right;white-space:nowrap;">
-          <div style="font-weight:600;color:var(--text-secondary);margin-bottom:2px;">
-            ${new Date(log.timestamp).toLocaleDateString()}
-          </div>
-          <div style="font-size:0.7rem;">
-            ${new Date(log.timestamp).toLocaleTimeString()}
-          </div>
-        </div>
-      </div>
-    `;
-  },
-
-  loadAuditLogs() {
-    // Load from Supabase via dataManager
-    this.auditLogs = dataManager.getAll('auditLogs') || [];
-
-    // Sort by timestamp descending
-    this.auditLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-  },
-
-  async logAuditEvent(action, target, details) {
-    const session = authManager.getSession();
-    const log = {
-      action: action,
-      performed_by: session ? session.fullName : 'System',
-      target: target,
-      details: details,
-      timestamp: new Date().toISOString()
-    };
-
-    this.auditLogs.unshift(log);
-    await dataManager.create('auditLogs', log);
+        ${this._auditState === 'ready' ? `<p class="ui-row-meta" style="padding:0 14px;">${logs.length} of the latest ${this.auditLogs.length} entries${logs.length > 200 ? ' (showing 200; export for all)' : ''}</p>` : ''}
+        ${body}
+      </section>`;
   },
 
   exportAuditLogs() {
-    const csv = [
-      ['Timestamp', 'Performed By', 'Action', 'Target', 'Details'],
-      ...this.auditLogs.map(log => [
-        new Date(log.timestamp).toLocaleString(),
-        `"${(log.performed_by || log.actor || 'System').replace(/"/g, '""')}"`,
-        log.action || '',
-        `"${(log.target || '').replace(/"/g, '""')}"`,
-        `"${(log.details || '').replace(/"/g, '""')}"`
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `audit-logs-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-
-    showToast('Audit logs exported successfully', 'success');
+    const logs = this._filteredAudit();
+    downloadCsv(`activity-log-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ['Time', 'By', 'Action', 'Target', 'Details'],
+      ...logs.map(l => [l.timestamp ? new Date(l.timestamp).toLocaleString('en-GB') : '', l.performed_by || l.actor || 'System', l.action || '', l.target || '', this._auditDetails(l.details)])
+    ]);
+    showToast(`${logs.length} entr${logs.length === 1 ? 'y' : 'ies'} exported`, 'success');
   },
 
   // ============================================
-  // NEW MODAL FUNCTIONS
+  // GIVE A LOGIN
   // ============================================
-  showInviteModal() {
-    const content = `
-      <form id="invite-user-form" onsubmit="userManagementModule.submitInvitation(event)">
-        <div class="form-group">
-          <label class="form-label">Role *</label>
-          <select class="form-select" name="role" required onchange="userManagementModule.onInviteRoleChange(this.value)">
-            <option value="">Select Role</option>
-            <option value="admin">Administrator</option>
-            <option value="teacher">Teacher</option>
-            <option value="staff">Staff</option>
-            <option value="student">Student</option>
+
+  /** Open the form for a pupil or staff record that has no login yet. The
+   *  login is attached to that record rather than creating a second one. */
+  giveLogin(userId) {
+    const user = this._find(userId);
+    if (!user || this._hasLogin(user)) { showToast('This person already has a login.', 'info'); return; }
+    if (!user.recordId) { showToast('This record cannot be found. Reload the page and try again.', 'danger'); return; }
+    this.showInviteModal({ recordId: user.recordId, role: user.role, fullName: user.fullName, email: user.email, department: user.department });
+  },
+
+  showInviteModal(prefill = null) {
+    const p = prefill || {};
+    const e = (v) => this._esc(v ?? '');
+    const linked = !!p.recordId;
+    const roleField = linked
+      ? `<input type="hidden" name="role" value="${e(p.role)}"><input type="hidden" name="recordId" value="${e(p.recordId)}">
+         <p class="ui-row-meta" style="margin:0 0 12px">A ${e(this.ROLE_NAME[p.role] || p.role)} login, attached to ${e(p.fullName)}'s existing record${p.role === 'student' ? ' (class, fees and marks stay as they are)' : ''}.</p>`
+      : `<div class="form-group">
+          <label class="form-label" for="invite-role">Role *</label>
+          <select class="form-select" id="invite-role" name="role" required onchange="userManagementModule.onInviteRoleChange(this.value)">
+            <option value="">Choose a role</option>
+            ${this.ASSIGNABLE_ROLES.map(r => `<option value="${r}">${this.ROLE_NAME[r]}</option>`).join('')}
           </select>
-        </div>
+          <small class="ui-row-meta">Pupils: add them from Students → Add student, or use "Give a login" on their record.</small>
+        </div>`;
 
+    showModal(linked ? `Give ${e(p.fullName)} a login` : 'Give someone a login', `
+      <form id="invite-user-form" onsubmit="userManagementModule.submitInvitation(event)">
+        ${roleField}
         <div class="form-group">
-          <label class="form-label">Full Name *</label>
-          <input type="text" class="form-input" name="fullName" required placeholder="Full name">
+          <label class="form-label" for="invite-name">Full name *</label>
+          <input type="text" class="form-input" id="invite-name" name="fullName" required value="${e(p.fullName)}" ${linked ? 'readonly' : ''}>
         </div>
-
         <div class="form-group">
-          <label class="form-label">Email Address *</label>
-          <input type="email" class="form-input" name="email" required placeholder="user@example.com">
-          <small style="color: var(--text-secondary); font-size: 0.8rem;">Invitation with login credentials will be sent to this email</small>
+          <label class="form-label" for="invite-email">Email *</label>
+          <input type="email" class="form-input" id="invite-email" name="email" required value="${e(p.email)}" placeholder="name@example.com">
+          <small class="ui-row-meta">The login ID and password are emailed here. For a young pupil, use a parent's address.</small>
         </div>
-
-        <!-- Student-specific fields (hidden by default) -->
-        <div id="invite-student-fields" style="display: none;">
-          <div class="grid grid-cols-2 gap-4">
-            <div class="form-group">
-              <label class="form-label">Grade *</label>
-              <select class="form-select" name="grade">
-                ${schoolConfig.gradeOptionsHTML()}
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="form-label">Section *</label>
-              <select class="form-select" name="section">
-                <option value="">Select Section</option>
-                ${['A', 'B', 'C', 'D'].map(s => `<option value="${s}">${s}</option>`).join('')}
-              </select>
-            </div>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Date of Birth *</label>
-            <input type="date" class="form-input" name="dateOfBirth">
-            <small style="color: var(--text-secondary); font-size: 0.8rem;">Used to generate default password (DDMMYYYY)</small>
-          </div>
+        <div class="form-group" id="invite-staff-fields" style="display:${!linked ? 'none' : (p.role === 'teacher' || p.role === 'staff') ? 'block' : 'none'}">
+          <label class="form-label" for="invite-dept">Department</label>
+          <input type="text" class="form-input" id="invite-dept" name="department" value="${e(linked ? p.department : '')}" placeholder="e.g. Mathematics, Bursary">
         </div>
-
-        <!-- Staff/Admin fields (hidden by default) -->
-        <div id="invite-staff-fields" style="display: none;">
-          <div class="form-group">
-            <label class="form-label">Department</label>
-            <input type="text" class="form-input" name="department" placeholder="e.g., Mathematics, Administration">
-          </div>
-        </div>
-
-        <div style="background: var(--bg-tertiary); padding: var(--space-3); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
-          <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">
-            📧 The account is created immediately and its login ID and password are
-            emailed straight away. Nothing needs to be accepted — the person can sign
-            in as soon as the email arrives, and will be asked to choose their own
-            password on the first login.
-          </p>
-        </div>
-
+        <p class="ui-row-meta">The login works straight away. The password is random, and they choose their own the first time they sign in.</p>
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary" id="invite-submit-btn">Create account</button>
+          <button type="submit" class="btn btn-primary" id="invite-submit-btn">Create login</button>
         </div>
-      </form>
-    `;
-
-    showModal('Send Invite', content);
+      </form>`);
   },
 
   onInviteRoleChange(role) {
-    const studentFields = document.getElementById('invite-student-fields');
     const staffFields = document.getElementById('invite-staff-fields');
-
-    if (studentFields) {
-      studentFields.style.display = role === 'student' ? 'block' : 'none';
-      // Toggle required on student fields
-      studentFields.querySelectorAll('select, input').forEach(el => {
-        if (role === 'student') el.setAttribute('required', '');
-        else el.removeAttribute('required');
-      });
-    }
-    if (staffFields) {
-      staffFields.style.display = (role === 'admin' || role === 'teacher' || role === 'staff') ? 'block' : 'none';
-    }
+    if (staffFields) staffFields.style.display = (role === 'teacher' || role === 'staff' || role === 'admin') ? 'block' : 'none';
   },
 
   async submitInvitation(event) {
     event.preventDefault();
-    const formData = new FormData(event.target);
-    const data = Object.fromEntries(formData);
-    const session = authManager.getSession();
-
+    const data = Object.fromEntries(new FormData(event.target));
     const submitBtn = document.getElementById('invite-submit-btn');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Validating...'; }
+    const reset = () => { if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Create login'; } };
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Checking…'; }
+
+    if (data.role === 'admin' && !confirm(`Make ${data.fullName} an administrator? Administrators can see and change everything, including other people's logins.`)) {
+      reset();
+      return;
+    }
 
     try {
-      // Validate email format and uniqueness
       if (typeof validationManager !== 'undefined') {
-        const excludeTable = data.role === 'student' ? 'students' : 
-                            (data.role === 'teacher' || data.role === 'staff') ? 'staff' : null;
-        
-        const validation = await validationManager.validateUserInput({
-          email: data.email
-        }, { checkUniqueness: true, excludeTable });
-
+        const excludeTable = data.role === 'student' ? 'students' : (data.role === 'teacher' || data.role === 'staff') ? 'staff' : null;
+        const validation = await validationManager.validateUserInput({ email: data.email }, { checkUniqueness: true, excludeTable });
         if (!validation.isValid) {
           validation.errors.forEach(err => showToast(err.message, 'error'));
-          if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '✉️ Send Invite'; }
+          reset();
           return;
         }
       }
 
-      if (submitBtn) { submitBtn.textContent = 'Creating account...'; }
-
+      if (submitBtn) submitBtn.textContent = 'Creating login…';
       const result = await authManager.createAccount({
         email: data.email,
         role: data.role,
         fullName: data.fullName,
-        department: data.department || null,
-        grade: data.grade || null,
-        section: data.section || null,
-        dateOfBirth: data.dateOfBirth || null
+        recordId: data.recordId || null,
+        department: data.department || null
       });
-
       if (!result.success) {
-        showToast(result.error || 'Failed to create account', 'danger');
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '✉️ Send Invite'; }
+        showToast(result.error || 'The login was not created.', 'danger');
+        reset();
         return;
       }
 
-      const defaultUserId = result.schoolId;
-      const defaultPassword = result.password;
-      const emailSent = result.emailSent;
-      const emailMessage = result.emailMessage || '';
-
-      // Log and refresh
-      this.logAuditEvent('account_created', data.email, `Created as ${data.role} by ${session.fullName}`);
-      writeAuditLog('account_created', data.email, `Role: ${data.role} | Name: ${data.fullName} | ID: ${defaultUserId} | by ${session.fullName}`);
       this._invitations = await authManager.getInvitations(true);
       await this._reload();
-
-      showToast(emailSent ? 'Account created and credentials emailed.' : 'Account created — share the credentials manually.', emailSent ? 'success' : 'warning');
       closeModal();
-
-      const roleLabels = { admin: 'Administrator', teacher: 'Teacher', staff: 'Staff', student: 'Student' };
-      setTimeout(() => showCredentialModal(
-        data.fullName,
-        data.email,
-        roleLabels[data.role] || data.role,
-        defaultUserId,
-        defaultPassword,
-        emailSent,
-        emailMessage
-      ), 500);
-
+      showToast(result.emailSent ? 'Login created and emailed.' : 'Login created. Give them the details yourself.', result.emailSent ? 'success' : 'warning');
       this.switchTab('invitations');
+      showCredentialModal(data.fullName, data.email, this.ROLE_NAME[data.role] || data.role,
+        result.schoolId, result.password, result.emailSent, result.emailMessage);
     } catch (error) {
-      console.error('Invitation error:', error);
-      showToast(error.message || 'Failed to send invitation', 'danger');
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '✉️ Send Invite'; }
+      console.error('Create login error:', error);
+      showToast(error.message || 'The login was not created.', 'danger');
+      reset();
     }
   },
 
-  // Credential emails are built and sent by the create-account and
-  // resend-credentials edge functions through Resend. The client-side
-  // template that used to live here was never wired to a sender — it built
-  // HTML, logged it, and reported success.
+  // ============================================
+  // ADD MANY
+  // ============================================
+  BULK_LIMIT: 200,
 
   showBulkInviteModal() {
-    const content = `
-      <div class="mb-4">
-        <h4 class="font-semibold mb-3">Bulk User Invitation</h4>
-        <p class="mb-4" style="color: var(--text-secondary);">Upload a CSV file with user information to send multiple invitations at once.</p>
-        
-        <div style="background: var(--bg-tertiary); padding: var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
-          <p class="mb-2"><strong>CSV Format Required:</strong></p>
-          <code style="display: block; background: var(--bg-secondary); color: var(--text-primary); padding: var(--space-3); border-radius: var(--radius-sm); font-size: 0.875rem;">
-            email,fullName,role,department<br>
-            john@example.com,John Doe,teacher,Mathematics<br>
-            jane@example.com,Jane Smith,staff,Administration
-          </code>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Upload CSV File</label>
-          <input type="file" class="form-input" id="bulk-invite-file" accept=".csv" onchange="userManagementModule.handleBulkInviteFile(event)">
-        </div>
-
-        <div id="bulk-preview" style="display: none; margin-top: var(--space-4);">
-          <h5 class="font-semibold mb-3">Preview</h5>
-          <div id="bulk-preview-content"></div>
-        </div>
-
-        <div class="form-actions">
-          <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="button" class="btn btn-primary" id="bulk-invite-submit" style="display: none;" onclick="userManagementModule.submitBulkInvitations()">
-            Send Invitations
-          </button>
-        </div>
+    this.bulkInviteData = null;
+    showModal('Add many logins', `
+      <p style="margin:0 0 12px">Upload a CSV file with a header row. Columns: <code>email</code>, <code>fullName</code>,
+        <code>role</code> (administrator, teacher, staff or parent) and optionally <code>department</code>.
+        Pupils are added from Students → Add student.</p>
+      <pre class="um-pre">email,fullName,role,department
+ada@example.com,Ada Obi,teacher,Mathematics
+"okafor@example.com","Okafor, John",parent,</pre>
+      <div class="form-group">
+        <label class="form-label" for="bulk-invite-file">CSV file</label>
+        <input type="file" class="form-input" id="bulk-invite-file" accept=".csv,text/csv" onchange="userManagementModule.handleBulkInviteFile(event)">
       </div>
-    `;
+      <div id="bulk-preview"></div>
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" id="bulk-invite-submit" hidden onclick="userManagementModule.submitBulkInvitations()">Create logins</button>
+      </div>`);
+  },
 
-    showModal('Bulk Invite Users', content);
+  /** Rows from the file, each with its problem if it has one. */
+  parseBulkRows(text) {
+    const rows = parseCsv(text);
+    if (!rows.length) return { error: 'The file is empty.' };
+    const header = rows[0].map(h => h.toLowerCase().replace(/[\s_]/g, ''));
+    const col = (...names) => header.findIndex(h => names.includes(h));
+    const iEmail = col('email', 'emailaddress'), iName = col('fullname', 'name'), iRole = col('role'), iDept = col('department', 'dept');
+    if (iEmail < 0 || iName < 0 || iRole < 0) return { error: 'The first row must name the columns: email, fullName, role (and optionally department).' };
+    const body = rows.slice(1);
+    if (body.length > this.BULK_LIMIT) return { error: `At most ${this.BULK_LIMIT} rows at a time; this file has ${body.length}.` };
+
+    const aliases = { administrator: 'admin', admin: 'admin', teacher: 'teacher', staff: 'staff', 'office staff': 'staff', parent: 'guardian', guardian: 'guardian' };
+    const taken = new Set(this._users.filter(u => this._hasLogin(u)).map(u => String(u.email || '').toLowerCase()).filter(Boolean));
+    const seen = new Set();
+    return {
+      rows: body.map((r, i) => {
+        const email = String(r[iEmail] || '').trim().toLowerCase();
+        const fullName = String(r[iName] || '').trim();
+        const roleIn = String(r[iRole] || '').trim().toLowerCase();
+        const role = aliases[roleIn];
+        let problem = '';
+        if (!fullName) problem = 'no name';
+        else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) problem = 'email is not valid';
+        else if (roleIn === 'student' || roleIn === 'pupil') problem = 'pupils are added from Students → Add student';
+        else if (!role) problem = `unknown role "${r[iRole] || ''}"`;
+        else if (seen.has(email)) problem = 'email appears twice in the file';
+        else if (taken.has(email)) problem = 'already has a login';
+        seen.add(email);
+        return { line: i + 2, email, fullName, role, department: iDept >= 0 ? String(r[iDept] || '').trim() : '', problem };
+      })
+    };
   },
 
   handleBulkInviteFile(event) {
     const file = event.target.files[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const csv = e.target.result;
-      const lines = csv.split('\n').filter(line => line.trim());
-      const headers = lines[0].split(',').map(h => h.trim());
-
-      this.bulkInviteData = lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim());
-        return {
-          email: values[0],
-          fullName: values[1],
-          role: values[2],
-          department: values[3] || ''
-        };
-      });
-
-      document.getElementById('bulk-preview').style.display = 'block';
-      document.getElementById('bulk-preview-content').innerHTML = `
-        <p style="color: var(--text-secondary); margin-bottom: var(--space-3);">
-          Found ${this.bulkInviteData.length} users to invite
-        </p>
-        <div style="max-height: 200px; overflow-y: auto; background: var(--bg-tertiary); padding: var(--space-3); border-radius: var(--radius-md);">
-          ${this.bulkInviteData.map(user => `
-            <div style="padding: var(--space-2); border-bottom: 1px solid var(--border-primary);">
-              <strong>${user.fullName}</strong> (${user.email}) - ${user.role}
-            </div>
-          `).join('')}
-        </div>
-      `;
-      document.getElementById('bulk-invite-submit').style.display = 'block';
+    reader.onload = (ev) => {
+      const e = (v) => this._esc(v ?? '');
+      const parsed = this.parseBulkRows(ev.target.result);
+      const preview = document.getElementById('bulk-preview');
+      const submit = document.getElementById('bulk-invite-submit');
+      if (parsed.error) {
+        preview.innerHTML = `<p class="ui-chip is-warn" style="white-space:normal">${e(parsed.error)}</p>`;
+        submit.hidden = true;
+        return;
+      }
+      const good = parsed.rows.filter(r => !r.problem);
+      this.bulkInviteData = good;
+      preview.innerHTML = `
+        <p style="margin:0 0 8px">${good.length} ready${parsed.rows.length > good.length ? `, ${parsed.rows.length - good.length} will be skipped` : ''}.</p>
+        <div class="um-scroll">
+          ${parsed.rows.map(r => `
+            <div class="ui-row">
+              <div class="ui-row-main">
+                <div class="ui-row-title">${e(r.fullName || '(no name)')}</div>
+                <div class="ui-row-meta">${e([`line ${r.line}`, r.email, this.ROLE_NAME[r.role] || '', r.department].filter(Boolean).join(' · '))}</div>
+              </div>
+              <span class="ui-chip ${r.problem ? 'is-warn' : 'is-good'}">${r.problem ? e(r.problem) : 'Ready'}</span>
+            </div>`).join('')}
+        </div>`;
+      submit.hidden = good.length === 0;
+      submit.textContent = `Create ${good.length} login${good.length === 1 ? '' : 's'}`;
     };
     reader.readAsText(file);
   },
 
   async submitBulkInvitations() {
-    if (!this.bulkInviteData || this.bulkInviteData.length === 0) {
-      showToast('No data to process', 'danger');
-      return;
-    }
+    const rows = this.bulkInviteData || [];
+    if (!rows.length) { showToast('Nothing to create.', 'danger'); return; }
+    const admins = rows.filter(r => r.role === 'admin').length;
+    if (admins && !confirm(`${admins} of these will be administrators, who can see and change everything. Continue?`)) return;
 
     const submitBtn = document.getElementById('bulk-invite-submit');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Processing...'; }
-
-    let successCount = 0;
-    const failures = [];
-
-    for (const [index, userData] of this.bulkInviteData.entries()) {
-      if (submitBtn) submitBtn.textContent = `Creating ${index + 1} of ${this.bulkInviteData.length}...`;
-
+    if (submitBtn) submitBtn.disabled = true;
+    const results = [];
+    for (const [i, r] of rows.entries()) {
+      if (submitBtn) submitBtn.textContent = `Creating ${i + 1} of ${rows.length}…`;
       try {
-        const result = await authManager.createAccount({
-          email: userData.email,
-          role: userData.role,
-          fullName: userData.fullName,
-          department: userData.department
-        });
-
-        if (result.success) {
-          this.logAuditEvent('account_created', userData.email, `Bulk created as ${userData.role} — ID: ${result.schoolId}`);
-          successCount++;
-        } else {
-          failures.push(`${userData.email}: ${result.error}`);
-        }
-      } catch (error) {
-        failures.push(`${userData.email}: ${error.message}`);
+        const res = await authManager.createAccount({ email: r.email, role: r.role, fullName: r.fullName, department: r.department || null });
+        results.push(res.success
+          ? { ...r, ok: true, schoolId: res.schoolId, password: res.password, emailSent: res.emailSent, emailMessage: res.emailMessage }
+          : { ...r, ok: false, error: res.error });
+      } catch (err) {
+        results.push({ ...r, ok: false, error: err.message });
       }
     }
 
-    // Force-refresh caches after mutation so next render is always fresh
     this._invitations = await authManager.getInvitations(true);
     await this._reload();
-
     closeModal();
-
-    // A silent per-row failure count is useless for fixing the CSV — one bad
-    // role or a duplicated address needs naming before the admin can re-run it.
-    if (failures.length) {
-      showModal('Bulk import finished', `
-        <p style="margin:0 0 var(--space-4);">
-          <strong>${successCount}</strong> account${successCount === 1 ? '' : 's'} created,
-          <strong>${failures.length}</strong> failed.
-        </p>
-        <div style="max-height:260px;overflow-y:auto;background:var(--bg-tertiary);padding:var(--space-3);
-                    border-radius:var(--radius-md);font-size:0.85rem;">
-          ${failures.map(f => `<div style="padding:4px 0;">${escapeHtml(f)}</div>`).join('')}
-        </div>
-        <button class="btn btn-primary" style="margin-top:var(--space-4);" onclick="closeModal()">Done</button>
-      `);
-    } else {
-      showToast(`${successCount} account${successCount === 1 ? '' : 's'} created and credentials emailed.`, 'success');
-    }
-
     this.switchTab('invitations');
+    this.showBulkResults(results);
   },
 
-  generateUserId(role) {
-    const users = this._users;
-    const roleUsers = users.filter(u => u.role === role);
-    const year = new Date().getFullYear();
-    const nextNumber = roleUsers.length + 1;
-
-    const prefixes = {
-      'admin': 'ADM',
-      'teacher': 'TCH',
-      'staff': 'STF',
-      'student': 'STU'
-    };
-
-    const prefix = prefixes[role] || 'USR';
-    return `${prefix}-${year}-${String(nextNumber).padStart(3, '0')}`;
+  /**
+   * The only place the new passwords ever appear. Some emails may not have
+   * gone out (a placeholder address, a mail outage), so the admin needs the
+   * list — on screen and as a file — before closing it.
+   */
+  showBulkResults(results) {
+    const e = (v) => this._esc(v ?? '');
+    this._bulkResults = results;
+    const ok = results.filter(r => r.ok);
+    const notSent = ok.filter(r => !r.emailSent);
+    showModal('Logins created', `
+      <p style="margin:0 0 8px"><strong>${ok.length}</strong> created${results.length > ok.length ? `, <strong>${results.length - ok.length}</strong> failed` : ''}.
+        ${notSent.length ? `<strong>${notSent.length}</strong> could not be emailed: give those people their details yourself.` : 'Every login was emailed.'}</p>
+      <p class="ui-chip is-warn" style="white-space:normal;margin:0 0 8px">These passwords are shown only now. Download the list before closing if anyone needs their details by hand.</p>
+      <div class="um-scroll">
+        ${results.map(r => `
+          <div class="ui-row">
+            <div class="ui-row-main">
+              <div class="ui-row-title">${e(r.fullName)}</div>
+              <div class="ui-row-meta">${r.ok ? `${e(r.schoolId)} · password <code>${e(r.password)}</code> · ${r.emailSent ? 'emailed' : `not emailed: ${e(r.emailMessage || '')}`}` : `line ${r.line} · ${e(r.error || 'failed')}`}</div>
+            </div>
+            <span class="ui-chip ${r.ok ? (r.emailSent ? 'is-good' : 'is-warn') : 'is-warn'}">${r.ok ? (r.emailSent ? 'Emailed' : 'Give by hand') : 'Failed'}</span>
+          </div>`).join('')}
+      </div>
+      <div class="ui-actions" style="margin-top:12px">
+        <button type="button" class="ui-btn ui-btn-primary" onclick="userManagementModule.downloadBulkResults()">Download the list</button>
+        <button type="button" class="ui-btn" onclick="closeModal(this)">Done</button>
+      </div>`);
   },
 
-  viewUserDetails(userId) {
-    this.viewUser(userId);
+  downloadBulkResults() {
+    const rows = this._bulkResults || [];
+    downloadCsv(`new-logins-${new Date().toISOString().slice(0, 10)}.csv`, [
+      ['Name', 'Email', 'Role', 'Login ID', 'Password', 'Emailed', 'Problem'],
+      ...rows.map(r => [r.fullName, r.email, this.ROLE_NAME[r.role] || r.role, r.schoolId || '', r.password || '', r.ok ? (r.emailSent ? 'yes' : 'no') : '', r.ok ? (r.emailSent ? '' : r.emailMessage || '') : r.error || ''])
+    ]);
+  },
+
+  // ============================================
+  // ONE PERSON
+  // ============================================
+  viewUser(userId) {
+    const user = this._find(userId);
+    if (!user) { showToast('User not found', 'danger'); return; }
+    const e = (v) => this._esc(v ?? '');
+    const login = this._hasLogin(user);
+    const state = this._state(user);
+    const rows = [
+      ['Role', this.ROLE_NAME[user.role] || user.role],
+      ['Login ID', login ? user.id : 'No login yet'],
+      ['Email', user.email || '—'],
+      ['Access', state.label],
+      login ? ['Last signed in', user.lastLogin ? this._date(user.lastLogin) : 'Never'] : null,
+      ['Added', this._date(user.createdAt) || '—'],
+      user.department ? [user.role === 'student' ? 'Class' : 'Department', user.department] : null
+    ].filter(Boolean);
+    showModal(e(user.fullName || 'Unnamed'), `
+      <dl class="um-cred">${rows.map(([k, v]) => `<dt>${e(k)}</dt><dd>${e(v)}</dd>`).join('')}</dl>
+      ${!login && !this._isOff(user) ? `<div class="ui-actions" style="margin-top:12px"><button type="button" class="ui-btn ui-btn-primary" onclick="closeModal(this); userManagementModule.giveLogin('${this._js(user.id)}')">Give a login</button></div>` : ''}`);
   },
 
   editUserRole(userId) {
-    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
+    const user = this._find(userId);
     if (!user) { showToast('User not found', 'danger'); return; }
+    if (!this._hasLogin(user)) { showToast('This person has no login yet.', 'info'); return; }
+    if (this._isSelf(user)) { showToast('Another administrator must change your role.', 'info'); return; }
+    if (user.role === 'student') {
+      showToast('A pupil\'s login keeps its role. To give the person a different kind of access, give them a new login.', 'info');
+      return;
+    }
     const e = (v) => this._esc(v ?? '');
-
-    const content = `
+    showModal(`Role: ${e(user.fullName)}`, `
       <form id="edit-role-form" onsubmit="userManagementModule.submitRoleChange(event, '${this._js(userId)}')">
-        <div class="mb-4">
-          <p><strong>User:</strong> ${e(user.fullName)}</p>
-          <p style="color: var(--text-secondary);">${e(user.email)}</p>
-        </div>
-
+        <p class="ui-row-meta" style="margin:0 0 12px">${e([user.id, user.email].filter(Boolean).join(' · '))}. Now: <strong>${e(this.ROLE_NAME[user.role] || user.role)}</strong>.</p>
         <div class="form-group">
-          <label class="form-label">Role</label>
-          <select class="form-select" name="role" required>
-            <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Administrator</option>
-            <option value="teacher" ${user.role === 'teacher' ? 'selected' : ''}>Teacher</option>
-            <option value="staff" ${user.role === 'staff' ? 'selected' : ''}>Staff</option>
-            <option value="student" ${user.role === 'student' ? 'selected' : ''}>Student</option>
+          <label class="form-label" for="role-select">New role</label>
+          <select class="form-select" id="role-select" name="role" required>
+            <option value="">Choose a role</option>
+            ${this.ASSIGNABLE_ROLES.filter(r => r !== user.role).map(r => `<option value="${r}">${this.ROLE_NAME[r]}</option>`).join('')}
           </select>
+          <small class="ui-row-meta">See the Roles tab for what each role can open.</small>
         </div>
-
         <div class="form-actions">
           <button type="button" class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Update Role</button>
+          <button type="submit" class="btn btn-primary">Change role</button>
         </div>
-      </form>
-    `;
-
-    showModal('Edit User Role', content);
+      </form>`);
   },
 
   async submitRoleChange(event, userId) {
     event.preventDefault();
-    const formData = new FormData(event.target);
-    const data = Object.fromEntries(formData);
-    const user = this._users.find(u => u.id === userId || u.schoolId === userId);
-
+    const data = Object.fromEntries(new FormData(event.target));
+    const user = this._find(userId);
     if (!this._hasLogin(user)) { showToast('This person has no login yet.', 'info'); return; }
-    const result = await authManager.updateUser(user.schoolId || userId, { role: data.role });
+    if (!data.role || data.role === user.role) { showToast('Choose a different role.', 'info'); return; }
+    if (data.role === 'admin' && !confirm(`Make ${user.fullName} an administrator? Administrators can see and change everything, including other people's logins.`)) return;
+
+    const result = await authManager.updateAccount(user.schoolId || userId, 'set_role', data.role);
     if (!result?.success) { showToast('Not changed: ' + (result?.error || 'unknown error'), 'danger'); return; }
     await this._reload();
-
-    this.logAuditEvent('role_changed', user?.email || userId, `Role changed from ${user?.role} to ${data.role}`);
-
-    showToast('Role changed', 'success');
     closeModal();
-    this.switchTab('users');
+    showToast(`${user.fullName} is now ${this.ROLE_NAME[data.role]}`, 'success');
+    this._rerenderAll();
   },
 
   /**
-   * Issue a new password for an existing account and email it.
-   *
-   * Both "resend the credentials" and "reset their password" land here — they
-   * are the same operation. Accepts a school ID; the invitation-token variants
-   * that used to sit here called the *create* endpoint a second time, which
-   * minted a second account under a new ID and orphaned the first.
+   * Issue a new password for an existing login and email it. "Resend the
+   * details" and "reset their password" are the same operation.
    */
   async resendCredentials(schoolId) {
-    const user = this._users.find(u => u.schoolId === schoolId || u.id === schoolId);
-    const who = user ? `${user.fullName} (${user.email})` : schoolId;
+    const user = this._find(schoolId);
+    const who = user ? `${user.fullName}${user.email ? ` (${user.email})` : ''}` : schoolId;
+    if (!confirm(`Issue a new password for ${who}?\n\nTheir current password stops working immediately, and the new one is emailed to them.`)) return;
 
-    const confirmed = confirm(
-      `Issue a new password for ${who}?\n\n` +
-      `Their current password stops working immediately, and the new one is emailed to them.`
-    );
-    if (!confirmed) return;
-
-    try {
-      showToast('Issuing a new password...', 'info');
-
-      const result = await authManager.resendCredentials(schoolId);
-
-      if (!result.success) {
-        showToast(result.error || 'Failed to issue a new password', 'danger');
-        return;
-      }
-
-      this.logAuditEvent('credentials_reissued', result.email || who, `New password issued for ${schoolId}`);
-      this._invitations = await authManager.getInvitations(true);
-      await this._reload();
-      if (this._container) this._container.innerHTML = this.render();
-
-      showCredentialModal(
-        result.fullName || user?.fullName || schoolId,
-        result.email || user?.email || '',
-        result.roleLabel || user?.role || '',
-        result.schoolId,
-        result.password,
-        result.emailSent,
-        result.emailMessage
-      );
-    } catch (error) {
-      console.error('Resend credentials error:', error);
-      showToast('Failed to issue a new password', 'danger');
+    showToast('Issuing a new password…', 'info');
+    const result = await authManager.resendCredentials(schoolId);
+    if (!result.success) {
+      showToast(result.error || 'No new password was issued.', 'danger');
+      return;
     }
+    this._invitations = await authManager.getInvitations(true);
+    await this._reload();
+    this._rerenderAll();
+    showCredentialModal(
+      result.fullName || user?.fullName || schoolId,
+      result.email || user?.email || '',
+      result.roleLabel || this.ROLE_NAME[user?.role] || '',
+      result.schoolId, result.password, result.emailSent, result.emailMessage);
   },
 
   async deleteInvitation(token) {
     const invitation = this._invitations.find(inv => inv.token === token);
+    if (!invitation) { showToast('Entry not found', 'danger'); return; }
+    const user = this._accountFor(invitation);
 
-    if (!invitation) {
-      showToast('Invitation not found', 'danger');
+    // With a live login behind it, this deletes the login; the entry stays in
+    // the list as "Login deleted" so the history of who was given access holds.
+    if (user) {
+      return this.permanentlyDeleteUser(user.id);
+    }
+
+    if (!confirm(`Remove the entry for ${invitation.full_name || invitation.email}? The login behind it was already deleted.`)) return;
+    const { data, error } = await supabaseClient.from('invitations').delete().eq('token', token).select('token');
+    if (error || !data?.length) {
+      showToast('Not removed: ' + (error?.message || 'the entry could not be deleted'), 'danger');
       return;
     }
-
-    // Every issuance row has a live account behind it unless that account has
-    // already been deleted, so deleting here means deleting a person's login —
-    // never just tidying a record away.
-    const hasAccount = Boolean(this._accountFor(invitation));
-    const confirmMessage = hasAccount
-      ? `Delete the account for ${invitation.full_name} (${invitation.email})?\n\n` +
-      `This will permanently remove:\n` +
-      `- Their login (${invitation.school_id})\n` +
-      `- Their profile and role record\n` +
-      `- The issuance record\n\n` +
-      `They will lose access immediately. This cannot be undone.`
-      : `Remove the record for ${invitation.full_name} (${invitation.email})?\n\n` +
-      `The account behind it has already been deleted, so this only clears the log entry.`;
-
-    const confirmed = confirm(confirmMessage);
-    if (!confirmed) return;
-
-    try {
-      // 1. Remove the account itself first — delete-user cleans up auth user,
-      //    profile and role record together.
-      //    If that fails, stop: this used to log a warning, remove the log row
-      //    anyway and report "Account deleted" while the login still worked.
-      if (hasAccount && invitation.school_id) {
-        const del = await authManager.deleteUser(invitation.school_id);
-        if (!del?.success) {
-          showToast('Not deleted: ' + (del?.error || 'unknown error'), 'danger');
-          return;
-        }
-      }
-
-      // 2. Delete invitation record
-      const { error } = await supabaseClient
-        .from('invitations')
-        .delete()
-        .eq('token', token);
-
-      if (error) {
-        console.error('Delete invitation error:', error);
-        showToast('Failed to delete invitation', 'danger');
-        return;
-      }
-
-      this.logAuditEvent('account_deleted', invitation.email,
-        `Deleted ${hasAccount ? `account ${invitation.school_id}` : 'orphaned record'} for ${invitation.full_name}`);
-
-      this._invitations = await authManager.getInvitations(true);
-      await this._reload();
-      if (this._container) this._container.innerHTML = this.render();
-
-      showToast(hasAccount ? 'Account deleted' : 'Record removed', 'success');
-    } catch (error) {
-      console.error('Delete account error:', error);
-      showToast('Failed to delete', 'danger');
-    }
+    this._invitations = await authManager.getInvitations(true);
+    this._rerenderAll();
+    showToast('Entry removed', 'success');
   },
 
   viewInvitationDetails(token) {
     const invitation = this._invitations.find(inv => inv.token === token);
-
-    if (!invitation) {
-      showToast('Record not found', 'danger');
-      return;
-    }
-
+    if (!invitation) { showToast('Entry not found', 'danger'); return; }
     const user = this._accountFor(invitation);
-    const state = user
-      ? AuthManager.accessState(user)
-      : { label: 'Account deleted', tone: 'danger' };
-
-    // No password here. Passwords are shown once, at the moment they are
-    // generated, and are not stored anywhere afterwards — the column that used
-    // to hold them was readable by every signed-in user. To get a user back in,
-    // issue a new one.
-    const content = `
-      <div>
-        <h4 class="font-semibold mb-4">Account Details</h4>
-
-        <div class="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <p class="text-sm text-secondary mb-1">Full Name</p>
-            <p class="font-semibold">${escapeHtml(invitation.full_name || invitation.metadata?.fullName || "N/A")}</p>
-          </div>
-          <div>
-            <p class="text-sm text-secondary mb-1">Role</p>
-            <p>${createBadge(invitation.role, this.getRoleBadgeColor(invitation.role))}</p>
-          </div>
-          <div>
-            <p class="text-sm text-secondary mb-1">Email</p>
-            <p>${escapeHtml(user?.email || invitation.email || "N/A")}</p>
-          </div>
-          <div>
-            <p class="text-sm text-secondary mb-1">Access</p>
-            <p>${createBadge(state.label, state.tone)}</p>
-          </div>
-        </div>
-
-        <div style="background: var(--bg-tertiary); padding: var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-4);">
-          <p class="mb-2"><strong>Login ID:</strong> <code style="background: var(--bg-secondary); color: var(--text-primary); padding: 2px 8px; border-radius: var(--radius-sm);">${escapeHtml(invitation.school_id || "N/A")}</code></p>
-          <p class="text-sm" style="color: var(--text-secondary); margin-top: var(--space-3);">
-            Created ${new Date(invitation.created_at || Date.now()).toLocaleDateString()}
-            &middot; ${user?.lastLogin ? `last signed in ${new Date(user.lastLogin).toLocaleDateString()}` : 'has never signed in'}
-          </p>
-        </div>
-
-        ${user ? `
-          <button class="btn btn-primary" onclick="closeModal(); userManagementModule.resendCredentials('${this._js(invitation.school_id)}');">
-            Email a new password
-          </button>
-        ` : ''}
-      </div>
-    `;
-
-    showModal('Account Details', content);
-  },
-
-  showCreateRoleModal() {
-    const allPermissions = [
-      { id: 'view_students', label: 'View Students' },
-      { id: 'edit_students', label: 'Edit Students' },
-      { id: 'view_staff', label: 'View Staff' },
-      { id: 'edit_staff', label: 'Edit Staff' },
-      { id: 'view_classes', label: 'View Classes' },
-      { id: 'edit_classes', label: 'Edit Classes' },
-      { id: 'view_grades', label: 'View Grades' },
-      { id: 'edit_grades', label: 'Edit Grades' },
-      { id: 'view_fees', label: 'View Fees' },
-      { id: 'edit_fees', label: 'Edit Fees' },
-      { id: 'view_inventory', label: 'View Inventory' },
-      { id: 'edit_inventory', label: 'Edit Inventory' },
-      { id: 'view_assessments', label: 'View Assessments' },
-      { id: 'edit_assessments', label: 'Edit Assessments' },
-      { id: 'view_own_data', label: 'View Own Data Only' },
-    ];
-
-    const html = `
-      <form id="create-role-form" onsubmit="userManagementModule.submitCreateRole(event)">
-        <div style="margin-bottom:var(--space-5);">
-          <label style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:6px;">Role Name <span style="color:#ef4444;">*</span></label>
-          <input type="text" name="roleName" class="form-input" placeholder="e.g. Librarian, Counselor" required
-            style="width:100%;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:0.9rem;"
-            oninput="document.getElementById('role-id-preview').textContent = this.value.toLowerCase().replace(/\\s+/g,'_').replace(/[^a-z0-9_]/g,'')"
-          >
-          <p style="font-size:0.75rem;color:var(--text-tertiary);margin-top:4px;">Role ID: <code id="role-id-preview" style="background:var(--bg-tertiary);padding:1px 6px;border-radius:4px;">…</code></p>
-        </div>
-
-        <div style="margin-bottom:var(--space-5);">
-          <label style="display:block;font-size:0.85rem;font-weight:600;color:var(--text-secondary);margin-bottom:10px;">Permissions</label>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-            ${allPermissions.map(p => `
-              <label style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--bg-primary);border-radius:8px;border:1px solid var(--border-primary);cursor:pointer;font-size:0.85rem;color:var(--text-primary);">
-                <input type="checkbox" name="permissions" value="${p.id}" style="accent-color:var(--brand-navy);width:15px;height:15px;">
-                ${p.label}
-              </label>
-            `).join('')}
-          </div>
-        </div>
-
-        <div style="display:flex;gap:10px;justify-content:flex-end;">
-          <button type="button" class="btn" onclick="closeModal()" style="padding:9px 20px;border:1px solid var(--border-primary);border-radius:8px;background:var(--bg-secondary);color:var(--text-secondary);font-weight:600;cursor:pointer;">Cancel</button>
-          <button type="submit" class="btn btn-primary" style="padding:9px 20px;background:var(--brand-navy);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;">Create Role</button>
-        </div>
-      </form>
-    `;
-    showModal('🔐 Create Custom Role', html);
-  },
-
-  async submitCreateRole(event) {
-    event.preventDefault();
-    const formData = new FormData(event.target);
-    const roleName = formData.get('roleName').trim();
-    const roleId = roleName.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
-    const permissions = formData.getAll('permissions');
-
-    if (!roleId) {
-      showToast('Please enter a valid role name.', 'warning');
-      return;
-    }
-
-    // Check for duplicates in the in-memory roles list
-    const alreadyExists = [...this._systemRoles, ...this._customRoles].some(r => r.id === roleId);
-    if (alreadyExists) {
-      showToast(`A role with id "${roleId}" already exists.`, 'warning');
-      return;
-    }
-
-    const newRole = { id: roleId, name: roleName, permissions, custom: true, createdAt: new Date().toISOString() };
-
-    // 1. Persist to Supabase custom_roles table
-    let savedToSupabase = false;
-    if (window.supabaseClient) {
-      try {
-        const { error } = await window.supabaseClient
-          .from('custom_roles')
-          .insert({
-            role_id: roleId,
-            role_name: roleName,
-            permissions: permissions,     // stored as jsonb array
-            created_at: new Date().toISOString()
-          });
-        if (!error) {
-          savedToSupabase = true;
-        } else {
-          console.warn('Supabase custom_roles save failed:', error.message);
-        }
-      } catch (e) {
-        console.warn('Supabase custom_roles error:', e);
-      }
-    }
-
-    // 2. Always keep in memory (and write audit log)
-    this._customRoles.push(newRole);
-
-    writeAuditLog('CREATE_ROLE', roleId, `Custom role "${roleName}" created with ${permissions.length} permission(s).${savedToSupabase ? ' Saved to Supabase.' : ' In-memory only.'}`);
-    closeModal();
-    showToast(`✅ Role "${roleName}" created${savedToSupabase ? ' & saved to database' : ''}!`, 'success');
-
-    // Re-render roles tab to show the new role
-    this.switchTab('roles');
+    if (user) return this.viewUser(user.id);
+    const e = (v) => this._esc(v ?? '');
+    showModal(e(invitation.full_name || 'Login issued'), `
+      <dl class="um-cred">
+        <dt>Role</dt><dd>${e(this.ROLE_NAME[invitation.role] || invitation.role)}</dd>
+        <dt>Login ID</dt><dd>${e(invitation.school_id)}</dd>
+        <dt>Email</dt><dd>${e(invitation.email)}</dd>
+        <dt>Issued</dt><dd>${e(this._date(invitation.created_at))}</dd>
+        <dt>Access</dt><dd>Login deleted</dd>
+      </dl>`);
   }
-
 };
 
-// Expose to window for app.js router
 window.userManagementModule = userManagementModule;

@@ -612,18 +612,23 @@ describe('Users & access: an action says "done" only when something changed', ()
       { id: 'TBD/STU/1', schoolId: 'TBD/STU/1', authId: 'auth-p1', fullName: 'Has login', role: 'student', status: 'active', lastLogin: '2026-09-01' },
       { id: 'TBD/ADM/1', schoolId: 'TBD/ADM/1', authId: 'auth-a', fullName: 'Admin', role: 'admin', status: 'suspended', lastLogin: '2026-01-01' }
     ];
-    const log = { student: [], profile: [], toasts: [] };
+    const log = { student: [], profile: [], toasts: [], created: [], modals: [] };
     w.isTeachingStaff = () => false;
     w.escapeJs = v => String(v ?? '');
     w.confirm = () => true;
     w.closeModal = () => {};
     w.writeAuditLog = () => {};
     w.showToast = (msg, tone) => log.toasts.push(tone);
+    w.showModal = (title, html) => log.modals.push({ title, html });
+    w.escapeHtml = v => String(v ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
     w.dataManager.waitForReady = async () => {};
     w.dataManager.update = async (c, id, patch) => { log.student.push([c, id, patch]); return updateResult(c, id, patch); };
     Object.assign(w.authManager, {
       getUsers: async () => logins.map(u => ({ ...u })),
-      updateUser: async (schoolId, patch) => { log.profile.push([schoolId, patch]); return { success: true }; }
+      getSession: () => ({ fullName: 'Admin', role: 'admin', supabaseId: 'auth-me', userId: 'ADM-2026-000001' }),
+      updateAccount: async (schoolId, action, role) => { log.profile.push([schoolId, action, role].filter(Boolean)); return { success: true }; },
+      createAccount: async (payload) => { log.created.push(payload); return { success: true, schoolId: 'STU-2026-123456', password: 'X', emailSent: true }; },
+      getInvitations: async () => []
     });
     const m = w.userManagementModule;
     const form = (grade, section) => ({ preventDefault() {}, target: { grade, section } });
@@ -654,7 +659,7 @@ describe('Users & access: an action says "done" only when something changed', ()
     await m.deleteStudent('P2');
     await m.deleteStudent('TBD/STU/1');
     eq(log.student.map(([, id, p]) => [id, p.status]), [['P2', 'inactive'], ['P1', 'inactive']]);
-    eq(log.profile, [['TBD/STU/1', { status: 'inactive' }]]);
+    eq(log.profile, [['TBD/STU/1', 'suspend']]);
   });
 
   it('"No login yet" lists active records without a login — the same people the figure counts', async () => {
@@ -682,6 +687,93 @@ describe('Users & access: an action says "done" only when something changed', ()
     const html = m.renderSuspendedTab();
     eq([html.includes('TBD/ADM/1'), html.includes('Left')], [true, false]);
   });
+});
+
+describe('Users & access: safe to show, and honest about what changes', () => {
+  const load = () => {
+    const w = sandbox('2026-09-26T09:00:00', { students: [{ id: 'P2', name: 'No login', grade: 'Basic 1', status: 'active' }], staff: [] }, ['js/modules/user-management.js']);
+    const log = { modals: [], created: [], toasts: [] };
+    w.isTeachingStaff = () => false;
+    w.escapeJs = v => String(v ?? '');
+    w.escapeHtml = v => String(v ?? '').replace(/[&<>"']/g, c => `&#${c.charCodeAt(0)};`);
+    w.showModal = (title, html) => log.modals.push({ title, html });
+    w.showToast = (msg, tone) => log.toasts.push([tone, msg]);
+    w.confirm = () => true;
+    w.closeModal = () => {};
+    w.dataManager.waitForReady = async () => {};
+    Object.assign(w.authManager, {
+      getSession: () => ({ role: 'admin', supabaseId: 'auth-me', userId: 'ADM-2026-000001' }),
+      getUsers: async () => [
+        { id: 'GDN-2026-000001', schoolId: 'GDN-2026-000001', authId: 'auth-g', fullName: 'A Parent', role: 'guardian', status: 'active' },
+        { id: 'ADM-2026-000001', schoolId: 'ADM-2026-000001', authId: 'auth-me', fullName: 'Me', role: 'admin', status: 'active' }
+      ],
+      getInvitations: async () => [],
+      createAccount: async (payload) => { log.created.push(payload); return { success: true, schoolId: 'STU-2026-123456', password: 'PW', emailSent: true }; }
+    });
+    return { w, m: w.userManagementModule, log };
+  };
+
+  it('activity-log entries are escaped, and JSON details are readable', () => {
+    const { m } = load();
+    m._auditState = 'ready';
+    m.auditLogs = [{ action: 'LESSON_PLAN_CREATED', target: '<img src=x onerror=alert(1)>', details: '{"role":"teacher","email_sent":true}', performed_by: '<b>T</b> (teacher)', timestamp: '2026-09-26T08:00:00Z' }];
+    const html = m.renderAuditTab();
+    eq([html.includes('<img src=x'), html.includes('&#60;img'), html.includes('role: teacher'), html.includes('<b>T</b>')], [false, true, true, false]);
+  });
+
+  it('changing a parent\'s role does not quietly offer Administrator as the choice', async () => {
+    const { m, log } = load();
+    await m._reload();
+    m.editUserRole('GDN-2026-000001');
+    const html = log.modals[0].html;
+    eq([/<option value="admin"[^>]*selected/.test(html), html.includes('<option value="">Choose a role</option>'), html.includes('value="guardian"')], [false, true, false]);
+  });
+
+  it('an admin cannot open role or suspend actions on their own account', async () => {
+    const { m, log } = load();
+    await m._reload();
+    m.editUserRole('ADM-2026-000001');
+    await m.toggleUserStatus('ADM-2026-000001');
+    eq([log.modals.length, log.toasts.map(t => t[0])], [0, ['info', 'info']]);
+  });
+
+  it('"Give a login" attaches the login to the existing record', async () => {
+    const { w, m, log } = load();
+    await m._reload();
+    m.giveLogin('P2');
+    eq([log.modals[0].html.includes('name="recordId" value="P2"'), log.modals[0].html.includes('value="student"')], [true, true]);
+    w.FormData = class { constructor(t) { this.t = t; } *[Symbol.iterator]() { yield* Object.entries(this.t); } };
+    w.document = { getElementById: () => null };
+    await m.submitInvitation({ preventDefault() {}, target: { role: 'student', recordId: 'P2', fullName: 'No login', email: 'parent@example.com' } });
+    eq(log.created.map(c => [c.recordId, c.role]), [['P2', 'student']]);
+  });
+
+  it('the CSV reader copes with quoted commas, and bad rows are named, not sent', async () => {
+    const { m } = load();
+    await m._reload();
+    const csv = 'email,fullName,role,department\r\n"ada@example.com","Obi, Ada",teacher,Maths\r\nbad,No Email,teacher,\r\nkid@example.com,A Pupil,student,\r\nada@example.com,Twice,staff,\r\nx@example.com,Someone,wizard,\r\n';
+    const { rows } = m.parseBulkRows(csv);
+    eq(rows.map(r => [r.fullName, r.problem]), [
+      ['Obi, Ada', ''],
+      ['No Email', 'email is not valid'],
+      ['A Pupil', 'pupils are added from Students → Add student'],
+      ['Twice', 'email appears twice in the file'],
+      ['Someone', 'unknown role "wizard"']
+    ]);
+  });
+
+  it('a spreadsheet cannot run a downloaded cell as a formula', () => {
+    const { w } = load();
+    eq([w.csvCell('=HYPERLINK("x")'), w.csvCell('Ada')], ['"\'=HYPERLINK(""x"")"', '"Ada"']);
+  });
+});
+
+describe('Sign-in accepts the IDs create-account issues', () => {
+  const html = read('login.html');
+  const pattern = eval(html.match(/const ID_PATTERN = (\/.*\/);/)[1]);
+  for (const id of ['STU-2026-123456', 'GDN-2026-100000', 'ADM-2024-001', 'TCH-2026-654321'])
+    it(`${id} passes`, () => eq(pattern.test(id), true));
+  it('nonsense does not', () => eq(['STU-26-1', 'XYZ-2026-123456', 'STU-2026-1234567'].map(i => pattern.test(i)), [false, false, false]));
 });
 
 // ── Label tidying ───────────────────────────────────────────

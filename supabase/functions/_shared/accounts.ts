@@ -215,13 +215,88 @@ export async function requireAdmin(
   }
 
   const { data: profile } = await callerClient
-    .from("profiles").select("role, school_id, full_name").eq("id", user.id).maybeSingle();
+    .from("profiles").select("role, school_id, full_name, status").eq("id", user.id).maybeSingle();
 
   if (!profile || profile.role !== "admin") {
     return { response: json({ error: "Only administrators can manage accounts." }, 403) };
+  }
+  // A suspended admin's token stays valid until it expires; the role alone
+  // must not keep opening this door.
+  if ((profile.status || "active") !== "active") {
+    return { response: json({ error: "Your account is suspended." }, 403) };
+  }
+
+  // An admin who has set up two-step sign-in must have passed it on this
+  // session. An admin who has not yet enrolled is let through — the portal
+  // makes them enrol before it opens — until migration 0033 closes that too.
+  const hasFactor = (user.factors || []).some((f) => f.status === "verified");
+  if (hasFactor && tokenAal(authHeader) !== "aal2") {
+    return { response: json({ error: "Enter your two-step sign-in code first, then try again." }, 403) };
   }
 
   return {
     caller: { id: user.id, schoolId: profile.school_id ?? null, fullName: profile.full_name ?? null },
   };
+}
+
+/** The assurance level carried by an access token. Read only after getUser()
+ *  has verified the token, so the payload is trusted. */
+function tokenAal(authHeader: string): string {
+  try {
+    const payload = authHeader.replace(/^Bearer\s+/i, "").split(".")[1];
+    const text = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(text).aal || "aal1";
+  } catch {
+    return "aal1";
+  }
+}
+
+/** Addresses on the internal domain are placeholders the portal invents for
+ *  accounts with no real mailbox (a young student, an applicant's record).
+ *  Handing one to Resend earns a bounce and tells the admin mail was sent. */
+export function isDeliverable(address: string | null | undefined): boolean {
+  const a = String(address || "").trim().toLowerCase();
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(a) && !a.endsWith("@tbd.internal");
+}
+
+/** Active admins other than `exceptId`. Guards against locking the school out
+ *  of its own portal by suspending, demoting or deleting the last one. */
+export async function otherActiveAdmins(admin: SupabaseClient, exceptId: string): Promise<number> {
+  const { count, error } = await admin
+    .from("profiles")
+    .select("id", { count: "exact", head: true })
+    .eq("role", "admin")
+    .eq("status", "active")
+    .neq("id", exceptId);
+  if (error) throw new Error(`Could not count administrators: ${error.message}`);
+  return count ?? 0;
+}
+
+/** Block or unblock a login. A ban stops the refresh token, so an open
+ *  session ends when its access token expires (within the hour); RLS already
+ *  refuses a suspended profile in the meantime (migration 0032). */
+export async function setBanned(admin: SupabaseClient, authId: string, banned: boolean) {
+  const { error } = await admin.auth.admin.updateUserById(authId, {
+    ban_duration: banned ? "876000h" : "none",
+  });
+  return error;
+}
+
+/** Audit entry written by an edge function. Never fatal. */
+export async function audit(
+  admin: SupabaseClient,
+  caller: AdminCaller | null,
+  action: string,
+  target: string,
+  details: Record<string, unknown>,
+) {
+  const { error } = await admin.from("audit_logs").insert({
+    action,
+    performed_by: caller ? `${caller.fullName || caller.schoolId || caller.id} (admin)` : "System",
+    performer_id: caller?.id ?? null,
+    target,
+    details: JSON.stringify(details),
+    timestamp: new Date().toISOString(),
+  });
+  if (error) console.warn(`[audit] ${action} not recorded:`, error.message);
 }

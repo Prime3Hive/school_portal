@@ -34,6 +34,10 @@ Files are numbered sequentially: `NNNN_description.sql`
 | 0029 | `0029_let_teachers_correct_their_marks.sql` | UPDATE policy on grades: admins any grade, teachers the grades they entered |
 | 0030 | `0030_merge_duplicate_grades_and_stamp_terms.sql` | Backs up, then removes duplicate grades, fills missing term/session, regrades on the school scale |
 | 0031 | `0031_stamp_terms_on_fee_items.sql` | Backs up, then gives every term-less bill line the term it was created in |
+| 0032 | `0032_users_and_access_hardening.sql` | Suspended accounts lose access in RLS; the browser may write only its own name/email on `profiles`; `audit_logs` append-only with the actor stamped by the database |
+| 0033 | `0033_require_mfa_for_admins.sql` | Admin rights need a two-step-verified session (aal2). **Apply only after every admin has enrolled** |
+
+Apply 0032 before deploying the update-account / delete-user edge functions and the matching portal code. Apply 0033 last, once every admin has set up two-step sign-in (the file has the check query).
 
 Apply 0028–0031 in order in the SQL Editor, after running `sql/check-grades-before-cleanup.sql` (read-only) and saving its output.
 

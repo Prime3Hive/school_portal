@@ -628,6 +628,45 @@
             font-weight: var(--font-weight-semibold);
             cursor: pointer;
         }
+
+        /* ---------- Two-step sign-in ---------- */
+        .mfa-step[hidden] { display: none; }
+        .mfa-qr {
+            display: flex;
+            justify-content: center;
+            padding: var(--space-4);
+            margin: var(--space-4) 0;
+            background: #fff;           /* QR codes need a light ground in dark mode too */
+            border-radius: var(--radius-lg);
+        }
+        .mfa-qr img { width: 180px; height: 180px; }
+        .mfa-secret {
+            font-family: var(--font-mono, monospace);
+            font-size: var(--font-size-sm);
+            word-break: break-all;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            padding: var(--space-2) var(--space-3);
+            margin: 0 0 var(--space-4);
+        }
+        .mfa-code {
+            letter-spacing: 0.4em;
+            font-size: var(--font-size-xl);
+            text-align: center;
+        }
+        .link-btn {
+            background: none;
+            border: none;
+            padding: 0;
+            font: inherit;
+            color: var(--color-primary-600);
+            font-weight: var(--font-weight-semibold);
+            cursor: pointer;
+        }
+        .link-btn:hover { color: var(--brand-red); text-decoration: underline; }
+        .login-links { display: inline-flex; gap: var(--space-4); flex-wrap: wrap; }
+        .reset-form .form-input { padding-left: var(--space-4); }
+        .reset-result { font-size: var(--font-size-sm); color: var(--text-secondary); margin: 0 0 var(--space-4); }
     </style>
 </head>
 
@@ -699,16 +738,45 @@
                             <input type="checkbox" id="rememberMe" name="rememberMe">
                             <span>Remember me</span>
                         </label>
-                        <a href="#" class="forgot-link" id="forgot-link">Forgot your ID?</a>
+                        <span class="login-links">
+                            <a href="#" class="forgot-link" id="forgot-pw-link">Forgot password?</a>
+                            <a href="#" class="forgot-link" id="forgot-link">Forgot your ID?</a>
+                        </span>
                     </div>
 
                     <button type="submit" class="btn-login" id="login-btn">Sign In</button>
                 </form>
 
+                <!-- Two-step sign-in: administrators, after the password -->
+                <form id="mfa-form" class="mfa-step" hidden novalidate>
+                    <div id="mfa-enroll" hidden>
+                        <p class="auth-subtitle" style="margin-top:0">Administrator accounts need a second step.
+                            Scan this code with an authenticator app (Google Authenticator, Microsoft
+                            Authenticator, Authy), then enter the 6-digit code it shows.</p>
+                        <div class="mfa-qr"><img id="mfa-qr" alt="QR code to add this account to an authenticator app"></div>
+                        <p class="form-hint" style="margin:0 0 var(--space-2)">Can't scan? Type this key into the app:</p>
+                        <p class="mfa-secret" id="mfa-secret"></p>
+                    </div>
+                    <p class="auth-subtitle" id="mfa-challenge-text" hidden style="margin-top:0">
+                        Enter the 6-digit code from your authenticator app.</p>
+                    <div class="form-group">
+                        <label class="form-label" for="mfa-code">Code</label>
+                        <input type="text" id="mfa-code" class="form-input mfa-code" inputmode="numeric"
+                            autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" required
+                            aria-describedby="mfa-code-error">
+                        <p class="error-message" id="mfa-code-error"></p>
+                    </div>
+                    <button type="submit" class="btn-login" id="mfa-btn">Verify</button>
+                    <p style="text-align:center;margin-top:var(--space-4)">
+                        <button type="button" class="link-btn" id="mfa-cancel">Use a different account</button>
+                    </p>
+                </form>
+
                 <div class="auth-footer">
                     <p>Accounts are created by the school administrator.</p>
                     <p class="fine-print">Sign in with the Login ID and password from your
-                        welcome email. Lost them? Ask the school office to send a new password.</p>
+                        welcome email. Forgotten the password? Use "Forgot password?" above, or ask the
+                        school office to send a new one.</p>
                 </div>
             </div>
         </section>
@@ -724,11 +792,11 @@
             <div class="id-panel">
                 <h3>ID format guide</h3>
                 <dl class="id-grid">
-                    <div><dt>Admin</dt><dd><code>ADM-YYYY-NNN</code></dd></div>
-                    <div><dt>Teacher</dt><dd><code>TCH-YYYY-NNN</code></dd></div>
-                    <div><dt>Staff</dt><dd><code>STF-YYYY-NNN</code></dd></div>
-                    <div><dt>Student</dt><dd><code>STU-YYYY-NNN</code></dd></div>
-                    <div><dt>Guardian</dt><dd><code>GRD-YYYY-NNN</code></dd></div>
+                    <div><dt>Admin</dt><dd><code>ADM-YYYY-NNNNNN</code></dd></div>
+                    <div><dt>Teacher</dt><dd><code>TCH-YYYY-NNNNNN</code></dd></div>
+                    <div><dt>Staff</dt><dd><code>STF-YYYY-NNNNNN</code></dd></div>
+                    <div><dt>Student</dt><dd><code>STU-YYYY-NNNNNN</code></dd></div>
+                    <div><dt>Parent</dt><dd><code>GDN-YYYY-NNNNNN</code></dd></div>
                 </dl>
             </div>
 
@@ -744,6 +812,24 @@
 
             <button type="button" class="btn-dialog-close" id="forgot-close" autofocus>Got it</button>
         </div>
+    </dialog>
+
+    <!-- Forgot-password dialog -->
+    <dialog class="id-dialog" id="reset-dialog" aria-labelledby="reset-dialog-title">
+        <form class="id-dialog-body reset-form" id="reset-form" novalidate>
+            <h2 id="reset-dialog-title">Forgot your password?</h2>
+            <p class="lead">Enter your User ID. If the school has an email address for you, we'll send a
+                link to choose a new password. Administrators: ask another administrator.</p>
+            <div class="form-group">
+                <label class="form-label" for="reset-id">User ID</label>
+                <input type="text" id="reset-id" class="form-input" autocapitalize="characters" spellcheck="false"
+                    autocomplete="username" placeholder="STU-2026-123456">
+            </div>
+            <p class="reset-result" id="reset-result" role="status" aria-live="polite"></p>
+            <button type="submit" class="btn-dialog-close" id="reset-send">Send the link</button>
+            <button type="button" class="btn-dialog-close" id="reset-close"
+                style="background:var(--bg-tertiary);color:var(--text-primary)">Close</button>
+        </form>
     </dialog>
 
     <!-- Supabase (must be first) -->
@@ -762,8 +848,11 @@
             const alertContainer = document.getElementById('alert-container');
             const capsHint = document.getElementById('caps-hint');
 
-            // Accepted ID shapes, e.g. ADM-2024-001 / STU-2024 / ADMIN-2024-001
-            const ID_PATTERN = /^(ADMIN|ADM|TCH|STF|STAFF|STU|GRD)-\d{4}(-\d{3})?$/;
+            // Accepted ID shapes, e.g. ADM-2024-001 / STU-2024 / STU-2026-123456.
+            // create-account issues six digits and GDN for parents; this used
+            // to accept three digits and GRD only, so every account it issued
+            // was turned away here before reaching the server.
+            const ID_PATTERN = /^(ADMIN|ADM|TCH|STF|STAFF|STU|GRD|GDN)-\d{4}(-\d{3,6})?$/;
 
             // ---------- Feedback helpers ----------
             function showAlert(message, type = 'danger') {
@@ -978,6 +1067,14 @@
                 try {
                     const result = await authManager.login(userId, password);
 
+                    if (result.mfa) {
+                        // Password was right; an administrator's second step is next.
+                        clearAttempts();
+                        setBusy(false);
+                        await showMfa(result.mfa, result.factorId);
+                        return;
+                    }
+
                     if (result.success) {
                         clearAttempts();
                         // A forced password change takes precedence over the role landing page.
@@ -1013,10 +1110,123 @@
                 }
             });
 
-            // Redirect signed-in users. Uses 'load' so the Supabase session has hydrated.
-            window.addEventListener('load', () => {
-                if (!authManager.isAuthenticated()) return;
-                const session = authManager.getSession();
+            // ---------- Two-step sign-in ----------
+            const mfaForm = document.getElementById('mfa-form');
+            const mfaCode = document.getElementById('mfa-code');
+            const mfaBtn = document.getElementById('mfa-btn');
+            let mfaFactorId = null;
+
+            function goOn(result) {
+                const session = result.session;
+                window.location.href = (result.mustChangePassword || session.mustChangePassword)
+                    ? 'change-password.html?userId=' + encodeURIComponent(session.userId)
+                    : authManager.getRedirectUrl(session.role);
+            }
+
+            async function showMfa(step, factorId) {
+                form.hidden = true;
+                mfaForm.hidden = false;
+                document.querySelector('.auth-title').textContent = 'Two-step sign-in';
+                document.querySelector('.auth-subtitle').hidden = true;
+                document.getElementById('mfa-enroll').hidden = step !== 'enroll';
+                document.getElementById('mfa-challenge-text').hidden = step !== 'challenge';
+                mfaFactorId = factorId || null;
+
+                if (step === 'enroll') {
+                    const enrol = await authManager.mfaEnroll();
+                    if (!enrol.success) {
+                        if (enrol.unavailable) {
+                            // Switched off for the project — carry on rather than lock admins out.
+                            const done = await authManager.finishPendingLogin();
+                            if (done.success) return goOn(done);
+                            showAlert(done.error);
+                            return;
+                        }
+                        showAlert('Two-step sign-in could not be set up: ' + enrol.error);
+                        return;
+                    }
+                    mfaFactorId = enrol.factorId;
+                    document.getElementById('mfa-qr').src = enrol.qr;
+                    document.getElementById('mfa-secret').textContent = enrol.secret;
+                }
+                mfaCode.focus();
+            }
+
+            mfaCode.addEventListener('input', () => {
+                mfaCode.value = mfaCode.value.replace(/\D/g, '').slice(0, 6);
+            });
+
+            mfaForm.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const errorEl = document.getElementById('mfa-code-error');
+                errorEl.textContent = '';
+                errorEl.classList.remove('show');
+                if (!/^\d{6}$/.test(mfaCode.value) || !mfaFactorId) {
+                    errorEl.textContent = 'Enter the 6-digit code.';
+                    errorEl.classList.add('show');
+                    mfaCode.focus();
+                    return;
+                }
+                mfaBtn.disabled = true;
+                mfaBtn.textContent = 'Checking…';
+                const result = await authManager.mfaVerify(mfaFactorId, mfaCode.value);
+                if (result.success) return goOn(result);
+                mfaBtn.disabled = false;
+                mfaBtn.textContent = 'Verify';
+                errorEl.textContent = result.error;
+                errorEl.classList.add('show');
+                mfaCode.select();
+            });
+
+            document.getElementById('mfa-cancel').addEventListener('click', async () => {
+                try { await supabaseClient.auth.signOut(); } catch { /* reload anyway */ }
+                window.location.replace('login.html');
+            });
+
+            // ---------- Forgot-password dialog ----------
+            const resetDialog = document.getElementById('reset-dialog');
+            const resetId = document.getElementById('reset-id');
+            const resetResult = document.getElementById('reset-result');
+            const resetSend = document.getElementById('reset-send');
+            document.getElementById('forgot-pw-link').addEventListener('click', (event) => {
+                event.preventDefault();
+                resetId.value = userIdInput.value.trim();
+                resetResult.textContent = '';
+                resetSend.disabled = false;
+                if (typeof resetDialog.showModal === 'function') resetDialog.showModal();
+                else resetDialog.setAttribute('open', '');
+                resetId.focus();
+            });
+            document.getElementById('reset-close').addEventListener('click', () => resetDialog.close());
+            resetId.addEventListener('input', () => { resetId.value = resetId.value.toUpperCase(); });
+            document.getElementById('reset-form').addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const id = resetId.value.trim().toUpperCase();
+                if (!ID_PATTERN.test(id)) {
+                    resetResult.textContent = 'Enter your User ID, e.g. STU-2026-123456.';
+                    return;
+                }
+                resetSend.disabled = true;
+                resetResult.textContent = 'Sending…';
+                const result = await authManager.requestPasswordReset(id);
+                resetResult.textContent = result.success ? result.message : result.error;
+                resetSend.disabled = result.success;
+            });
+
+            // Already signed in? Ask the server, not the cache: an administrator
+            // who has passed the password but not the code comes back here from
+            // the portal and must land on the code step, not bounce back.
+            window.addEventListener('load', async () => {
+                if (!window.supabaseReady) return;
+                const { data: { session: live } } = await supabaseClient.auth.getSession();
+                if (!live) return;
+                const check = await authManager.requireSession();
+                if (check.reason === 'mfa') {
+                    const mfa = await authManager.mfaState();
+                    if (mfa.step) return showMfa(mfa.step, mfa.factorId);
+                }
+                if (!check.ok) return;
+                const session = check.session;
                 if (session.mustChangePassword) {
                     window.location.href = 'change-password.html?userId=' + encodeURIComponent(session.userId);
                 } else {

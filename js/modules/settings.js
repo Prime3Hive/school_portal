@@ -425,7 +425,7 @@ const settingsModule = {
 
   confirmClearAll() {
     createModal('Delete all records', `
-      <p>This permanently deletes every pupil, staff member, fee, payment, result, inventory record, application and log. It cannot be undone.</p>
+      <p>This permanently deletes every pupil, staff member, fee, payment, result, inventory record and application. It cannot be undone. The activity log is kept.</p>
       <p class="ui-card-note" style="margin-top:8px;">Settings, the fee structure and subjects are kept. Download a backup first.</p>
       <label class="form-group" style="margin-top:14px;"><span class="form-label">Type DELETE EVERYTHING to confirm</span>
         <input type="text" id="clearAllTyped" class="form-input" autocomplete="off"></label>
@@ -451,7 +451,9 @@ const settingsModule = {
       'assessments', 'grades', 'student_assignments', 'student_subjects',
       'attendance_records', 'student_schedules',
       'lesson_plans', 'teacher_assessments', 'teacher_tasks',
-      'applications', 'audit_logs', 'email_logs', 'invitations',
+      // audit_logs is append-only (migration 0032): the browser cannot delete it,
+      // so it is not listed. sql/reset-production-data.sql clears it.
+      'applications', 'email_logs', 'invitations',
       'notifications'
     ];
 
