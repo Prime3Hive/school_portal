@@ -31,8 +31,8 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
 
-    <!-- Stylesheets. css/home.css carries the homepage and is prefixed hp-;
-         public-blog.css further down is only for the admission popup. -->
+    <!-- Stylesheets. css/home.css carries the whole homepage, admission
+         popup included, so this page does not load public-blog.css. -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
@@ -40,15 +40,6 @@
     <link rel="preload" as="image" type="image/webp" fetchpriority="high"
         imagesrcset="assets/gallery/morning-devotion-640.webp 640w, assets/gallery/morning-devotion-1280.webp 1280w"
         imagesizes="(max-width: 600px) 86vw, (max-width: 960px) 520px, 560px">
-
-    <!-- The popup's styles and icons. Neither is needed for first paint, so
-         both load as print stylesheets and switch on once fetched; the popup
-         waits for the load event before it opens itself. -->
-    <link rel="stylesheet" href="css/public-blog.css" media="print" onload="this.media='all'">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" media="print" onload="this.media='all'">
-    <noscript>
-        <link rel="stylesheet" href="css/public-blog.css">
-    </noscript>
 </head>
 
 <body class="hp" data-admission-popup-auto>

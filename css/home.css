@@ -575,6 +575,120 @@ body.hp .hp-foot h2 { color: var(--hp-white); font-size: 0.95rem; margin-bottom:
 .hp-top.is-shown { opacity: 1; transform: none; pointer-events: auto; }
 @media (max-width: 760px) { .hp-top { display: none; } }
 
+/* ── Admission notice (built by js/admission-popup.js) ───────────────
+   A bottom sheet on phones, a centred card from 560px. One photo, one
+   message, two actions. */
+body.modal-open { overflow: hidden; }
+.adm-modal { position: fixed; inset: 0; z-index: 1200; display: grid; place-items: end center; }
+.adm-modal[hidden] { display: none; }
+.adm-modal:not(.is-open) { pointer-events: none; }
+.adm-backdrop {
+    position: absolute; inset: 0; background: rgba(12, 17, 38, 0.55);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    opacity: 0; transition: opacity .4s var(--hp-ease);
+}
+.adm-modal.is-open .adm-backdrop { opacity: 1; }
+.adm-dialog {
+    position: relative; width: 100%; max-height: 92vh; max-height: 92svh; overflow-y: auto; overscroll-behavior: contain;
+    background: var(--hp-white); color: var(--hp-body); border-radius: 28px 28px 0 0;
+    box-shadow: 0 -24px 60px rgba(12, 17, 38, 0.3);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    transform: translateY(100%); transition: transform .55s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.adm-modal.is-open .adm-dialog { transform: none; }
+/* The dialog takes focus when it opens so the keyboard lands inside it; that
+   should not draw the page's focus ring around the whole sheet. */
+body.hp .adm-dialog:focus, body.hp .adm-dialog:focus-visible { outline: none; }
+.adm-i { width: 20px; height: 20px; flex: none; display: inline-block; }
+
+.adm-handle {
+    position: absolute; top: 8px; left: 50%; z-index: 2; width: 40px; height: 5px; margin-left: -20px;
+    border-radius: 999px; background: rgba(255, 255, 255, 0.75);
+}
+.adm-photo { position: relative; height: 136px; overflow: hidden; background: var(--hp-navy); }
+.adm-photo picture, .adm-photo img { width: 100%; height: 100%; }
+.adm-photo img { object-fit: cover; object-position: 50% 30%; }
+.adm-photo::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(18, 26, 59, 0.15) 0%, rgba(18, 26, 59, 0.2) 40%, rgba(18, 26, 59, 0.88) 100%);
+}
+.adm-photo-bar {
+    position: absolute; left: 20px; right: 20px; bottom: 14px; z-index: 1;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--hp-white);
+}
+.adm-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 0.88rem; line-height: 1.25; min-width: 0; }
+.adm-brand img { width: 32px; height: 32px; padding: 4px; border-radius: 10px; background: var(--hp-white); flex: none; }
+.adm-session {
+    display: inline-flex; align-items: center; gap: 8px; flex: none; padding: 6px 12px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.16); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    font-size: 0.78rem; font-weight: 700;
+}
+.adm-live { width: 7px; height: 7px; border-radius: 50%; background: #4ADE80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.3); }
+.adm-close {
+    position: absolute; top: 14px; right: 14px; z-index: 3; width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; background: rgba(255, 255, 255, 0.92); color: var(--hp-ink);
+    box-shadow: 0 4px 14px rgba(12, 17, 38, 0.2); transition: transform .3s var(--hp-ease), background .2s;
+}
+.adm-close .adm-i { width: 18px; height: 18px; }
+.adm-close:hover { transform: rotate(90deg); background: var(--hp-white); }
+
+.adm-body { padding: 24px 22px 12px; }
+.adm-kicker { font-size: 0.76rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--hp-red-600); }
+body.hp .adm-title { font-size: clamp(1.45rem, 6vw, 1.75rem); margin: 8px 0 10px; letter-spacing: -0.025em; }
+.adm-lead { font-size: 0.98rem; line-height: 1.6; }
+.adm-levels { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 20px; }
+.adm-levels li {
+    padding: 7px 13px; border-radius: 999px; background: var(--hp-blue-50); border: 1px solid var(--hp-blue-100);
+    color: var(--hp-navy); font-size: 0.82rem; font-weight: 600;
+}
+.adm-points { display: grid; gap: 10px; font-size: 0.94rem; color: var(--hp-ink); }
+.adm-points li { display: flex; align-items: center; gap: 12px; }
+.adm-points .adm-i { width: 24px; height: 24px; padding: 4px; border-radius: 50%; background: var(--hp-green-50); color: var(--hp-green-600); }
+.adm-actions { display: grid; gap: 10px; margin-top: 24px; }
+.adm-btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 22px;
+    border-radius: 999px; border: 1.5px solid transparent; font-weight: 700; font-size: 1rem;
+    transition: transform .3s var(--hp-ease), background .2s, box-shadow .3s var(--hp-ease);
+}
+.adm-btn .adm-i { width: 18px; height: 18px; }
+.adm-btn-primary { background: var(--hp-red); color: var(--hp-white); box-shadow: 0 10px 24px -10px rgba(226, 60, 60, 0.7); }
+.adm-btn-primary:hover { background: var(--hp-red-600); color: var(--hp-white); }
+.adm-btn-primary .adm-i { transition: transform .3s var(--hp-ease); }
+.adm-btn-primary:hover .adm-i { transform: translateX(4px); }
+.adm-btn-wa { border-color: var(--hp-green-50); background: var(--hp-green-50); color: var(--hp-green-600); }
+.adm-btn-wa:hover { border-color: var(--hp-green); color: var(--hp-green-600); }
+.adm-btn:active { transform: scale(0.97); }
+.adm-foot { display: flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 0.84rem; color: var(--hp-muted); }
+.adm-foot .adm-i { width: 16px; height: 16px; }
+.adm-later {
+    display: block; width: 100%; min-height: 48px; margin-top: 4px;
+    color: var(--hp-muted); font-size: 0.94rem; font-weight: 600;
+}
+.adm-later:hover { color: var(--hp-ink); }
+
+/* Contents arrive just behind the sheet. */
+.adm-modal.is-open .adm-body > * { animation: hp-up .55s var(--hp-ease) both; }
+.adm-modal.is-open .adm-body > :nth-child(2) { animation-delay: 60ms; }
+.adm-modal.is-open .adm-body > :nth-child(3) { animation-delay: 110ms; }
+.adm-modal.is-open .adm-body > :nth-child(4) { animation-delay: 160ms; }
+.adm-modal.is-open .adm-body > :nth-child(5) { animation-delay: 210ms; }
+.adm-modal.is-open .adm-body > :nth-child(n+6) { animation-delay: 260ms; }
+
+@media (min-width: 560px) {
+    .adm-modal { place-items: center; padding: 24px; }
+    .adm-dialog {
+        max-width: 480px; border-radius: 28px; box-shadow: 0 40px 100px -20px rgba(12, 17, 38, 0.5);
+        opacity: 0; transform: translateY(24px) scale(0.97);
+        transition: transform .5s var(--hp-ease), opacity .35s var(--hp-ease);
+    }
+    .adm-modal.is-open .adm-dialog { opacity: 1; transform: none; }
+    .adm-handle { display: none; }
+    .adm-photo { height: 188px; }
+    .adm-body { padding: 28px 32px 16px; }
+    .adm-actions { grid-template-columns: 1fr 1fr; }
+    .adm-btn { padding: 0 16px; }
+}
+
 /* ── Carousel dots (classes on phones; built by js/home.js) ───────── */
 .hp-dots-nav { display: none; justify-content: center; gap: 8px; margin-top: 20px; }
 .hp-dots-nav button { width: 28px; height: 28px; display: grid; place-items: center; }

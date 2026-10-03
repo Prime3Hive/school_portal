@@ -55,112 +55,69 @@
 
     /* --------------------------------------------------------------
        Markup
+       A short notice, not a brochure: what is open, for whom, and the
+       two ways to act on it. Icons are inline SVG so the popup needs no
+       icon font; its styles live in css/home.css (.adm-*).
        -------------------------------------------------------------- */
-    function levelCard(level) {
-        return `
-            <li class="adm-level adm-accent-${esc(level.accent)}">
-                <span class="adm-level-icon"><i class="fas ${esc(level.icon)}" aria-hidden="true"></i></span>
-                <span class="adm-level-name">${esc(level.name)}</span>
-                <span class="adm-level-classes">${esc(level.classes)}</span>
-                <span class="adm-level-blurb">${esc(level.blurb)}</span>
-            </li>`;
-    }
+    const ICON = {
+        close: '<path d="M6 6l12 12M18 6 6 18" stroke-linecap="round"/>',
+        arrow: '<path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/>',
+        check: '<path d="m6.5 12.5 3.5 3.5 7.5-8" stroke-linecap="round" stroke-linejoin="round"/>',
+        clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round"/>',
+        wa: '<path fill="currentColor" stroke="none" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/>'
+    };
 
-    function phoneLink(phone) {
-        return `<a href="tel:${esc(site.telHref(phone))}">${esc(phone)}</a>`;
+    function icon(name) {
+        return '<svg class="adm-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true">' +
+            ICON[name] + '</svg>';
     }
 
     function template() {
         const c = site.contact;
+        const a = site.admissions;
+        const waText = encodeURIComponent('Hello ' + site.name + ", I'd like to ask about admission for my child.");
+        const levels = a.levels.map(level => `<li>${esc(level.classes)}</li>`).join('');
 
         return `
         <div class="adm-backdrop" data-adm-close></div>
 
-        <div class="adm-dialog" role="dialog" aria-modal="true" aria-labelledby="admTitle" tabindex="-1">
-            <button class="adm-close" type="button" data-adm-close aria-label="Close admission notice">
-                <i class="fas fa-times" aria-hidden="true"></i>
-            </button>
+        <div class="adm-dialog" role="dialog" aria-modal="true" aria-labelledby="admTitle" aria-describedby="admLead" tabindex="-1">
+            <span class="adm-handle" aria-hidden="true"></span>
 
-            <header class="adm-crest-band">
-                <img src="${esc(site.crest)}" alt="" width="56" height="56">
-                <div>
-                    <p class="adm-school">${esc(site.name)}, ${esc(site.city)}</p>
-                    <p class="adm-motto">${esc(site.motto)}</p>
+            <div class="adm-photo">
+                <picture>
+                    <source srcset="assets/gallery/morning-assembly-640.webp" type="image/webp">
+                    <img src="assets/gallery/morning-assembly-640.jpg" alt="" width="640" height="480">
+                </picture>
+                <div class="adm-photo-bar">
+                    <span class="adm-brand"><img src="${esc(site.crest)}" alt="" width="28" height="31">${esc(site.name)}</span>
+                    <span class="adm-session"><span class="adm-live"></span>${esc(a.session)} session</span>
                 </div>
-                <span class="adm-tagline">${esc(site.tagline)}</span>
-            </header>
+            </div>
+
+            <button class="adm-close" type="button" data-adm-close aria-label="Close admission notice">${icon('close')}</button>
 
             <div class="adm-body">
-                <h2 class="adm-headline" id="admTitle">
-                    <span class="adm-headline-1">Admission</span>
-                    <span class="adm-headline-2">In Progress</span>
-                </h2>
+                <p class="adm-kicker">${esc(a.status)}</p>
+                <h2 class="adm-title" id="admTitle">Places are open for ${esc(a.session)}</h2>
+                <p class="adm-lead" id="admLead">We are admitting into every class from Creche to JSS 3. Classes are kept small, so places in each one are limited.</p>
 
-                <p class="adm-into"><span>into</span></p>
+                <ul class="adm-levels" aria-label="Classes open for admission">${levels}</ul>
 
-                <ul class="adm-levels">
-                    ${site.admissions.levels.map(levelCard).join('')}
+                <ul class="adm-points">
+                    <li>${icon('check')}<span>Apply online from your phone</span></li>
+                    <li>${icon('check')}<span>&#8358;5,000 application fee, paid online</span></li>
+                    <li>${icon('check')}<span>We call you to arrange an assessment and a visit</span></li>
                 </ul>
 
-                <div class="adm-purpose">
-                    <div class="adm-purpose-block">
-                        <h3><i class="fas fa-eye" aria-hidden="true"></i> Vision</h3>
-                        <p>${esc(site.vision)}</p>
-                    </div>
-                    <div class="adm-purpose-block">
-                        <h3><i class="fas fa-bullseye" aria-hidden="true"></i> Mission</h3>
-                        <ul>
-                            ${site.mission.map(m => `<li>${esc(m)}</li>`).join('')}
-                        </ul>
-                    </div>
-                </div>
-
                 <div class="adm-actions">
-                    <a href="admissions.html" class="btn btn-accent">
-                        <i class="fas fa-file-alt" aria-hidden="true"></i>
-                        <span>Apply Online</span>
-                    </a>
-                    <a href="https://wa.me/${esc(c.whatsapp)}" target="_blank" rel="noopener" class="btn btn-secondary">
-                        <i class="fab fa-whatsapp" aria-hidden="true"></i>
-                        <span>Chat With Us</span>
-                    </a>
+                    <a href="admissions.html" class="adm-btn adm-btn-primary" data-cta="apply">Apply online ${icon('arrow')}</a>
+                    <a href="https://wa.me/${esc(c.whatsapp)}?text=${waText}" target="_blank" rel="noopener" class="adm-btn adm-btn-wa" data-cta="whatsapp">${icon('wa')}Ask on WhatsApp</a>
                 </div>
-            </div>
 
-            <div class="adm-contact">
-                <div class="adm-contact-item">
-                    <i class="fas fa-phone" aria-hidden="true"></i>
-                    <div>
-                        <span class="adm-contact-label">Call the office</span>
-                        <span class="adm-contact-value">${c.phones.map(phoneLink).join('<span class="adm-sep">·</span>')}</span>
-                    </div>
-                </div>
-                <div class="adm-contact-item">
-                    <i class="fas fa-clock" aria-hidden="true"></i>
-                    <div>
-                        <span class="adm-contact-label">${esc(c.formsNote)}</span>
-                        <span class="adm-contact-value">${esc(c.officeHours)}</span>
-                    </div>
-                </div>
-                <div class="adm-contact-item">
-                    <i class="fas fa-map-marker-alt" aria-hidden="true"></i>
-                    <div>
-                        <span class="adm-contact-label">Visit us</span>
-                        <span class="adm-contact-value">${esc(c.address)}</span>
-                    </div>
-                </div>
-                <div class="adm-contact-item">
-                    <i class="fas fa-envelope" aria-hidden="true"></i>
-                    <div>
-                        <span class="adm-contact-label">Email</span>
-                        <span class="adm-contact-value">
-                            <a href="mailto:${esc(c.email)}">${esc(c.email)}</a>
-                        </span>
-                    </div>
-                </div>
+                <p class="adm-foot">${icon('clock')}<span>${esc(c.formsNote)}, ${esc(c.officeHours)}, Monday to Friday.</span></p>
+                <button class="adm-later" type="button" data-adm-close>Not now</button>
             </div>
-
-            <p class="adm-quote">&ldquo;${esc(site.promise)}&rdquo;</p>
         </div>`;
     }
 
@@ -185,6 +142,39 @@
         // Following a link out of the modal counts as answering it.
         dialog.addEventListener('click', function (event) {
             if (event.target.closest('a[href]')) remember();
+        });
+
+        enableSwipeToClose();
+    }
+
+    // On a phone the notice is a bottom sheet, and people expect to pull a
+    // sheet down to dismiss it. Only starts when the sheet is scrolled to its
+    // top, so it never fights the sheet's own scrolling.
+    function enableSwipeToClose() {
+        let startY = null;
+        let dy = 0;
+
+        dialog.addEventListener('touchstart', function (event) {
+            if (!window.matchMedia('(max-width: 559px)').matches || dialog.scrollTop > 0) return;
+            startY = event.touches[0].clientY;
+            dy = 0;
+        }, { passive: true });
+
+        dialog.addEventListener('touchmove', function (event) {
+            if (startY === null) return;
+            dy = Math.max(0, event.touches[0].clientY - startY);
+            if (dy > 0) {
+                dialog.style.transition = 'none';
+                dialog.style.transform = 'translateY(' + dy + 'px)';
+            }
+        }, { passive: true });
+
+        dialog.addEventListener('touchend', function () {
+            if (startY === null) return;
+            startY = null;
+            dialog.style.transition = '';
+            dialog.style.transform = '';
+            if (dy > 110) close();
         });
     }
 
@@ -274,9 +264,8 @@
     window.admissionPopup = { open: open, close: close, isDismissed: isDismissed };
 
     // Auto-open only where the page asks for it, and only once per campaign.
-    // Wait for the load event first: the homepage fetches this popup's
-    // stylesheet without blocking paint, and the load event is when it has
-    // arrived. On a phone the popup fills the screen, so give the visitor
+    // Wait for the load event first, so the notice never competes with the
+    // page's own first paint. On a phone the popup fills the screen, so give the visitor
     // time with the page before it appears, and never open it over the menu
     // or the photo viewer.
     if (document.querySelector('[data-admission-popup-auto]') && !isDismissed()) {
