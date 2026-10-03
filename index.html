@@ -31,1019 +31,582 @@
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="assets/logo-mark.svg">
 
-    <!-- Stylesheets -->
+    <!-- Stylesheets. public-blog.css stays for the admission popup, which
+         is built from its .adm-* and .btn rules; css/home.css carries the
+         homepage itself and is prefixed hp- so the two never collide. -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
     <link rel="stylesheet" href="css/public-blog.css">
+    <link rel="stylesheet" href="css/home.css">
+    <link rel="preload" as="image" href="assets/gallery/morning-devotion-1280.webp" type="image/webp" fetchpriority="high">
 
-    <!-- Font Awesome for Icons -->
+    <!-- Font Awesome: used only by the admission popup's icons. -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
 </head>
 
-<body data-admission-popup-auto>
-    <a class="skip-link" href="#main">Skip to main content</a>
+<body class="hp" data-admission-popup-auto>
+    <a class="hp-skip" href="#main">Skip to main content</a>
+
+    <!-- Icons, drawn once and referenced with <use>. -->
+    <svg class="hp-sprite" aria-hidden="true" focusable="false">
+        <defs>
+            <symbol id="hp-arrow" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M13 6l6 6-6 6"/></symbol>
+            <symbol id="hp-check" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="currentColor" opacity=".14"/><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m7.5 12.5 3 3 6-6.5"/></symbol>
+            <symbol id="hp-wa" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></symbol>
+            <symbol id="hp-phone" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></symbol>
+            <symbol id="hp-mail" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></g></symbol>
+            <symbol id="hp-users" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/></g></symbol>
+            <symbol id="hp-heart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10Z"/></symbol>
+            <symbol id="hp-shield" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6Z"/><path d="m8.5 12 2.5 2.5 4.5-5"/></g></symbol>
+            <symbol id="hp-layers" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3 9 5-9 5-9-5Z"/><path d="m3 13 9 5 9-5"/></g></symbol>
+            <symbol id="hp-clock" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g></symbol>
+            <symbol id="hp-card" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></g></symbol>
+            <symbol id="hp-chart" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></symbol>
+            <symbol id="hp-cal" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></g></symbol>
+            <symbol id="hp-mobile" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M11 18h2"/></g></symbol>
+            <symbol id="hp-pin" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-12a7 7 0 0 1 14 0c0 5.8-7 12-7 12Z"/><circle cx="12" cy="9" r="2.5"/></g></symbol>
+            <symbol id="hp-file" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></g></symbol>
+            <symbol id="hp-plus" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M12 5v14M5 12h14"/></symbol>
+            <symbol id="hp-up" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="M12 19V5M6 11l6-6 6 6"/></symbol>
+            <symbol id="hp-x" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M6 6l12 12M18 6 6 18"/></symbol>
+            <symbol id="hp-left" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m15 6-6 6 6 6"/></symbol>
+            <symbol id="hp-right" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" d="m9 6 6 6-6 6"/></symbol>
+            <symbol id="hp-menu" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" d="M4 7h16M4 12h16M4 17h16"/></symbol>
+            <symbol id="hp-quote" viewBox="0 0 48 48"><path fill="currentColor" d="M20 12C11 14 6 21 6 30v8h14V24h-7c0-5 3-8 8-9Zm22 0c-9 2-14 9-14 18v8h14V24h-7c0-5 3-8 8-9Z"/></symbol>
+        </defs>
+    </svg>
 
     <!-- Navigation -->
-    <nav class="navbar" id="navbar">
-        <div class="navbar-container">
-            <a href="/" class="navbar-logo">
-                <div class="navbar-logo-icon"><img src="assets/logo-mark.svg" alt="" width="40" height="40"></div>
-                <span>TBD International Academy</span>
+    <header class="hp-nav" id="hpNav">
+        <div class="hp-wrap hp-nav-bar">
+            <a href="/" class="hp-brand" aria-label="TBD International Academy, home">
+                <img src="assets/logo-mark.svg" alt="" width="40" height="45">
+                <span><b>TBD International Academy</b><small>Planting Seeds of Knowledge</small></span>
             </a>
 
-            <div class="navbar-collapse" id="navbarMenu">
-                <ul class="navbar-menu">
-                    <li><a href="/" class="navbar-link active">Home</a></li>
-                    <li><a href="about.html" class="navbar-link">About</a></li>
-                    <li><a href="academics.html" class="navbar-link">Academics</a></li>
-                    <li><a href="admissions.html" class="navbar-link">Admissions</a></li>
-                    <li><a href="contact.html" class="navbar-link">Contact</a></li>
+            <nav aria-label="Main">
+                <ul class="hp-menu">
+                    <li><a href="/" aria-current="page">Home</a></li>
+                    <li><a href="about.html">About</a></li>
+                    <li><a href="academics.html">Academics</a></li>
+                    <li><a href="admissions.html">Admissions</a></li>
+                    <li><a href="contact.html">Contact</a></li>
                 </ul>
+            </nav>
 
-                <a href="login.html" class="btn btn-primary btn-block navbar-cta">
-                    <i class="fas fa-sign-in-alt"></i>
-                    <span>Portal Login</span>
-                </a>
-
-                <div class="navbar-drawer-meta">
-                    <a href="tel:+2347071711692"><i class="fas fa-phone"></i> 0707 171 1692</a>
-                    <a href="mailto:support@tbdacademy.org"><i class="fas fa-envelope"></i> support@tbdacademy.org</a>
-                    <a href="contact.html"><i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi</a>
-                </div>
+            <div class="hp-nav-cta">
+                <a href="login.html" class="hp-btn hp-btn-outline hp-portal" data-cta="portal">Portal login</a>
+                <a href="admissions.html" class="hp-btn hp-btn-red" data-cta="apply">Apply now</a>
+                <button class="hp-burger" id="hpBurger" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="hpDrawer">
+                    <svg class="hp-i"><use href="#hp-menu"/></svg>
+                </button>
             </div>
-
-            <a href="login.html" class="btn btn-primary btn-sm">
-                <i class="fas fa-sign-in-alt"></i>
-                <span>Portal Login</span>
-            </a>
-
-            <button class="navbar-toggle" id="navbarToggle" type="button" aria-label="Open menu">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
         </div>
 
-        <div class="navbar-progress" aria-hidden="true"><span></span></div>
-    </nav>
+        <div class="hp-drawer" id="hpDrawer" hidden>
+            <ul>
+                <li><a href="/" aria-current="page">Home</a></li>
+                <li><a href="about.html">About</a></li>
+                <li><a href="academics.html">Academics</a></li>
+                <li><a href="admissions.html">Admissions and fees</a></li>
+                <li><a href="contact.html">Contact</a></li>
+                <li><a href="login.html">Parent portal login</a></li>
+            </ul>
+            <div class="hp-drawer-meta">
+                <a href="tel:+2347071711692"><svg class="hp-i"><use href="#hp-phone"/></svg>0707 171 1692</a>
+                <a href="mailto:support@tbdacademy.org"><svg class="hp-i"><use href="#hp-mail"/></svg>support@tbdacademy.org</a>
+            </div>
+        </div>
+    </header>
 
     <main id="main">
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="hero-container">
-            <div class="hero-content">
-                <button class="hero-badge" type="button" data-admission-popup>
-                    <span class="hero-badge-dot"></span>
-                    <span>Admission in Progress &mdash; 2026/2027</span>
-                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+
+    <!-- Hero -->
+    <section class="hp-hero">
+        <div class="hp-wrap hp-hero-grid">
+            <div class="hp-hero-copy">
+                <button class="hp-pill hp-enter" type="button" data-admission-popup style="--d: 0ms">
+                    <b>2026/2027</b><span class="hp-live" aria-hidden="true"></span>Admission in progress
+                    <svg class="hp-i" aria-hidden="true"><use href="#hp-right"/></svg>
                 </button>
 
-                <div class="hero-brand">
-                    <img src="assets/logo-mark.svg" alt="TBD International Academy crest" width="64" height="64">
-                    <div>
-                        <div class="hero-brand-name">TBD International Academy</div>
-                        <div class="hero-brand-motto">Planting Seeds of Knowledge</div>
-                    </div>
-                </div>
+                <h1 class="hp-enter" style="--d: 120ms">Every child here is
+                    <span class="hp-hl">known by name.<svg viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true"><path d="M4 18C90 6 260 4 396 14"/></svg></span></h1>
 
-                <h1 class="hero-title">Small classes, and your child's results
-                    <span class="text-marker">on your phone.</span></h1>
-
-                <p class="hero-subtitle">
-                    Creche to JSS 3 in Kertyo, Makurdi, since 2024. Classes small enough that
-                    every child is known by name &mdash; with results, fees and attendance
-                    published straight to the parent portal, wherever you are.
+                <p class="hp-lead hp-enter" style="--d: 240ms">
+                    A private school in Kertyo, Makurdi, from Creche to JSS 3. Small classes,
+                    caring teachers, and your child&rsquo;s results on your phone the day
+                    they&rsquo;re ready.
                 </p>
 
-                <div class="hero-buttons">
-                    <a href="admissions.html" class="btn btn-accent" data-cta="apply">
-                        <span>Apply Now</span>
-                        <i class="fas fa-arrow-right"></i>
+                <div class="hp-actions hp-enter" style="--d: 360ms">
+                    <a href="https://wa.me/2347071711692?text=Hello%20TBD%20International%20Academy%2C%20I%27d%20like%20to%20book%20a%20visit%20to%20the%20school." target="_blank" rel="noopener"
+                        class="hp-btn hp-btn-red" data-cta="visit">
+                        Book a school visit <svg class="hp-i hp-arrow" aria-hidden="true"><use href="#hp-arrow"/></svg>
                     </a>
-                    <a href="contact.html" class="btn btn-secondary" data-cta="visit">
-                        <i class="fas fa-map-marker-alt"></i>
-                        <span>Arrange a Visit</span>
-                    </a>
+                    <a href="admissions.html" class="hp-btn hp-btn-outline" data-cta="apply">Apply for 2026/2027</a>
                 </div>
 
-                <div class="hero-trust">
-                    <span><i class="fas fa-check-circle"></i> Creche to JSS 3</span>
-                    <span><i class="fas fa-check-circle"></i> Kertyo, Makurdi</span>
-                    <span><i class="fas fa-check-circle"></i> Established 2024</span>
+                <div class="hp-reassure hp-enter" style="--d: 480ms">
+                    <span><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Creche to JSS 3</span>
+                    <span><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Parent portal included</span>
+                    <span><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Apply from your phone</span>
                 </div>
             </div>
 
-            <div class="hero-image">
-                <div class="hero-image-wrapper">
+            <div class="hp-art">
+                <span class="hp-ring" aria-hidden="true"></span>
+                <span class="hp-dots" aria-hidden="true"></span>
+                <div class="hp-art-main">
                     <picture>
-                        <source srcset="assets/gallery/assembly-compound-1280.webp" type="image/webp">
-                        <img src="assets/gallery/assembly-compound-640.jpg"
-                            alt="Pupils gathered on the TBD International Academy compound in Kertyo for morning assembly"
-                            width="800" height="600" fetchpriority="high" decoding="async">
+                        <source srcset="assets/gallery/morning-devotion-1280.webp" type="image/webp">
+                        <img src="assets/gallery/morning-devotion-640.jpg"
+                            alt="Pupils in the green check uniform clapping and singing at morning devotion"
+                            width="640" height="853" fetchpriority="high" decoding="async">
                     </picture>
                 </div>
-
-                <div class="hero-stats">
-                    <div class="hero-stat">
-                        <span class="hero-stat-value">Creche</span>
-                        <span class="hero-stat-label">to JSS 3</span>
-                    </div>
-                    <div class="hero-stat">
-                        <span class="hero-stat-value">Small</span>
-                        <span class="hero-stat-label">Class sizes</span>
-                    </div>
-                    <div class="hero-stat">
-                        <span class="hero-stat-value" data-count="2">2</span>
-                        <span class="hero-stat-label">Years</span>
-                    </div>
+                <div class="hp-art-second hp-enter" style="--d: 700ms">
+                    <picture>
+                        <source srcset="assets/gallery/house-sports-640.webp" type="image/webp">
+                        <img src="assets/gallery/house-sports-640.jpg"
+                            alt="Pupils in red, blue, yellow and green house colours on the sports field"
+                            width="640" height="399" decoding="async">
+                    </picture>
+                </div>
+                <div class="hp-float hp-float-1 hp-enter" style="--d: 900ms" aria-hidden="true">
+                    <span class="hp-ic"><svg class="hp-i"><use href="#hp-chart"/></svg></span>
+                    <span><strong>Results published</strong>Straight to the parent portal</span>
+                </div>
+                <div class="hp-float hp-float-2 hp-enter" style="--d: 1050ms" aria-hidden="true">
+                    <span class="hp-ic"><svg class="hp-i"><use href="#hp-users"/></svg></span>
+                    <span><strong>Small classes</strong>Every child known</span>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Scrolling highlights -->
-    <div class="ticker">
-        <div class="ticker-track">
-            <span class="ticker-item"><i class="fas fa-star"></i> Admissions open for 2026/2027</span>
-            <span class="ticker-item"><i class="fas fa-flask"></i> Science &amp; ICT laboratories</span>
-            <span class="ticker-item"><i class="fas fa-futbol"></i> Sports, music &amp; arts clubs</span>
-            <span class="ticker-item"><i class="fas fa-kit-medical"></i> First aid on site</span>
-            <span class="ticker-item"><i class="fas fa-book-reader"></i> Well-stocked library</span>
-            <span class="ticker-item"><i class="fas fa-shield-alt"></i> Secure, supervised campus</span>
-            <span class="ticker-item"><i class="fas fa-hands-helping"></i> Small class sizes</span>
+    <!-- Key figures. Each one is a fact the school can stand behind:
+         14 classes match the grade list in js/public-site-config.js, and the
+         application fee matches the default on admissions.html. -->
+    <div class="hp-wrap hp-stats-wrap">
+        <div class="hp-stats" data-reveal>
+            <div class="hp-stat">
+                <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-layers"/></svg></span>
+                <span><span class="hp-stat-num" data-count="14">14</span><span class="hp-stat-label">classes, from Creche to JSS 3</span></span>
+            </div>
+            <div class="hp-stat">
+                <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-clock"/></svg></span>
+                <span><span class="hp-stat-num">8am&ndash;2pm</span><span class="hp-stat-label">school day, Monday to Friday</span></span>
+            </div>
+            <div class="hp-stat">
+                <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-users"/></svg></span>
+                <span><span class="hp-stat-num"><span data-count="2">2</span> adults</span><span class="hp-stat-label">in every Nursery 1 and 2 class</span></span>
+            </div>
+            <div class="hp-stat">
+                <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-card"/></svg></span>
+                <span><span class="hp-stat-num">&#8358;<span data-count="5000">5,000</span></span><span class="hp-stat-label">application fee, paid online</span></span>
+            </div>
         </div>
     </div>
 
-    <!-- Features Section -->
-    <section class="section section-light" id="why-us">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-badge badge-red">Why Choose Us</span>
-                <h2 class="section-title">What Makes TBD International Academy Special</h2>
-                <p class="section-subtitle">
-                    We provide a nurturing environment where students thrive academically,
-                    socially, and morally.
-                </p>
+    <!-- Why TBD. Roles only, no names: staff are not named on the public
+         site; the proprietor is the one exception and has his own section. -->
+    <section class="hp-section" id="why-us">
+        <div class="hp-wrap">
+            <div class="hp-head hp-head-center" data-reveal>
+                <span class="hp-kicker">Why parents choose TBD</span>
+                <h2 class="hp-h2">A school small enough to know every child</h2>
+                <p class="hp-lead">We keep classes small so teachers can see how each child is doing, and so parents always have someone to talk to.</p>
             </div>
 
-            <div class="grid grid-3">
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-book-open"></i>
-                    </div>
-                    <h3 class="card-title">Quality Education</h3>
-                    <p class="card-text">
-                        Our curriculum is designed to meet international standards while
-                        maintaining Nigerian educational values and culture.
-                    </p>
-                    <a href="academics.html" class="card-link">
-                        <span>Learn More</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
-
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <h3 class="card-title">Experienced Teachers</h3>
-                    <p class="card-text">
-                        Our dedicated team of qualified educators brings passion and
-                        expertise to every classroom.
-                    </p>
-                    <a href="about.html#team" class="card-link">
-                        <span>Meet Our Team</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
-
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-building"></i>
-                    </div>
-                    <h3 class="card-title">Modern Facilities</h3>
-                    <p class="card-text">
-                        State-of-the-art classrooms, laboratories, library, and sports
-                        facilities to support holistic development.
-                    </p>
-                    <a href="about.html#facilities" class="card-link">
-                        <span>View Facilities</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
-
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-laptop"></i>
-                    </div>
-                    <h3 class="card-title">Technology Integration</h3>
-                    <p class="card-text">
-                        We leverage technology to enhance learning experiences and prepare
-                        students for the digital age.
-                    </p>
-                    <a href="academics.html" class="card-link">
-                        <span>Explore More</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
-
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-heart"></i>
-                    </div>
-                    <h3 class="card-title">Character Development</h3>
-                    <p class="card-text">
-                        We emphasize moral values, discipline, and character building
-                        alongside academic excellence.
-                    </p>
-                    <a href="about.html#values" class="card-link">
-                        <span>Our Values</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
-
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-futbol"></i>
-                    </div>
-                    <h3 class="card-title">Extracurricular Activities</h3>
-                    <p class="card-text">
-                        Sports, arts, music, and clubs provide opportunities for students
-                        to discover and develop their talents.
-                    </p>
-                    <a href="academics.html#activities" class="card-link">
-                        <span>View Activities</span>
-                        <i class="fas fa-arrow-right"></i>
-                    </a>
-                </div>
+            <div class="hp-why">
+                <article class="hp-feature" data-reveal style="--d: 0ms">
+                    <span class="hp-ic hp-ic-navy"><svg class="hp-i" aria-hidden="true"><use href="#hp-users"/></svg></span>
+                    <h3>A head for every section</h3>
+                    <p>Nursery, Lower Basic and Upper Basic each have their own head, so someone always knows your child&rsquo;s year group and can answer for it.</p>
+                </article>
+                <article class="hp-feature" data-reveal style="--d: 120ms">
+                    <span class="hp-ic hp-ic-red"><svg class="hp-i" aria-hidden="true"><use href="#hp-heart"/></svg></span>
+                    <h3>Two adults in the youngest rooms</h3>
+                    <p>Nursery 1 and Nursery 2 have a class assistant working beside the teacher, so the youngest children always have a second pair of hands.</p>
+                </article>
+                <article class="hp-feature" data-reveal style="--d: 240ms">
+                    <span class="hp-ic hp-ic-gold"><svg class="hp-i" aria-hidden="true"><use href="#hp-shield"/></svg></span>
+                    <h3>A safe, supervised campus</h3>
+                    <p>A compound master and security team cover the grounds through the school day, with first aid in place for every class.</p>
+                </article>
             </div>
         </div>
     </section>
 
-    <!-- Academic Levels Section -->
-    <section class="section section-tint" id="programs">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-badge badge-sky">Our Programs</span>
-                <h2 class="section-title">Academic Levels</h2>
-                <p class="section-subtitle">
-                    From early childhood to junior secondary, we offer comprehensive
-                    education at every stage. Tap a level to see what it covers.
-                </p>
+    <!-- Classes -->
+    <section class="hp-section hp-tint" id="programs">
+        <div class="hp-wrap">
+            <div class="hp-head" data-reveal>
+                <span class="hp-kicker">Classes</span>
+                <h2 class="hp-h2">From first steps to junior secondary</h2>
+                <p class="hp-lead">Your child can start with us in Creche and stay until JSS 3. Find the stage that fits their age.</p>
             </div>
 
-            <div data-tabs>
-                <div class="tabs" role="tablist" aria-label="Academic levels">
-                    <button class="tab" type="button" role="tab" id="tab-creche" aria-controls="panel-creche"
-                        aria-selected="true" tabindex="0" style="--accent-grad: var(--gradient-violet);">
-                        <i class="fas fa-shapes"></i> Creche
-                    </button>
-                    <button class="tab" type="button" role="tab" id="tab-nursery" aria-controls="panel-nursery"
-                        aria-selected="false" tabindex="-1" style="--accent-grad: var(--gradient-amber);">
-                        <i class="fas fa-baby"></i> Nursery
-                    </button>
-                    <button class="tab" type="button" role="tab" id="tab-primary" aria-controls="panel-primary"
-                        aria-selected="false" tabindex="-1" style="--accent-grad: var(--gradient-sky);">
-                        <i class="fas fa-child"></i> Basic 1&ndash;6
-                    </button>
-                    <button class="tab" type="button" role="tab" id="tab-jss" aria-controls="panel-jss"
-                        aria-selected="false" tabindex="-1" style="--accent-grad: var(--gradient-emerald);">
-                        <i class="fas fa-user-graduate"></i> JSS 1&ndash;3
-                    </button>
+            <div class="hp-journey-block" data-reveal aria-hidden="true">
+                <div class="hp-journey">
+                    <span class="hp-journey-fill"></span>
+                    <span class="hp-node" style="left: 0%; --c: var(--hp-gold)"></span>
+                    <span class="hp-node" style="left: 33.33%; --c: var(--hp-green)"></span>
+                    <span class="hp-node" style="left: 66.66%"></span>
+                    <span class="hp-node" style="left: 100%; --c: var(--hp-red)"></span>
                 </div>
+                <div class="hp-journey-labels"><span>Age 0</span><span>Age 14</span></div>
+            </div>
 
-                <div class="tab-panel active" id="panel-creche" role="tabpanel" aria-labelledby="tab-creche"
-                    style="--accent: var(--color-violet-deep); --accent-grad: var(--gradient-violet);">
-                    <div class="tab-panel-inner">
-                        <div class="tab-panel-visual">
-                            <i class="fas fa-shapes"></i>
-                            <div class="tab-panel-age">Ages 0 &ndash; 2</div>
-                        </div>
-                        <div class="tab-panel-body">
-                            <h3>Creche</h3>
-                            <p>
-                                Nurturing young minds with love and care, in a safe and cheerful space
-                                built around your child's daily routine.
-                            </p>
-                            <ul class="feature-list">
-                                <li><i class="fas fa-check"></i> Warm, attentive care from trained minders</li>
-                                <li><i class="fas fa-check"></i> Sensory play that builds early motor skills</li>
-                                <li><i class="fas fa-check"></i> Structured feeding, nap and activity routines</li>
-                            </ul>
-                            <a href="admissions.html" class="btn btn-secondary btn-sm">
-                                <span>Enquire About Creche</span>
-                                <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tab-panel" id="panel-nursery" role="tabpanel" aria-labelledby="tab-nursery" hidden
-                    style="--accent: var(--color-amber-deep); --accent-grad: var(--gradient-amber);">
-                    <div class="tab-panel-inner">
-                        <div class="tab-panel-visual">
-                            <i class="fas fa-baby"></i>
-                            <div class="tab-panel-age">Ages 2 &ndash; 5</div>
-                        </div>
-                        <div class="tab-panel-body">
-                            <h3>Pre-Nursery &amp; Nursery 1 &ndash; 3</h3>
-                            <p>
-                                A warm and nurturing environment where young learners begin their
-                                educational journey with play-based learning and foundational skills.
-                            </p>
-                            <ul class="feature-list">
-                                <li><i class="fas fa-check"></i> Four classes &mdash; Pre-Nursery and Nursery 1, 2 and 3</li>
-                                <li><i class="fas fa-check"></i> Play-based classrooms, early literacy, numeracy and phonics</li>
-                                <li><i class="fas fa-check"></i> A dedicated class assistant alongside the teacher in Nursery 1 and 2</li>
-                            </ul>
-                            <a href="academics.html#nursery" class="btn btn-secondary btn-sm">
-                                <span>Explore Nursery</span>
-                                <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tab-panel" id="panel-primary" role="tabpanel" aria-labelledby="tab-primary" hidden
-                    style="--accent: var(--color-sky-deep); --accent-grad: var(--gradient-sky);">
-                    <div class="tab-panel-inner">
-                        <div class="tab-panel-visual">
-                            <i class="fas fa-child"></i>
-                            <div class="tab-panel-age">Ages 6 &ndash; 11</div>
-                        </div>
-                        <div class="tab-panel-body">
-                            <h3>Basic 1 &ndash; 6</h3>
-                            <p>
-                                Building strong academic foundations in literacy, numeracy, and
-                                critical thinking while fostering creativity and curiosity.
-                            </p>
-                            <ul class="feature-list">
-                                <li><i class="fas fa-check"></i> Lower Basic (1&ndash;3) and Upper Basic (4&ndash;6), each with its own head of section</li>
-                                <li><i class="fas fa-check"></i> Full Nigerian curriculum, with computer studies and hands-on basic science</li>
-                                <li><i class="fas fa-check"></i> Clubs, sports and creative arts every week</li>
-                            </ul>
-                            <a href="academics.html#primary" class="btn btn-secondary btn-sm">
-                                <span>Explore Basic</span>
-                                <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="tab-panel" id="panel-jss" role="tabpanel" aria-labelledby="tab-jss" hidden
-                    style="--accent: var(--color-emerald-deep); --accent-grad: var(--gradient-emerald);">
-                    <div class="tab-panel-inner">
-                        <div class="tab-panel-visual">
-                            <i class="fas fa-user-graduate"></i>
-                            <div class="tab-panel-age">Ages 12 &ndash; 14</div>
-                        </div>
-                        <div class="tab-panel-body">
-                            <h3>Junior Secondary (JSS 1 &ndash; 3)</h3>
-                            <p>
-                                Preparing students for senior secondary with comprehensive subject
-                                offerings and structured exam preparation.
-                            </p>
-                            <ul class="feature-list">
-                                <li><i class="fas fa-check"></i> BECE-focused revision and mock examinations</li>
-                                <li><i class="fas fa-check"></i> Dedicated science and ICT laboratories</li>
-                                <li><i class="fas fa-check"></i> Career guidance and leadership training</li>
-                            </ul>
-                            <a href="academics.html#jss" class="btn btn-secondary btn-sm">
-                                <span>Explore JSS</span>
-                                <i class="fas fa-arrow-right"></i>
-                            </a>
-                        </div>
-                    </div>
-                </div>
+            <div class="hp-levels">
+                <article class="hp-level" data-reveal style="--d: 0ms; --c: var(--hp-gold)">
+                    <span class="hp-age">Ages 0&ndash;2</span>
+                    <h3>Creche</h3>
+                    <p class="hp-level-classes">One class</p>
+                    <ul class="hp-ticks">
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Warm, attentive care from trained minders</li>
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Sensory play for early motor skills</li>
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Set routines for meals, naps and play</li>
+                    </ul>
+                    <a href="admissions.html" class="hp-link">Enquire about Creche <svg class="hp-i" aria-hidden="true"><use href="#hp-arrow"/></svg></a>
+                </article>
+                <article class="hp-level" data-reveal style="--d: 100ms; --c: var(--hp-green)">
+                    <span class="hp-age">Ages 2&ndash;5</span>
+                    <h3>Nursery</h3>
+                    <p class="hp-level-classes">Pre-Nursery and Nursery 1&ndash;3</p>
+                    <ul class="hp-ticks">
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Early reading, numbers and phonics</li>
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Play-based classrooms</li>
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>A class assistant in Nursery 1 and 2</li>
+                    </ul>
+                    <a href="academics.html#nursery" class="hp-link">Explore Nursery <svg class="hp-i" aria-hidden="true"><use href="#hp-arrow"/></svg></a>
+                </article>
+                <article class="hp-level" data-reveal style="--d: 200ms; --c: var(--hp-navy)">
+                    <span class="hp-age">Ages 6&ndash;11</span>
+                    <h3>Basic 1&ndash;6</h3>
+                    <p class="hp-level-classes">Lower Basic and Upper Basic</p>
+                    <ul class="hp-ticks">
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>The full Nigerian curriculum</li>
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Computer studies and hands-on basic science</li>
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Clubs, sports and creative arts every week</li>
+                    </ul>
+                    <a href="academics.html#primary" class="hp-link">Explore Basic <svg class="hp-i" aria-hidden="true"><use href="#hp-arrow"/></svg></a>
+                </article>
+                <article class="hp-level" data-reveal style="--d: 300ms; --c: var(--hp-red)">
+                    <span class="hp-age">Ages 12&ndash;14</span>
+                    <h3>JSS 1&ndash;3</h3>
+                    <p class="hp-level-classes">Junior Secondary</p>
+                    <ul class="hp-ticks">
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>BECE-focused revision and mock exams</li>
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Science and ICT practicals</li>
+                        <li><svg class="hp-i" aria-hidden="true"><use href="#hp-check"/></svg>Career guidance and leadership training</li>
+                    </ul>
+                    <a href="academics.html#jss" class="hp-link">Explore JSS <svg class="hp-i" aria-hidden="true"><use href="#hp-arrow"/></svg></a>
+                </article>
             </div>
         </div>
     </section>
 
-    <!-- School life gallery -->
-    <section class="section section-tint" id="gallery">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-badge badge-sky">School Life</span>
-                <h2 class="section-title">A term at TBD, in pictures</h2>
-                <p class="section-subtitle">
-                    Assembly, lessons, sports and graduation day &mdash; photographed on our
-                    campus behind the Civil Service Commission in Kertyo.
-                </p>
+    <!-- Parent portal -->
+    <section class="hp-section" id="parent-portal">
+        <div class="hp-wrap hp-portal">
+            <!-- Drawn in HTML to match the real result view. Demo pupil only:
+                 never publish a real child's name, photograph or scores. -->
+            <div class="hp-phone-stage" data-reveal="left">
+                <div class="hp-phone" role="img" aria-label="The parent portal on a phone, showing a demo pupil's first term results with a 79.3 average">
+                    <div class="hp-screen" aria-hidden="true">
+                        <div class="hp-screen-top">
+                            <div class="hp-who"><span class="hp-av">A</span><span>Ada (demo pupil)<small>Basic 4 &middot; 2026/2027</small></span></div>
+                            <h3>First term results</h3>
+                        </div>
+                        <div class="hp-screen-body">
+                            <div class="hp-sc hp-avg"><span><small>Term average</small><b>79.3</b></span><span class="hp-tag-ok">Fees paid</span></div>
+                            <div class="hp-sc hp-rows">
+                                <div class="hp-row"><span>Computer Studies</span><span class="hp-bar"><span style="--w: 88%; --bd: 300ms"></span></span><b>88</b></div>
+                                <div class="hp-row"><span>Mathematics</span><span class="hp-bar"><span style="--w: 84%; --bd: 400ms"></span></span><b>84</b></div>
+                                <div class="hp-row"><span>Social Studies</span><span class="hp-bar"><span style="--w: 80%; --bd: 500ms"></span></span><b>80</b></div>
+                                <div class="hp-row"><span>English</span><span class="hp-bar"><span style="--w: 78%; --bd: 600ms"></span></span><b>78</b></div>
+                                <div class="hp-row"><span>CRS</span><span class="hp-bar"><span style="--w: 75%; --bd: 700ms"></span></span><b>75</b></div>
+                                <div class="hp-row"><span>Basic Science</span><span class="hp-bar"><span style="--w: 71%; --bd: 800ms"></span></span><b>71</b></div>
+                            </div>
+                            <div class="hp-sc"><small>Class teacher&rsquo;s remark</small><p class="hp-remark">A careful, curious reader. Keep asking questions.</p></div>
+                            <div class="hp-demo">Demo pupil. Not a real child&rsquo;s record.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div class="gallery-wall">
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/morning-assembly-1280.webp"
-                        data-lightbox-caption="Morning assembly" aria-label="View larger: Morning assembly">
-                        <picture>
-                            <source srcset="assets/gallery/morning-assembly-640.webp" type="image/webp">
-                            <img src="assets/gallery/morning-assembly-640.jpg" alt="A teacher addressing pupils at morning assembly on the TBD International Academy compound"
-                                width="640" height="480" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>Morning assembly</figcaption>
-                </figure>
+            <div data-reveal="right">
+                <span class="hp-kicker">Parent portal</span>
+                <h2 class="hp-h2" style="margin-top: 20px;">Your child&rsquo;s results, on your phone</h2>
+                <p class="hp-lead" style="margin-top: 20px;">No more waiting for a result slip to make it home in a schoolbag. Every enrolled family gets a portal account.</p>
+                <div class="hp-pfeats">
+                    <div class="hp-pfeat"><span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-file"/></svg></span><h3>Report cards</h3><p>Termly results and the teacher&rsquo;s remark, as soon as they&rsquo;re ready.</p></div>
+                    <div class="hp-pfeat"><span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-card"/></svg></span><h3>Fees</h3><p>Itemised statements to the last naira. Pay online or at the bursary.</p></div>
+                    <div class="hp-pfeat"><span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-cal"/></svg></span><h3>Attendance</h3><p>Days present and absent, term by term.</p></div>
+                    <div class="hp-pfeat"><span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-mobile"/></svg></span><h3>Any phone</h3><p>Works in your browser. Nothing to install.</p></div>
+                </div>
+                <a href="login.html" class="hp-btn hp-btn-navy" data-cta="portal">Log in to the parent portal <svg class="hp-i hp-arrow" aria-hidden="true"><use href="#hp-arrow"/></svg></a>
+            </div>
+        </div>
+    </section>
 
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/sports-drill-1280.webp"
-                        data-lightbox-caption="Games and athletics" aria-label="View larger: Games and athletics">
-                        <picture>
-                            <source srcset="assets/gallery/sports-drill-640.webp" type="image/webp">
-                            <img src="assets/gallery/sports-drill-640.jpg" alt="Pupils in house colours warming up with a teacher on the school sports field"
-                                width="640" height="480" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>Games and athletics</figcaption>
-                </figure>
+    <!-- School life -->
+    <section class="hp-section hp-tint" id="gallery">
+        <div class="hp-wrap">
+            <div class="hp-head hp-head-center" data-reveal>
+                <span class="hp-kicker">School life</span>
+                <h2 class="hp-h2">A term at TBD, in pictures</h2>
+                <p class="hp-lead">Devotion, lessons, sports and graduation day, all photographed on our compound behind the Civil Service Commission in Kertyo.</p>
+            </div>
 
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/house-sports-1280.webp"
-                        data-lightbox-caption="Inter-house sports" aria-label="View larger: Inter-house sports">
-                        <picture>
-                            <source srcset="assets/gallery/house-sports-640.webp" type="image/webp">
-                            <img src="assets/gallery/house-sports-640.jpg" alt="Pupils lined up in red, blue, yellow and green house colours on the sports field"
-                                width="640" height="399" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>Inter-house sports</figcaption>
-                </figure>
-
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/graduation-class-1280.webp"
-                        data-lightbox-caption="Nursery graduation" aria-label="View larger: Nursery graduation">
-                        <picture>
-                            <source srcset="assets/gallery/graduation-class-640.webp" type="image/webp">
-                            <img src="assets/gallery/graduation-class-640.jpg" alt="Nursery graduates in green gowns and caps standing with the proprietor behind their graduation cake"
-                                width="640" height="480" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>Nursery graduation</figcaption>
-                </figure>
-
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/assembly-pupils-1280.webp"
-                        data-lightbox-caption="Before the first lesson" aria-label="View larger: Before the first lesson">
-                        <picture>
-                            <source srcset="assets/gallery/assembly-pupils-640.webp" type="image/webp">
-                            <img src="assets/gallery/assembly-pupils-640.jpg" alt="Basic pupils in the green check uniform waiting in line at the start of the school day"
-                                width="640" height="480" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>Before the first lesson</figcaption>
-                </figure>
-
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/classroom-line-1280.webp"
-                        data-lightbox-caption="A Basic class" aria-label="View larger: A Basic class">
-                        <picture>
-                            <source srcset="assets/gallery/classroom-line-640.webp" type="image/webp">
-                            <img src="assets/gallery/classroom-line-640.jpg" alt="A class of pupils standing in front of the whiteboard and a painted Nigerian flag in their classroom"
-                                width="640" height="480" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>A Basic class</figcaption>
-                </figure>
-
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/graduation-prize-1280.webp"
-                        data-lightbox-caption="Prize giving" aria-label="View larger: Prize giving">
-                        <picture>
-                            <source srcset="assets/gallery/graduation-prize-640.webp" type="image/webp">
-                            <img src="assets/gallery/graduation-prize-640.jpg" alt="A nursery graduate receiving a wrapped gift from members of staff on graduation day"
-                                width="640" height="853" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>Prize giving</figcaption>
-                </figure>
-
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/morning-devotion-1280.webp"
-                        data-lightbox-caption="Morning devotion" aria-label="View larger: Morning devotion">
-                        <picture>
-                            <source srcset="assets/gallery/morning-devotion-640.webp" type="image/webp">
-                            <img src="assets/gallery/morning-devotion-640.jpg" alt="Pupils clapping and singing together during morning devotion on the school compound"
-                                width="640" height="853" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>Morning devotion</figcaption>
-                </figure>
-
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/assembly-compound-1280.webp"
-                        data-lightbox-caption="The Kertyo campus" aria-label="View larger: The Kertyo campus">
-                        <picture>
-                            <source srcset="assets/gallery/assembly-compound-640.webp" type="image/webp">
-                            <img src="assets/gallery/assembly-compound-640.jpg" alt="The classroom block at TBD International Academy with pupils gathered for assembly in front of it"
-                                width="640" height="1138" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>The Kertyo campus</figcaption>
-                </figure>
-
-                <figure class="shot">
-                    <button type="button" class="shot-btn" data-lightbox="assets/gallery/staff-meeting-1280.webp"
-                        data-lightbox-caption="Staff briefing" aria-label="View larger: Staff briefing">
-                        <picture>
-                            <source srcset="assets/gallery/staff-meeting-640.webp" type="image/webp">
-                            <img src="assets/gallery/staff-meeting-640.jpg" alt="The proprietor, Emmanuel I. Hangerior, speaking to staff at a meeting in one of the classrooms"
-                                width="640" height="853" loading="lazy" decoding="async">
-                        </picture>
-                        <span class="shot-zoom" aria-hidden="true"><i class="fas fa-expand"></i></span>
-                    </button>
-                    <figcaption>Staff briefing</figcaption>
-                </figure>
+            <div class="hp-gallery">
+                <button type="button" class="hp-shot hp-g1" data-reveal="zoom" style="--d: 0ms" data-full="assets/gallery/house-sports-1280.webp" aria-label="View larger: Inter-house sports">
+                    <picture><source srcset="assets/gallery/house-sports-1280.webp" type="image/webp"><img src="assets/gallery/house-sports-640.jpg" alt="Pupils in red, blue, yellow and green house colours on the sports field" width="640" height="399" loading="lazy" decoding="async"></picture>
+                    <span class="hp-shot-cap">Inter-house sports</span>
+                </button>
+                <button type="button" class="hp-shot hp-g2" data-reveal="zoom" style="--d: 80ms" data-full="assets/gallery/morning-assembly-1280.webp" aria-label="View larger: Morning assembly">
+                    <picture><source srcset="assets/gallery/morning-assembly-640.webp" type="image/webp"><img src="assets/gallery/morning-assembly-640.jpg" alt="A teacher addressing pupils at morning assembly on the school compound" width="640" height="480" loading="lazy" decoding="async"></picture>
+                    <span class="hp-shot-cap">Morning assembly</span>
+                </button>
+                <button type="button" class="hp-shot hp-g3" data-reveal="zoom" style="--d: 160ms" data-full="assets/gallery/graduation-prize-1280.webp" aria-label="View larger: Prize giving">
+                    <picture><source srcset="assets/gallery/graduation-prize-640.webp" type="image/webp"><img src="assets/gallery/graduation-prize-640.jpg" alt="A nursery graduate receiving a wrapped gift from members of staff on graduation day" width="640" height="853" loading="lazy" decoding="async"></picture>
+                    <span class="hp-shot-cap">Prize giving</span>
+                </button>
+                <button type="button" class="hp-shot hp-g4" data-reveal="zoom" style="--d: 240ms" data-full="assets/gallery/classroom-line-1280.webp" aria-label="View larger: A Basic class">
+                    <picture><source srcset="assets/gallery/classroom-line-1280.webp" type="image/webp"><img src="assets/gallery/classroom-line-640.jpg" alt="A class of pupils standing in front of the whiteboard and a painted Nigerian flag in their classroom" width="640" height="480" loading="lazy" decoding="async"></picture>
+                    <span class="hp-shot-cap">A Basic class</span>
+                </button>
+                <button type="button" class="hp-shot hp-g5" data-reveal="zoom" style="--d: 0ms" data-full="assets/gallery/assembly-pupils-1280.webp" aria-label="View larger: Before the first lesson">
+                    <picture><source srcset="assets/gallery/assembly-pupils-640.webp" type="image/webp"><img src="assets/gallery/assembly-pupils-640.jpg" alt="Basic pupils in the green check uniform waiting in line at the start of the school day" width="640" height="480" loading="lazy" decoding="async"></picture>
+                    <span class="hp-shot-cap">Before the first lesson</span>
+                </button>
+                <button type="button" class="hp-shot hp-g6" data-reveal="zoom" style="--d: 80ms" data-full="assets/gallery/sports-drill-1280.webp" aria-label="View larger: Games and athletics">
+                    <picture><source srcset="assets/gallery/sports-drill-640.webp" type="image/webp"><img src="assets/gallery/sports-drill-640.jpg" alt="Pupils in house colours warming up with a teacher on the school sports field" width="640" height="480" loading="lazy" decoding="async"></picture>
+                    <span class="hp-shot-cap">Games and athletics</span>
+                </button>
+                <button type="button" class="hp-shot hp-g7" data-reveal="zoom" style="--d: 160ms" data-full="assets/gallery/graduation-class-1280.webp" aria-label="View larger: Nursery graduation">
+                    <picture><source srcset="assets/gallery/graduation-class-1280.webp" type="image/webp"><img src="assets/gallery/graduation-class-640.jpg" alt="Nursery graduates in green gowns and caps standing with the proprietor behind their graduation cake" width="640" height="480" loading="lazy" decoding="async"></picture>
+                    <span class="hp-shot-cap">Nursery graduation</span>
+                </button>
             </div>
         </div>
     </section>
 
     <!-- Lightbox: built once, reused by every tile above. -->
-    <div class="lightbox" id="lightbox" hidden>
-        <button type="button" class="lightbox-close" aria-label="Close">
-            <i class="fas fa-xmark" aria-hidden="true"></i>
-        </button>
-        <button type="button" class="lightbox-nav lightbox-prev" aria-label="Previous photo">
-            <i class="fas fa-chevron-left" aria-hidden="true"></i>
-        </button>
-        <figure class="lightbox-figure">
-            <img alt="" id="lightbox-img">
-            <figcaption id="lightbox-caption"></figcaption>
+    <div class="hp-lightbox" id="hpLightbox" role="dialog" aria-modal="true" aria-label="Photo viewer" hidden>
+        <button type="button" class="hp-lb-btn hp-lb-close" aria-label="Close"><svg class="hp-i" aria-hidden="true"><use href="#hp-x"/></svg></button>
+        <button type="button" class="hp-lb-btn hp-lb-prev" aria-label="Previous photo"><svg class="hp-i" aria-hidden="true"><use href="#hp-left"/></svg></button>
+        <figure>
+            <img alt="" id="hpLightboxImg">
+            <figcaption id="hpLightboxCaption"></figcaption>
         </figure>
-        <button type="button" class="lightbox-nav lightbox-next" aria-label="Next photo">
-            <i class="fas fa-chevron-right" aria-hidden="true"></i>
-        </button>
+        <button type="button" class="hp-lb-btn hp-lb-next" aria-label="Next photo"><svg class="hp-i" aria-hidden="true"><use href="#hp-right"/></svg></button>
     </div>
 
-    <!-- Numbers -->
-    <section class="section section-dark">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-badge">By the Numbers</span>
-                <h2 class="section-title">Two Years In, and Growing</h2>
-                <p class="section-subtitle">
-                    We opened in Kertyo in 2024 and have added a class each year since.
-                </p>
-            </div>
+    <!-- Proprietor -->
+    <section class="hp-section" id="proprietor">
+        <div class="hp-wrap hp-leader">
+            <figure class="hp-portrait" data-reveal="left">
+                <img src="assets/proprietor.jpg" alt="Emmanuel I. Hangerior, Proprietor of TBD International Academy"
+                    width="720" height="1080" loading="lazy" decoding="async">
+            </figure>
 
-            <div class="stat-band">
-                <div class="stat-cell">
-                    <i class="fas fa-sitemap"></i>
-                    <span class="stat-value" data-count="3">3</span>
-                    <span class="stat-label">Teaching Sections</span>
-                    <span class="stat-sub">Nursery, Lower Basic and Upper Basic</span>
+            <div data-reveal="right">
+                <span class="hp-kicker">Our vision</span>
+                <!-- TODO: replace the vision below with Mr Hangerior's own two
+                     or three sentences: a thing he insists on, a promise he makes
+                     to every parent. Until then this block states the school's
+                     vision as the school's, and attributes no words to him that he
+                     has not said. -->
+                <svg class="hp-quote-mark" aria-hidden="true"><use href="#hp-quote"/></svg>
+                <p class="hp-quote">To raise global Superstars in all aspects of human endeavours.</p>
+                <div class="hp-sign">
+                    <b>Emmanuel I. Hangerior</b>
+                    <small>Proprietor, TBD International Academy</small>
                 </div>
-                <div class="stat-cell">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                    <span class="stat-value">Small</span>
-                    <span class="stat-label">Class Sizes</span>
-                    <span class="stat-sub">Every child known by name</span>
-                </div>
-                <div class="stat-cell">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span class="stat-value" data-count="2">2</span>
-                    <span class="stat-label">Years in Kertyo</span>
-                    <span class="stat-sub">Open since 2024, growing a year at a time</span>
-                </div>
-                <div class="stat-cell">
-                    <i class="fas fa-mobile-screen-button"></i>
-                    <span class="stat-value">24/7</span>
-                    <span class="stat-label">Parent Portal Access</span>
-                    <span class="stat-sub">Results, fees and attendance online</span>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Parent portal showcase -->
-    <section class="section section-light" id="parent-portal">
-        <div class="section-container">
-            <div class="showcase-grid">
-                <div class="showcase-copy">
-                    <span class="section-badge badge-sky">Built by us, for our parents</span>
-                    <h2>Your child&rsquo;s results, the day they are ready.</h2>
-                    <p>
-                        Most parents wait for a result slip to survive the journey home in a schoolbag.
-                        Ours do not. Report cards, fee statements and attendance are published to the
-                        parent portal and available on any phone, wherever you are.
-                    </p>
-                    <ul class="ticklist">
-                        <li>Termly results and report cards, published to your account</li>
-                        <li>Fee statements and payment history, itemised to the last naira</li>
-                        <li>Attendance and assignment tracking, term by term</li>
-                        <li>Works in any phone browser &mdash; nothing to install</li>
-                    </ul>
-                    <a href="login.html" class="btn btn-primary" data-cta="portal">
-                        <i class="fas fa-arrow-right-to-bracket"></i>
-                        <span>Open the parent portal</span>
-                    </a>
-                </div>
-
-                <div class="showcase-visual">
-                    <div class="phone-frame">
-                        <img src="assets/portal-preview.svg"
-                            alt="The TBD parent portal on a phone, showing a termly result sheet with subject scores, term average and the class teacher&rsquo;s remark"
-                            width="320" height="640" loading="lazy" decoding="async">
-                    </div>
-                </div>
+                <p class="hp-leader-note">That vision is the school&rsquo;s purpose, and it shapes every class from Creche to JSS 3 and every family who trusts us with a child.</p>
             </div>
         </div>
     </section>
 
     <!-- Admission steps -->
-    <section class="section section-light" id="how-to-apply">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-badge badge-amber">Admissions</span>
-                <h2 class="section-title">Four Steps to Join Us</h2>
-                <p class="section-subtitle">
-                    Applying is straightforward &mdash; and you can do most of it from your phone.
-                </p>
+    <section class="hp-section hp-tint" id="how-to-apply">
+        <div class="hp-wrap">
+            <div class="hp-head hp-head-center" data-reveal>
+                <span class="hp-kicker">Admissions 2026/2027</span>
+                <h2 class="hp-h2">Four simple steps to join us</h2>
+                <p class="hp-lead">You can do the first three from your phone. Places in each class are limited, so we recommend applying early.</p>
             </div>
 
-            <div class="steps">
-                <div class="step">
-                    <div class="step-number"></div>
-                    <div>
-                        <h3>Download the Form</h3>
-                        <p>Grab the application form for your child's level from the admissions page.</p>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-number"></div>
-                    <div>
-                        <h3>Fill It In</h3>
-                        <p>Complete every section and gather the supporting documents listed on the form.</p>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-number"></div>
-                    <div>
-                        <h3>Submit Online</h3>
-                        <p>Upload the completed form &mdash; no need to travel to the campus to apply.</p>
-                    </div>
-                </div>
-                <div class="step">
-                    <div class="step-number"></div>
-                    <div>
-                        <h3>Meet Us</h3>
-                        <p>We will call you to arrange an assessment and a tour of the school.</p>
-                    </div>
-                </div>
-            </div>
+            <ol class="hp-steps">
+                <li class="hp-step" data-reveal style="--d: 0ms"><span class="hp-step-n">1</span><h3>Download the form</h3><p>Get the form for your child&rsquo;s class from the admissions page, or collect one at the school.</p></li>
+                <li class="hp-step" data-reveal style="--d: 120ms"><span class="hp-step-n">2</span><h3>Fill it in</h3><p>Complete every section and gather the documents listed on the form.</p></li>
+                <li class="hp-step" data-reveal style="--d: 240ms"><span class="hp-step-n">3</span><h3>Upload and pay</h3><p>Submit the form online and pay the &#8358;5,000 application fee. No need to travel to the campus.</p></li>
+                <li class="hp-step" data-reveal style="--d: 360ms"><span class="hp-step-n">4</span><h3>Meet us</h3><p>We call you to arrange an assessment and a tour of the school.</p></li>
+            </ol>
 
-            <div style="text-align: center; margin-top: 2rem;">
-                <a href="admissions.html" class="btn btn-primary">
-                    <span>Start Your Application</span>
-                    <i class="fas fa-arrow-right"></i>
+            <div class="hp-visit" data-reveal>
+                <div>
+                    <h3>Visit us before you decide</h3>
+                    <p>Most parents choose a school after seeing it. Come during school hours, meet the teachers and watch a lesson in progress.</p>
+                    <div class="hp-actions">
+                        <a href="admissions.html#upload" class="hp-btn hp-btn-red" data-cta="apply">Start an application <svg class="hp-i hp-arrow" aria-hidden="true"><use href="#hp-arrow"/></svg></a>
+                        <a href="admissions.html#fees" class="hp-btn hp-btn-outline">See fees by class</a>
+                    </div>
+                </div>
+                <dl>
+                    <div>
+                        <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-pin"/></svg></span>
+                        <span><dt>Address</dt><dd><a href="contact.html">Behind Civil Service Commission, Kertyo, Makurdi</a></dd></span>
+                    </div>
+                    <div>
+                        <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-clock"/></svg></span>
+                        <span><dt>Visiting hours</dt><dd>Monday to Friday, 8:00am to 2:00pm</dd></span>
+                    </div>
+                    <div>
+                        <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-phone"/></svg></span>
+                        <span><dt>Call us</dt><dd><a href="tel:+2347071711692" data-cta="call">0707 171 1692</a> &middot; <a href="tel:+2349027512438" data-cta="call">0902 751 2438</a></dd></span>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ. Every question and answer here is repeated word for word in the
+         FAQPage structured data at the foot of the page; change both together. -->
+    <section class="hp-section" id="faq">
+        <div class="hp-wrap hp-faq">
+            <div class="hp-faq-side" data-reveal="left">
+                <span class="hp-kicker">Good to know</span>
+                <h2 class="hp-h2">Questions parents ask us</h2>
+                <p class="hp-lead">Can&rsquo;t find your answer? Send us a message and we usually reply the same working day.</p>
+                <a class="hp-help" href="https://wa.me/2347071711692?text=Hello%20TBD%20International%20Academy%2C%20I%27d%20like%20to%20ask%20about%20admission%20for%20my%20child." target="_blank" rel="noopener" data-cta="whatsapp">
+                    <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-wa"/></svg></span>
+                    <span><b>Chat with us on WhatsApp</b>0707 171 1692</span>
                 </a>
             </div>
-        </div>
-    </section>
 
-    <!-- Proprietor -->
-    <section class="section section-light" id="proprietor">
-        <div class="section-container">
-            <div class="leader">
-                <figure class="leader-portrait">
-                    <img src="assets/proprietor.jpg"
-                        alt="Emmanuel I. Hangerior, Proprietor of TBD International Academy"
-                        width="720" height="1080" loading="lazy" decoding="async">
-                </figure>
-
-                <div class="leader-copy">
-                    <span class="section-badge badge-amber">Leadership</span>
-                    <h2>Meet our proprietor</h2>
-
-                    <!-- TODO: replace the two paragraphs below with Mr Hangerior's
-                         own two or three sentences — something only he could say:
-                         a thing he insists on, a promise he makes to every parent.
-                         A named leader in his own voice is the single highest-trust
-                         element this page can carry. Until then this block states
-                         the school's vision as the school's, and attributes no
-                         words to him that he has not said. -->
-                    <p>
-                        TBD International Academy is guided by its proprietor,
-                        <strong>Emmanuel I. Hangerior</strong>, and by the vision that gives
-                        the school its purpose:
-                    </p>
-
-                    <p class="leader-vision">
-                        To raise global Superstars in all aspects of human endeavours.
-                    </p>
-
-                    <p>
-                        Two years on, that aim shapes every classroom from Creche
-                        through JSS 3 &mdash; and every family who trusts us with a child.
-                    </p>
-
-                    <p class="leader-sign">
-                        <strong>Emmanuel I. Hangerior</strong><br>
-                        Proprietor, TBD International Academy
-                    </p>
+            <div data-reveal="right">
+                <div class="hp-qa is-open">
+                    <button class="hp-qa-btn" type="button" aria-expanded="true">When does the 2026/2027 session begin?<span class="hp-plus" aria-hidden="true"><svg class="hp-i"><use href="#hp-plus"/></svg></span></button>
+                    <div class="hp-qa-body"><div><p>The academic year runs in three terms starting in September. Applications are open now, and we recommend applying early because places in each class are limited.</p></div></div>
+                </div>
+                <div class="hp-qa">
+                    <button class="hp-qa-btn" type="button" aria-expanded="false">Which levels do you admit into?<span class="hp-plus" aria-hidden="true"><svg class="hp-i"><use href="#hp-plus"/></svg></span></button>
+                    <div class="hp-qa-body"><div><p>We admit into Creche, Pre-Nursery, Nursery 1&ndash;3, Basic 1&ndash;6 and Junior Secondary (JSS 1&ndash;3). Transfer students are welcome subject to a placement assessment.</p></div></div>
+                </div>
+                <div class="hp-qa">
+                    <button class="hp-qa-btn" type="button" aria-expanded="false">How do I pay school fees?<span class="hp-plus" aria-hidden="true"><svg class="hp-i"><use href="#hp-plus"/></svg></span></button>
+                    <div class="hp-qa-body"><div><p>Fees can be paid securely online through the parent portal, or at the school bursary. The full fee structure for each level is published on the admissions page.</p></div></div>
+                </div>
+                <div class="hp-qa">
+                    <button class="hp-qa-btn" type="button" aria-expanded="false">Can I see my child&rsquo;s results online?<span class="hp-plus" aria-hidden="true"><svg class="hp-i"><use href="#hp-plus"/></svg></span></button>
+                    <div class="hp-qa-body"><div><p>Yes. Every enrolled family gets portal access for results, report cards, attendance and fee statements &mdash; available on any phone or computer.</p></div></div>
+                </div>
+                <div class="hp-qa">
+                    <button class="hp-qa-btn" type="button" aria-expanded="false">Can we visit the campus before applying?<span class="hp-plus" aria-hidden="true"><svg class="hp-i"><use href="#hp-plus"/></svg></span></button>
+                    <div class="hp-qa-body"><div><p>Absolutely &mdash; we encourage it. Call or message us to arrange a tour and meet the teachers who would be working with your child.</p></div></div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Pastoral care -->
-    <!-- Roles only, no names. Staff are not named on the public site; the
-         proprietor is the one exception and has his own section above. -->
-    <section class="section section-tint" id="care">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-badge badge-violet">Our People</span>
-                <h2 class="section-title">Who looks after your child</h2>
-                <p class="section-subtitle">
-                    Every section of the school has a head you can ask for by name
-                    when you visit.
-                </p>
+    <!-- Closing call to action -->
+    <div class="hp-wrap">
+        <section class="hp-cta" data-reveal="zoom" aria-labelledby="hpCtaTitle">
+            <img class="hp-cta-crest" src="assets/logo-mark.svg" alt="" width="300" height="336" loading="lazy">
+            <div>
+                <h2 id="hpCtaTitle">Come and see the school for yourself</h2>
+                <p class="hp-lead">Admissions for 2026/2027 are open. Book a visit, or start your application online today.</p>
             </div>
-
-            <div class="grid grid-3">
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-user-tie"></i>
-                    </div>
-                    <h3 class="card-title">A head for every section</h3>
-                    <p class="card-text">
-                        Nursery, Lower Basic and Upper Basic each have their own head of
-                        section, so there is always someone who knows your child's year
-                        group and can answer for it.
-                    </p>
-                </div>
-
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-hands-holding-child"></i>
-                    </div>
-                    <h3 class="card-title">Two adults in the youngest rooms</h3>
-                    <p class="card-text">
-                        Nursery 1 and Nursery 2 each have a class assistant working
-                        alongside the class teacher, so the youngest learners are never
-                        left to one pair of hands.
-                    </p>
-                </div>
-
-                <div class="card">
-                    <div class="card-icon">
-                        <i class="fas fa-shield-halved"></i>
-                    </div>
-                    <h3 class="card-title">A supervised campus</h3>
-                    <p class="card-text">
-                        A compound master and a security team cover the grounds through
-                        the school day, and first aid provision is in place for every
-                        class.
-                    </p>
-                </div>
+            <div class="hp-actions">
+                <a href="admissions.html" class="hp-btn hp-btn-white" data-cta="apply">Apply now <svg class="hp-i hp-arrow" aria-hidden="true"><use href="#hp-arrow"/></svg></a>
+                <a href="https://wa.me/2347071711692?text=Hello%20TBD%20International%20Academy%2C%20I%27d%20like%20to%20book%20a%20visit%20to%20the%20school." target="_blank" rel="noopener"
+                    class="hp-btn hp-btn-ghost" data-cta="visit"><svg class="hp-i" aria-hidden="true"><use href="#hp-wa"/></svg>Book a visit</a>
             </div>
-        </div>
-    </section>
-
-    <!-- FAQ -->
-    <section class="section section-light" id="faq">
-        <div class="section-container">
-            <div class="section-header">
-                <span class="section-badge badge-emerald">Good to Know</span>
-                <h2 class="section-title">Frequently Asked Questions</h2>
-                <p class="section-subtitle">
-                    Still unsure about something? These are the questions we hear most often.
-                </p>
-            </div>
-
-            <div class="accordion">
-                <div class="accordion-item open">
-                    <button class="accordion-trigger" type="button">
-                        <span>When does the 2026/2027 session begin?</span>
-                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
-                    </button>
-                    <div class="accordion-panel">
-                        <div>
-                            <p>
-                                The academic year runs in three terms starting in September. Applications are
-                                open now, and we recommend applying early because places in each class are limited.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="accordion-item">
-                    <button class="accordion-trigger" type="button">
-                        <span>Which levels do you admit into?</span>
-                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
-                    </button>
-                    <div class="accordion-panel">
-                        <div>
-                            <p>
-                                We admit into Creche, Pre-Nursery, Nursery 1&ndash;3, Basic 1&ndash;6 and
-                                Junior Secondary (JSS 1&ndash;3). Transfer students are welcome subject
-                                to a placement assessment.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="accordion-item">
-                    <button class="accordion-trigger" type="button">
-                        <span>How do I pay school fees?</span>
-                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
-                    </button>
-                    <div class="accordion-panel">
-                        <div>
-                            <p>
-                                Fees can be paid securely online through the parent portal, or at the school
-                                bursary. The full fee structure for each level is published on the admissions page.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="accordion-item">
-                    <button class="accordion-trigger" type="button">
-                        <span>Can I see my child's results online?</span>
-                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
-                    </button>
-                    <div class="accordion-panel">
-                        <div>
-                            <p>
-                                Yes. Every enrolled family gets portal access for results, report cards,
-                                attendance and fee statements &mdash; available on any phone or computer.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="accordion-item">
-                    <button class="accordion-trigger" type="button">
-                        <span>Can we visit the campus before applying?</span>
-                        <span class="accordion-icon" aria-hidden="true"><i class="fas fa-plus"></i></span>
-                    </button>
-                    <div class="accordion-panel">
-                        <div>
-                            <p>
-                                Absolutely &mdash; we encourage it. Call or message us to arrange a tour and meet
-                                the teachers who would be working with your child.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- CTA Section -->
-    <section class="section section-tint">
-        <div class="section-container">
-            <div class="cta-panel">
-                <h2>Ready to Join TBD International Academy?</h2>
-                <p>
-                    Applications for the 2026/2027 academic year are now open.
-                    Download our application form, fill it out, and submit it online.
-                </p>
-                <div class="cta-actions">
-                    <a href="admissions.html" class="btn btn-light">
-                        <i class="fas fa-file-alt"></i>
-                        <span>Apply Now</span>
-                    </a>
-                    <a href="contact.html" class="btn btn-ghost-light">
-                        <i class="fas fa-phone"></i>
-                        <span>Contact Us</span>
-                    </a>
-                </div>
-                <p class="cta-note">Questions? We usually reply the same working day.</p>
-            </div>
-
-            <div class="contact-strip" style="margin-top: 2rem;">
-                <a href="tel:+2347071711692" class="contact-chip" data-cta="call">
-                    <i class="fas fa-phone"></i>
-                    <span>
-                        <span class="contact-chip-label">Call us</span>
-                        <span class="contact-chip-value">0707 171 1692</span>
-                    </span>
-                </a>
-                <a href="tel:+2349027512438" class="contact-chip" data-cta="call">
-                    <i class="fas fa-phone"></i>
-                    <span>
-                        <span class="contact-chip-label">Or call</span>
-                        <span class="contact-chip-value">0902 751 2438</span>
-                    </span>
-                </a>
-                <a href="mailto:support@tbdacademy.org" class="contact-chip">
-                    <i class="fas fa-envelope"></i>
-                    <span>
-                        <span class="contact-chip-label">Email</span>
-                        <span class="contact-chip-value">support@tbdacademy.org</span>
-                    </span>
-                </a>
-            </div>
-        </div>
-    </section>
+        </section>
+    </div>
 
     </main>
 
     <!-- Footer -->
-    <footer class="footer">
-        <div class="footer-container">
-            <div class="footer-grid">
+    <footer class="hp-footer">
+        <div class="hp-wrap">
+            <div class="hp-foot">
                 <div>
-                    <div class="footer-brand">TBD International Academy</div>
-                    <p class="footer-motto">Planting Seeds of Knowledge</p>
-                    <p class="footer-description">
-                        Excellence in Education, Character in Action. Nurturing young minds
-                        for a brighter future since 2024.
-                    </p>
-                    <div class="footer-social">
-                        <!-- Social icons return here once the school has live pages to
-                             point at. An icon linked to "#" reads as an abandoned site. -->
-                        <a href="https://wa.me/2347071711692?text=Hello%20TBD%20International%20Academy%2C%20I%27d%20like%20to%20ask%20about%20admission%20for%20my%20child." target="_blank" rel="noopener"
-                            class="footer-social-link" data-cta="whatsapp" aria-label="Chat with us on WhatsApp">
-                            <i class="fab fa-whatsapp"></i>
-                        </a>
+                    <div class="hp-foot-brand">
+                        <img src="assets/logo-mark.svg" alt="" width="48" height="54" loading="lazy">
+                        <span><b>TBD International Academy</b>Planting Seeds of Knowledge</span>
                     </div>
+                    <p>A private school for Creche to JSS 3 in Kertyo, Makurdi, Benue State.</p>
+                    <!-- Social icons return here once the school has live pages to
+                         point at. An icon linked to "#" reads as an abandoned site. -->
+                    <a class="hp-social" href="https://wa.me/2347071711692?text=Hello%20TBD%20International%20Academy%2C%20I%27d%20like%20to%20ask%20about%20admission%20for%20my%20child." target="_blank" rel="noopener" data-cta="whatsapp">
+                        <span class="hp-ic"><svg class="hp-i" aria-hidden="true"><use href="#hp-wa"/></svg></span>Chat on WhatsApp
+                    </a>
+                    <div class="hp-houses" aria-hidden="true"><i style="background:#D7322E"></i><i style="background:#1F5FD1"></i><i style="background:#F1C21B"></i><i style="background:#1E8C4E"></i></div>
                 </div>
 
                 <div>
-                    <h4 class="footer-section-title">Quick Links</h4>
-                    <ul class="footer-links">
-                        <li><a href="/" class="footer-link">Home</a></li>
-                        <li><a href="about.html" class="footer-link">About Us</a></li>
-                        <li><a href="academics.html" class="footer-link">Academics</a></li>
-                        <li><a href="admissions.html" class="footer-link">Admissions</a></li>
-                        <li><a href="contact.html" class="footer-link">Contact</a></li>
+                    <h2>Quick links</h2>
+                    <ul>
+                        <li><a href="/">Home</a></li>
+                        <li><a href="about.html">About us</a></li>
+                        <li><a href="academics.html">Academics</a></li>
+                        <li><a href="admissions.html">Admissions</a></li>
+                        <li><a href="contact.html">Contact</a></li>
                     </ul>
                 </div>
 
                 <div>
-                    <h4 class="footer-section-title">Resources</h4>
-                    <ul class="footer-links">
-                        <li><a href="admissions.html#upload" class="footer-link">Application Form</a></li>
-                        <li><a href="admissions.html#fees" class="footer-link">Fee Structure</a></li>
-                        <li><a href="academics.html" class="footer-link">Academic Calendar</a></li>
-                        <li><a href="/#faq" class="footer-link">FAQs</a></li>
-                        <li><a href="admissions.html" class="footer-link" data-admission-popup>Admission Notice</a></li>
-                        <li><a href="login.html" class="footer-link">Portal Login</a></li>
+                    <h2>Resources</h2>
+                    <ul>
+                        <li><a href="admissions.html#upload">Application form</a></li>
+                        <li><a href="admissions.html#fees">Fee structure</a></li>
+                        <li><a href="academics.html">Academic calendar</a></li>
+                        <li><a href="/#faq">FAQs</a></li>
+                        <li><a href="admissions.html" data-admission-popup>Admission notice</a></li>
+                        <li><a href="login.html">Portal login</a></li>
                     </ul>
                 </div>
 
                 <div>
-                    <h4 class="footer-section-title">Contact</h4>
-                    <ul class="footer-links">
-                        <li class="footer-link">
-                            <i class="fas fa-map-marker-alt"></i> Behind Civil Service Commission, Kertyo, Makurdi
-                        </li>
-                        <li><a href="tel:+2347071711692" class="footer-link">
-                            <i class="fas fa-phone"></i> 0707 171 1692
-                        </a></li>
-                        <li><a href="tel:+2349027512438" class="footer-link">
-                            <i class="fas fa-phone"></i> 0902 751 2438
-                        </a></li>
-                        <li><a href="mailto:support@tbdacademy.org" class="footer-link">
-                            <i class="fas fa-envelope"></i> support@tbdacademy.org
-                        </a></li>
+                    <h2>Contact</h2>
+                    <ul>
+                        <li>Behind Civil Service Commission, Kertyo, Makurdi</li>
+                        <li><a href="tel:+2347071711692">0707 171 1692</a></li>
+                        <li><a href="tel:+2349027512438">0902 751 2438</a></li>
+                        <li><a href="mailto:support@tbdacademy.org">support@tbdacademy.org</a></li>
                     </ul>
                 </div>
             </div>
 
-            <div class="footer-bottom">
+            <div class="hp-foot-bottom">
                 <p>&copy; <span data-year>2026</span> TBD International Academy. All rights reserved.</p>
                 <!-- TODO: add "Approved by the Benue State Ministry of Education ·
                      Registration No. XXXX" here once the number is confirmed. Do not
                      publish an approval claim that cannot be checked. -->
-                <p class="footer-trust">
-                    <strong>Creche to JSS 3</strong> &#183; Behind Civil Service Commission,
-                    Kertyo, Makurdi, Benue State, Nigeria &#183; Established 2024
-                </p>
+                <p>Creche to JSS 3 &middot; Monday to Friday, 8:00am to 2:00pm</p>
             </div>
         </div>
     </footer>
 
     <!-- Floating UI -->
-    <button class="to-top" type="button" aria-label="Back to top">
-        <i class="fas fa-arrow-up"></i>
-    </button>
+    <button class="hp-top" id="hpTop" type="button" aria-label="Back to top"><svg class="hp-i" aria-hidden="true"><use href="#hp-up"/></svg></button>
 
-    <div class="mobile-bar">
-        <a href="tel:+2347071711692" class="btn btn-secondary" data-cta="call">
-            <i class="fas fa-phone"></i>
-            <span>Call</span>
-        </a>
-        <a href="admissions.html" class="btn btn-accent" data-cta="apply">
-            <i class="fas fa-file-alt"></i>
-            <span>Apply Now</span>
-        </a>
+    <div class="hp-mbar" id="hpMbar">
+        <a href="tel:+2347071711692" class="hp-btn hp-btn-outline" data-cta="call"><svg class="hp-i" aria-hidden="true"><use href="#hp-phone"/></svg>Call</a>
+        <a href="https://wa.me/2347071711692?text=Hello%20TBD%20International%20Academy%2C%20I%27d%20like%20to%20ask%20about%20admission%20for%20my%20child." target="_blank" rel="noopener" class="hp-btn hp-btn-green" data-cta="whatsapp"><svg class="hp-i" aria-hidden="true"><use href="#hp-wa"/></svg>Chat</a>
+        <a href="admissions.html" class="hp-btn hp-btn-red" data-cta="apply">Apply now</a>
     </div>
 
     <!-- JavaScript -->
     <script src="js/html-escape.js"></script>
     <script src="js/public-site-config.js"></script>
-    <script src="js/blog-navigation.js"></script>
+    <script src="js/home.js"></script>
     <script src="js/admission-popup.js"></script>
     <!-- Structured data: lets Google show the school as a local result. -->
     <script type="application/ld+json">
