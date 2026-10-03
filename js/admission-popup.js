@@ -22,6 +22,7 @@
     const esc = window.escapeHtml || (v => String(v == null ? '' : v));
     const STORAGE_KEY = 'tbd:admission-popup:' + site.campaign;
     const AUTO_OPEN_DELAY = 1600;
+    const PHONE_AUTO_OPEN_DELAY = 12000;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     let root = null;
@@ -273,7 +274,25 @@
     window.admissionPopup = { open: open, close: close, isDismissed: isDismissed };
 
     // Auto-open only where the page asks for it, and only once per campaign.
+    // Wait for the load event first: the homepage fetches this popup's
+    // stylesheet without blocking paint, and the load event is when it has
+    // arrived. On a phone the popup fills the screen, so give the visitor
+    // time with the page before it appears, and never open it over the menu
+    // or the photo viewer.
     if (document.querySelector('[data-admission-popup-auto]') && !isDismissed()) {
-        window.setTimeout(open, AUTO_OPEN_DELAY);
+        const isPhone = window.matchMedia('(max-width: 759px)').matches;
+        const delay = isPhone ? PHONE_AUTO_OPEN_DELAY : AUTO_OPEN_DELAY;
+        const busy = function () {
+            return document.documentElement.classList.contains('hp-locked') ||
+                document.body.style.overflow === 'hidden';
+        };
+        const attempt = function () {
+            if (isDismissed() || isOpen) return;
+            if (busy()) { window.setTimeout(attempt, 4000); return; }
+            open();
+        };
+        const schedule = function () { window.setTimeout(attempt, delay); };
+        if (document.readyState === 'complete') schedule();
+        else window.addEventListener('load', schedule, { once: true });
     }
 })();

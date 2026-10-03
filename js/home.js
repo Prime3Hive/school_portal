@@ -21,10 +21,16 @@
         var panel = document.getElementById('hpDrawer');
         if (!toggle || !panel) return;
 
+        // The sheet covers the page, so the page behind it must not scroll
+        // and the floating action bar must not sit on top of it.
         function setOpen(open) {
             panel.hidden = !open;
             toggle.setAttribute('aria-expanded', String(open));
             toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+            document.documentElement.classList.toggle('hp-locked', open);
+            var bar = document.getElementById('hpMbar');
+            if (bar) bar.hidden = open;
+            if (open) panel.scrollTop = 0;
         }
 
         toggle.addEventListener('click', function () { setOpen(panel.hidden); });
@@ -114,6 +120,47 @@
             if (el.getBoundingClientRect().top > fold) el.classList.add('is-pre');
             observer.observe(el);
         });
+    })();
+
+    /* --------------------------------------------------------------
+       Classes carousel dots — phones only. The row scrolls natively;
+       the dots show where you are and jump to a card.
+       -------------------------------------------------------------- */
+    (function levelDots() {
+        var row = document.getElementById('hpLevels');
+        var nav = document.getElementById('hpLevelDots');
+        if (!row || !nav) return;
+
+        var cards = Array.prototype.slice.call(row.children);
+        var dots = cards.map(function (card, i) {
+            var dot = document.createElement('button');
+            dot.type = 'button';
+            dot.setAttribute('aria-label', 'Show ' + card.querySelector('h3').textContent);
+            dot.addEventListener('click', function () {
+                row.scrollTo({ left: card.offsetLeft - row.offsetLeft - parseFloat(getComputedStyle(row).paddingLeft), behavior: reduceMotion ? 'auto' : 'smooth' });
+            });
+            nav.appendChild(dot);
+            return dot;
+        });
+
+        function mark() {
+            var mid = row.scrollLeft + row.clientWidth / 2;
+            var best = 0, bestDist = Infinity;
+            cards.forEach(function (card, i) {
+                var centre = card.offsetLeft - row.offsetLeft + card.offsetWidth / 2;
+                var dist = Math.abs(centre - mid);
+                if (dist < bestDist) { bestDist = dist; best = i; }
+            });
+            // At the far end the last card cannot reach the middle.
+            if (row.scrollLeft + row.clientWidth >= row.scrollWidth - 4) best = cards.length - 1;
+            dots.forEach(function (dot, i) { dot.setAttribute('aria-current', String(i === best)); });
+        }
+
+        var pending = false;
+        row.addEventListener('scroll', function () {
+            if (!pending) { pending = true; window.requestAnimationFrame(function () { pending = false; mark(); }); }
+        }, { passive: true });
+        mark();
     })();
 
     /* --------------------------------------------------------------
