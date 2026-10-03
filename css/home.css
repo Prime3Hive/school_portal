@@ -131,16 +131,23 @@ body.hp ::selection { background: rgba(226, 60, 60, 0.18); }
 .hp-link:hover .hp-i { transform: translateX(4px); }
 
 /* ── Navigation ──────────────────────────────────────────────────── */
+/* The blur sits on a pseudo-element: backdrop-filter on the bar itself
+   would make the bar the containing block for the fixed menu sheet.
+   The bar keeps one height while scrolling. It is sticky, so a height
+   change moves everything below it, and the browser's scroll anchoring
+   then pulls the page back across the threshold, round and round. */
 .hp-nav {
     position: sticky; top: env(safe-area-inset-top, 0px); z-index: 50;
-    background: rgba(255, 255, 255, 0.86);
-    backdrop-filter: saturate(1.6) blur(16px); -webkit-backdrop-filter: saturate(1.6) blur(16px);
     border-bottom: 1px solid transparent;
     transition: border-color .3s, box-shadow .3s;
 }
+.hp-nav::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    background: rgba(255, 255, 255, 0.86);
+    backdrop-filter: saturate(1.6) blur(16px); -webkit-backdrop-filter: saturate(1.6) blur(16px);
+}
 .hp-nav.is-scrolled { border-color: var(--hp-line); box-shadow: 0 8px 30px -18px rgba(18, 26, 59, 0.25); }
-.hp-nav-bar { display: flex; align-items: center; gap: 28px; height: var(--hp-nav); transition: height .35s var(--hp-ease); }
-.hp-nav.is-scrolled .hp-nav-bar { height: 72px; }
+.hp-nav-bar { display: flex; align-items: center; gap: 28px; height: var(--hp-nav); }
 .hp-brand { display: flex; align-items: center; gap: 14px; margin-right: auto; }
 .hp-brand img { width: 40px; height: auto; }
 .hp-brand b { display: block; color: var(--hp-ink); font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.2; }
@@ -159,13 +166,14 @@ body.hp ::selection { background: rgba(226, 60, 60, 0.18); }
     display: none; width: 48px; height: 48px; border-radius: 50%; border: 1.5px solid var(--hp-line);
     background: var(--hp-white); color: var(--hp-ink); place-items: center;
 }
-/* The drawer is a full-height sheet under the bar. The bar's backdrop-filter
-   makes it the containing block, so the sheet is positioned against it. */
+/* The menu sheet is fixed to the screen from the bottom edge of the bar
+   (js/home.js measures it into --hp-drawer-top) down to the bottom, so it
+   is in view however far the page was scrolled when it opened. */
 .hp-drawer {
-    position: absolute; left: 0; right: 0; top: 100%;
-    height: 100vh; height: 100dvh; overflow-y: auto; overscroll-behavior: contain;
+    position: fixed; left: 0; right: 0; bottom: 0; top: var(--hp-drawer-top, 64px);
+    overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y;
     background: var(--hp-white); border-top: 1px solid var(--hp-line);
-    padding: 8px var(--hp-gutter) calc(140px + env(safe-area-inset-bottom, 0px));
+    padding: 8px var(--hp-gutter) calc(32px + env(safe-area-inset-bottom, 0px));
     animation: hp-sheet .4s var(--hp-ease) both;
 }
 @keyframes hp-sheet { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
@@ -185,7 +193,14 @@ body.hp ::selection { background: rgba(226, 60, 60, 0.18); }
 .hp-drawer-meta { display: grid; gap: 4px; margin-top: 28px; padding: 18px 20px; border-radius: var(--hp-r); background: var(--hp-blue-50); font-size: 0.95rem; }
 .hp-drawer-meta a { display: flex; gap: 12px; align-items: center; min-height: 44px; color: var(--hp-ink); font-weight: 600; }
 .hp-drawer-meta .hp-i { width: 20px; height: 20px; color: var(--hp-navy); }
-html.hp-locked, html.hp-locked body { overflow: hidden; }
+/* Page lock for the menu and the photo viewer. Only <html> is locked:
+   hiding overflow on <body> as well turns <body> into the scroll container,
+   and the sticky bar then sticks to the top of the document instead of the
+   screen, taking the open menu off-screen with it. Overflow alone does not
+   stop a touch drag on every phone, so drags that start on the bar are
+   refused too, and the overlays contain their own scrolling. */
+html.hp-locked { overflow: hidden; }
+html.hp-locked .hp-nav { touch-action: none; }
 .hp-burger .hp-i-close, .hp-burger[aria-expanded="true"] .hp-i-open { display: none; }
 .hp-burger[aria-expanded="true"] .hp-i-close { display: inline-block; }
 @media (max-width: 1020px) {
@@ -424,6 +439,7 @@ body.hp .hp-pfeat h3 { font-size: 1.05rem; letter-spacing: -0.01em; }
 .hp-lightbox {
     position: fixed; inset: 0; z-index: 1100; background: rgba(12, 17, 38, 0.92);
     display: grid; place-items: center; padding: 24px; animation: hp-fade .3s ease both;
+    touch-action: none; overscroll-behavior: contain;
 }
 .hp-lightbox[hidden] { display: none; }
 @keyframes hp-fade { from { opacity: 0; } }
@@ -713,7 +729,7 @@ body.hp .adm-title { font-size: clamp(1.45rem, 6vw, 1.75rem); margin: 8px 0 10px
     .hp-actions .hp-btn { width: 100%; }
 
     /* Bar */
-    .hp-nav-bar, .hp-nav.is-scrolled .hp-nav-bar { height: 64px; gap: 12px; }
+    .hp-nav-bar { height: 64px; gap: 12px; }
     .hp-brand { gap: 10px; }
     .hp-brand img { width: 34px; }
     .hp-brand b { font-size: 0.98rem; }

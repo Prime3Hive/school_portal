@@ -23,7 +23,15 @@
 
         // The sheet covers the page, so the page behind it must not scroll
         // and the floating action bar must not sit on top of it.
+        var nav = document.getElementById('hpNav');
+
+        // The sheet is fixed to the screen and starts where the bar ends.
+        function placeSheet() {
+            if (nav) panel.style.setProperty('--hp-drawer-top', Math.round(nav.getBoundingClientRect().bottom) + 'px');
+        }
+
         function setOpen(open) {
+            if (open) placeSheet();
             panel.hidden = !open;
             toggle.setAttribute('aria-expanded', String(open));
             toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
@@ -43,6 +51,8 @@
         window.matchMedia('(min-width: 1021px)').addEventListener('change', function (event) {
             if (event.matches) setOpen(false);
         });
+        // Rotating the phone or the address bar resizing moves the bar's edge.
+        window.addEventListener('resize', function () { if (!panel.hidden) placeSheet(); }, { passive: true });
     })();
 
     /* --------------------------------------------------------------
@@ -214,13 +224,13 @@
             opener = document.activeElement;
             show(index);
             box.hidden = false;
-            document.body.style.overflow = 'hidden';
+            document.documentElement.classList.add('hp-locked');
             closeBtn.focus();
         }
 
         function close() {
             box.hidden = true;
-            document.body.style.overflow = '';
+            document.documentElement.classList.remove('hp-locked');
             if (opener) opener.focus();
         }
 
