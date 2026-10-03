@@ -31,7 +31,15 @@ const AppConfig = {
   school: {
     get name() { return window.ENV?.SCHOOL_NAME || 'TBD International Academy'; },
     get email() { return window.ENV?.SCHOOL_EMAIL || 'support@tbdacademy.org'; },
-    get phone() { return window.ENV?.SCHOOL_PHONE || '0803 061 4777'; },
+    // A deployment may still set SCHOOL_PHONE to the retired number, so it
+    // goes through the same legacy map as saved settings.
+    get phone() {
+      const fromEnv = window.ENV?.SCHOOL_PHONE;
+      const upgraded = fromEnv && window.upgradeLegacySchoolValue
+        ? window.upgradeLegacySchoolValue('schoolPhone', fromEnv)
+        : fromEnv;
+      return upgraded || '0707 171 1692';
+    },
     get address() { return window.ENV?.SCHOOL_ADDRESS || 'Behind Civil Service Commission, Kertyo, Makurdi, Nigeria'; }
   },
 

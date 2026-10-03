@@ -23,14 +23,15 @@
         tagline: 'Nurturing Leaders, Building Tomorrow',
         promise: 'Building Character, Inspiring Excellence, Transforming Lives',
         crest: 'assets/logo-mark.svg',
-        established: 2011,
+        established: 2024,
 
         website: 'tbdacademy.org',
 
         contact: {
-            // As printed on the flyer.
-            phones: ['0707111692', '09027512438', '08030614777'],
-            whatsapp: '2348030614777',
+            // Confirmed by the school on 3 Oct 2026: 0707 171 1692 is the main
+            // line and the WhatsApp number. 0803 061 4777 is retired.
+            phones: ['07071711692', '09027512438'],
+            whatsapp: '2347071711692',
             // School-domain mailboxes, matching the senders the portal mails
             // from (supabase/functions/_shared/email.ts). Each must be a real,
             // monitored inbox — parents reply to them.

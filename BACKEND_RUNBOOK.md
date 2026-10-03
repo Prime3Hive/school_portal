@@ -231,9 +231,9 @@ functions and Paystack. On top of that:
 [ ] One contact email. Three are in circulation:
     support@tbdacademy.org, tbdinternationalacademymkd@gmail.com,
     tbdinternationalacademy.mkd@gmail.com
-[ ] Phone numbers agree. The flyers disagree with each other
-    (08080614777 vs 08030614777) and js/public-site-config.js has a 10-digit
-    number where the flyer has 11.
+[x] Phone numbers agree. Confirmed 3 Oct 2026: 0707 171 1692 is the main
+    line and WhatsApp, with 0902 751 2438 as the second line. 0803 061 4777
+    is retired; js/config.js still maps it forward for old saved settings.
 [ ] Photographs have parental consent on file.
 [ ] A guardian's first login is tested end to end on a real phone.
 ```

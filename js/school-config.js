@@ -18,7 +18,7 @@ const schoolConfig = {
 
     // Contact Information
     email: 'support@tbdacademy.org',
-    phone: '0803 061 4777',
+    phone: '0707 171 1692',
     website: 'tbdacademy.org',
 
     // Academic Structure — TBD International Academy (synced with fee structure)
